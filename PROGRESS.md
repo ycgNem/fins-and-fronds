@@ -1,5 +1,32 @@
 # Progress log
 
+## 2026-10-21: the shop story, many tanks, M8-M12 and release
+
+- The redesign the owner asked for: an empty shop and an intro cutscene where you get the keys,
+  Ida's tour, a town-opening cutscene, tank sizes in gallons, landscaping (sand, slope, a
+  sculpted profile), stock racks that breed and sell, and a shop around the tanks (street window
+  with weather, clock, OPEN sign, chalkboard, corkboard, shelf, counter and a cat).
+- After TanksForNothing: caves and logs as dens, peeking and burrowing, territorial keepers,
+  depth planes, shadows, side glass, night rest, sand puffs from cories, watch mode (V).
+- Multiple tanks scale: the hall grows to 10 display bays and 8 stock racks; 18 tanks run at
+  about 8 ms a frame and a game week simulates in about a second (`e2e/scale.ts`).
+- Critique fixes: modal windows, Esc order, confirmations, offline income, predation, many
+  data errors (regions, hardness, salinity), free ammonia by pH, oxygen saturation, cycling.
+- The kuhli loach read as a ladder: repainted by hand, and buried loaches show only their heads.
+- M8: 63 codex plates, 27 region postcards, window and toolbar icons, coin and reputation icons,
+  letter stamps and postmarks, the title emblem (77 gens; about 600 used in all).
+- M9: a scripted player and progression tests; size-based visitors, upkeep, letter pacing,
+  wild-caught premiums, the conservation fund, new tier thresholds.
+- M10: synthesized ambience and effects that follow the tank on screen; Ambience slider.
+- M11: larger interface, colorblind-safe colors, touch gestures, more hover help, a menu that
+  fits small screens.
+- M12: the smoke test builds, scrapes, saves, reloads and continues; pushed to Pages.
+- Checks: typecheck clean, 29/29 tests, smoke, scale and window screenshots passing.
+
+Next, if wanted: hand-animated hero cycles, reference-photo checks of the biotope tanks, more
+bot templates (it never builds the tank types the letters ask for), and a real-player pass on
+pacing.
+
 ## 2026-10-21: the redesign and art milestones M4-M7
 
 - Redesigned the look so it no longer resembles Last Watt, the text above all: two PixelLab

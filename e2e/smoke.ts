@@ -1,6 +1,6 @@
 // Browser smoke test: start the dev server, open the game, start a new shop (the intro plays and
-// is skipped), build and stock the first tank and a stock tank, open every mode and window, and
-// fail on any console error. Run with `npm run e2e` (needs a Playwright Chromium:
+// is skipped), build, scape and stock the first tank and a stock tank, open every mode and window,
+// scrape the glass, save, reload the page and continue, and fail on any console error. Run with `npm run e2e` (needs a Playwright Chromium:
 // `npx playwright install chromium`). Writes a screenshot to e2e/out/smoke.png.
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -64,8 +64,26 @@ try {
     const replay = !!app.cutscene;
     app.cutscene?.end();
     await frames(60);
-    return { screen: app.screen, tanks: app.state.tanks.length, time: app.state.time, coins: Math.round(app.state.coins), introPlayed, replay, animals: t.animals.length + t.bags.length };
+    t.chem.glass = 0.5;
+    act.scrape(g, t, 1);
+    const scraped = t.chem.glass === 0;
+    app.save();
+    return { screen: app.screen, tanks: app.state.tanks.length, time: app.state.time, coins: Math.round(app.state.coins), introPlayed, replay, animals: t.animals.length + t.bags.length, items: t.items.length, scraped };
   });
+  // reload the page and continue the saved shop
+  await page.reload();
+  await page.waitForFunction(() => 'app' in window);
+  const back = await page.evaluate(async () => {
+    const app = (window as any).app;
+    if (!app.hasSave()) return null;
+    app.continueSave();
+    await new Promise((r) => setTimeout(r, 300));
+    const t = app.state.tanks[0];
+    return { tanks: app.state.tanks.length, items: t.items.length, animals: t.animals.length + t.bags.length, equip: t.equip.length };
+  });
+  console.log('reload:', JSON.stringify(back));
+  if (!back || back.tanks !== result.tanks || back.items !== result.items || back.animals < 1 || back.equip < 3) errors.push('the save did not come back after a reload');
+  if (!result.scraped) errors.push('scraping did not clean the glass');
   mkdirSync('e2e/out', { recursive: true });
   await page.screenshot({ path: 'e2e/out/smoke.png' });
   console.log('smoke:', JSON.stringify(result));

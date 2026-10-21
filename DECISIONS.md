@@ -2,6 +2,35 @@
 
 Short records of choices that shape the code. Newest first.
 
+## 2026-10-21 (story, balance, sound, release)
+
+- **GitHub Pages only.** The owner asked for no itch.io page until further notice; `master` deploys
+  to https://ycgnem.github.io/fins-and-fronds/ through `.github/workflows/deploy.yml`.
+- **You start with nothing in the window.** The old opening handed you a neglected tank; now the
+  shop is empty and Ida's tour builds the first tank with you, ending with her seeded sponge so
+  the first tank skips the three-week cycle (later tanks borrow media or wait).
+- **Real cycle times.** A fishless cycle takes about three weeks of game time (RESEARCH.md); the
+  old six days taught the wrong lesson. Seeding from a mature filter is the shortcut.
+- **Visitors follow tank size, not tier.** The old per-tier base (20 to 200 visitors an hour per
+  tank) made late income explode (a week at tier 5 went from 50k to 171k). Now a tank draws by
+  its size, on a curve that flattens past 300 L and 3000 L, and the town grows only 50% across
+  all tiers. A full tier-5 week is about 39k.
+- **Balance by a scripted player.** `tests/bot.ts` plays like a careful human and the test
+  suite holds the pacing: about 45 minutes to tier 1, 3 hours to saltwater. Real time is
+  estimated at 3x speed while open, 10x while closed, plus time to scape.
+- **Letters are goals.** A new letter asks for something the shop does not already do and leans
+  to the current tier; unanswerable asks go back in the pile after six days so the queue never
+  jams.
+- **Synthesized sound, no samples.** The ambience and effects are built from noise, filters and
+  oscillators in Web Audio: nothing to license, nothing to download, and every layer can follow
+  the tank on screen.
+- **Hand-painted when the model fails.** The PixelLab kuhli loaches came back as noisy pink worms
+  and the first version read as a ladder, so the kuhli is hand-placed pixels in the palette.
+- **Icons are drawn 32 px and halved by majority.** Buttons need 16 px; a 2x2 majority
+  downscale (darker wins ties) keeps outlines where browser scaling drops every other pixel.
+- **Accessibility options.** A larger interface fills the screen in quarter steps (softer
+  pixels, bigger text); colorblind-safe mode swaps green and red for blue and orange.
+
 ## 2026-10-21 (redesign and art)
 
 - **Not Last Watt.** The owner disliked how close the text and panels were to Last Watt. Fins &

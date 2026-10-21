@@ -14,9 +14,13 @@ Art bible: [STYLE.md](STYLE.md). Art pipeline and the PixelLab budget: [art/READ
 |---|---|
 | Content | 189 species (129 fish, 20 shrimp, 12 snails, 9 crabs, jellies, cephalopods, stars, urchins, amphibians), 153 scape items (66 plants, 38 corals, 19 stones, 12 driftwoods, botanicals, decor, land), 13 substrates, 19 tank shells, 40 pieces of equipment, 27 regions, 63 recognizable tank types, 23 upgrades, 34 letters from 9 correspondents, 9 partnerships |
 | Simulation | Nitrogen cycle with two bacteria populations, pH/GH/KH equilibrium from source water, substrate and hardscape, tannins, salinity and evaporation, oxygen, temperature, algae, glass film; per-species wellbeing; archetype recognition; five-part rating; visitors, coins, reputation and tiers; breeding (incl. Neocaridina color lines and grades); pests (pest snails vs assassin snails, Aiptasia, bubble algae); letters; expeditions; save, export, import and offline income |
-| Presentation | Playable in the browser: title screen, tank view, six tank modes, seven windows, hall of bays. Redesigned so it no longer looks like Last Watt: own PixelLab fonts, sea-glass and paper cards, a sage daylight hall (STYLE.md) |
-| Art | About 277 of 1000 planned PixelLab generations used (M4-M7). Imported art for all 189 species, all 153 scape items, 13 water backdrops and 12 pieces of equipment; stands, rims and the room stay procedural, and every procedural sprite remains as the fallback |
-| Checks | `npm run typecheck` clean, `npm test` 16/16, `npm run e2e` browser smoke test passing |
+| Story | You open Ida Fenwick's shut fish shop with no tank set up: an intro cutscene (the keys, the dusty shop, her note), Ida's tour through the first tank, a town-opening cutscene at the Town Aquarium tier |
+| Presentation | Title screen, tank view with watch mode, six tank modes, seven windows, a hall that grows to 10 display bays and 8 stock racks, and the shop around them (street window with weather, clock, OPEN sign, chalkboard of offers, corkboard of letters, the cat). Tanks have dens, caves and burrowing animals, three depth planes, shadows and side glass |
+| Economy | Visitors by tank size and rating, running costs, stock tanks that breed and sell, expeditions that pay their way, letters as goals, a conservation fund for late coins. Scripted playthroughs reach tier 1 in about 43 minutes and saltwater in about 3 hours |
+| Sound | Synthesized ambience that follows the tank on screen (filter trickle, pump hum, surge, visitor babble, rain, bubbles, the door bell) and remade effects |
+| Art | About 600 of 1000 planned PixelLab generations used. Imported art for all 189 species, 153 scape items, 13 water backdrops, 12 pieces of gear, 8 cutscene paintings, 11 shop props, 63 codex plates, 27 postcards and 27 icons and stamps |
+| Checks | `npm run typecheck` clean, `npm test` 29/29 (including `tests/progression.test.ts`), `npm run e2e` smoke test (build, stock, save, reload), `e2e/scale.ts` (18 tanks), `e2e/windows.ts` (screenshots) |
+| Live | https://ycgnem.github.io/fins-and-fronds/ (GitHub Pages from `master`) |
 
 ## Milestones
 
@@ -81,29 +85,45 @@ tier 1 by playing only.
 - Cabinet stands drawn from the wood ramp (black for reef-ready tanks), exhibits set into sage
   stone. Shell rims stay procedural. The hall centers its bays on the wall.
 
-### M8 Interface, codex and correspondence (about 150 gens)
-- UI skin (panels, buttons, tabs, icons), mode and window icons, 63 codex plates for the tank
-  types, stationery and postmarks for the 9 correspondents, Captain Wren's postcards for 27
-  regions, title logo and key art.
+### Redesign: the shop story, many tanks and a deeper tank - done (250 gens)
+- You start with an empty shop: an intro cutscene, Ida's tour (filter, heat, light, sand and
+  slope, stone and wood, plants, her seeded sponge, fish, feeding, the report card, letters,
+  codex, upgrades, the hall, the stock room), and a town-opening cutscene at tier 3.
+- Tanks in gallons (5 to 125, plus cubes, bowfronts, exhibits); landscaping with sand types,
+  slope and a sculpted profile.
+- Selling and breeding: stock racks breed animals and plants for shoppers; display bays and
+  racks fill the hall as the shop grows (verified with 18 tanks at 1280x720 and 1920x1080).
+- A deeper tank (after TanksForNothing): caves and logs as dens with animals peeking out,
+  burrowers that dig in with the head showing, territorial den keepers, night rest, depth
+  planes with scale, shadows and side glass, watch mode.
+- Water fixes from the critique: free ammonia by pH, oxygen saturation by temperature and
+  salt, a three-week fishless cycle, seeding from a mature filter.
 
-### M9 Balance and progression
-- Scripted playthroughs of tiers 0-5 (`tests/progression.test.ts`) asserting time-to-tier,
-  coin curves and that every letter is reachable; tune BAL; check offline income caps.
-- Acceptance: tier 1 in about 30-45 minutes of play, tier 3 (saltwater) in 3-4 hours.
+### M8 Interface, codex and correspondence - done (77 gens)
+- 63 codex plates, 27 region postcards (also shown in the trip list), window and toolbar icons
+  (16 px copies made by a 2x2 majority downscale), coin and reputation icons, 9 letter stamps
+  and a postmark, the title emblem. Stationery colors stay procedural.
 
-### M10 Audio
-- Replace the procedural blips with a small sample set; per-water ambience (bubbling planted
-  tank, reef pump hum, kelp surge); visitor murmur rising with traffic.
+### M9 Balance and progression - done
+- `tests/bot.ts` plays a careful run; `tests/progression.test.ts` asserts tier 1 in about 30-45
+  minutes (43), saltwater in 3-4 hours (3), every tier in order, a tight early economy, upkeep,
+  expedition value, the offline cap and that every letter can be answered by its tier.
+- Visitors scale with tank size and a modest town factor; running costs; slower letters that
+  ask for something not yet done; wild-caught premiums; a conservation fund.
 
-### M11 Polish and access
-- First-hour guidance through letters (no tutorial popups), hover help on every number,
-  text-size option, colorblind-safe mood colors, touch input, tank-view zoom and pan polish,
-  performance pass (cache static layers, animate only visible tanks).
+### M10 Audio - done
+- All synthesized instead of samples (no files to license or ship): ambience layers that follow
+  the tank on screen and the hall, a visitor babble that rises with traffic, rain, bubbles and
+  the door bell; remade effects; an Ambience slider.
 
-### M12 Release
-- Extend the Playwright smoke test (`e2e/smoke.ts`, which already loads the game, starts a new
-  aquarium and opens every mode and window) to scrape, buy, place, save and reload.
-- Web build zip, itch.io page with screenshots and a short trailer GIF.
+### M11 Polish and access - done
+- Larger interface option, colorblind-safe status colors, touch (pinch, two-finger pan, long
+  press for help), hover help on coins, a two-column menu that scrolls on small screens.
+  Performance: 18 tanks draw the hall in about 8 ms.
+
+### M12 Release - done
+- `e2e/smoke.ts` builds, scapes and stocks, scrapes, saves, reloads and continues.
+- Deployed to GitHub Pages from `master` (no itch.io page until the owner asks).
 
 ## Gen budget
 
@@ -113,9 +133,9 @@ tier 1 by playing only.
 | M5 creatures | 320 | 125 |
 | M6 scape | 170 | 63 |
 | M7 tanks, equipment, backdrops | 100 | 29 |
-| M8 UI, codex, letters, postcards, logo | 150 | |
-| Reserve (rework, new content) | 200 | |
-| **Total** | **1000** | **277** |
+| M8 UI, codex, letters, postcards, logo | 150 | 77 |
+| Redesign: cutscenes, shop props, kuhli retry | (reserve) | 250 |
+| **Total** | **1000** | **about 600** |
 
 Batch packs of 64 candidates per call made creatures and small scape far cheaper than planned;
 the savings can go to M8 or to animated hero cycles. Batch log: art/README.md.

@@ -90,6 +90,15 @@ Everything is drawn by `src/ui/ui.ts` from the tokens in `UI` (`src/data/palette
   pale chair rail at 70%, wainscot boards, a dark wooden floor. Chips and pills float on it.
 - **Colors with meaning.** Coins: a gold coin icon (`coin`) and rust price text (`gold`).
   Reputation: teal (`accent`). Moods and readings: green / orange / red (`good`, `warn`, `bad`).
+  The colorblind-safe setting swaps these for blue / amber / orange (`setCalmColors`), so never
+  hard-code a status color: read it from `UI` at draw time.
+- **Icons.** PixelLab 32 px icons (`ui:`), stamps (`st:`), codex plates (`pl:`) and postcards
+  (`pc:`), drawn through `src/render/icons.ts`. Buttons take a 16 px icon at the left; the half
+  size is made by a 2x2 majority downscale, never by the browser. Plates and postcards draw at a
+  whole-number scale that fits the box.
+- **Hand-painted sprites.** When PixelLab cannot make a readable sprite (the kuhli loach), paint
+  it by hand in the palette, 1 px dark outline, light from the upper left, and log it in
+  art/README.md.
 
 ## PixelLab settings (locked in M4, 2026-10-21)
 
