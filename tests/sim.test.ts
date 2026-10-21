@@ -1,9 +1,11 @@
 // Simulation behavior: the nitrogen cycle, archetype recognition, pest control, ratings, saves.
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/sim/Game';
-import { newGame, emptyTank, place } from '../src/sim/newgame';
+import { newGame, emptyTank, place, showcaseTank } from '../src/sim/newgame';
 import { newAnimal } from '../src/sim/life';
 import { cycleProgress } from '../src/sim/water';
+import { freeAmmoniaShare } from '../src/sim/wellbeing';
+import * as act from '../src/sim/actions';
 import { deserialize, serialize } from '../src/sim/save';
 import type { GameState, Tank } from '../src/sim/state';
 
@@ -17,9 +19,25 @@ function tankWith(s: GameState, shell: string, water: 'fresh' | 'brackish' | 'ma
   return t;
 }
 
+/** a new game plus the showcase community tank, as a known running aquarium */
+function running(seed: number): GameState {
+  const s = newGame(seed);
+  s.tutorial.done = true;
+  s.settings.speed = 1;
+  showcaseTank(s);
+  return s;
+}
+
 describe('new game', () => {
-  it('starts with a recognized, decent community tank', () => {
-    const g = new Game(newGame(42));
+  it('starts in an empty shop with the guided first tank ahead', () => {
+    const s = newGame(41);
+    expect(s.tanks.length).toBe(0);
+    expect(s.tutorial.done).toBe(false);
+    expect(s.coins).toBeGreaterThanOrEqual(300);
+  });
+
+  it('the showcase tank is a recognized, decent community tank', () => {
+    const g = new Game(running(42));
     const st = g.stats.get(g.state.tanks[0].id)!;
     expect(st.cls.best).not.toBeNull();
     expect(st.rating.stars).toBeGreaterThanOrEqual(2);
@@ -27,7 +45,7 @@ describe('new game', () => {
   });
 
   it('runs a full day without trouble and earns coins', () => {
-    const g = new Game(newGame(7));
+    const g = new Game(running(7));
     const before = g.state.coins;
     g.tick(24 * 60);
     expect(g.state.coins).toBeGreaterThan(before);
@@ -37,21 +55,39 @@ describe('new game', () => {
 });
 
 describe('nitrogen cycle', () => {
-  it('a fishless cycle completes in a few game days and shows the nitrite spike', () => {
+  it('a fishless cycle takes two to six weeks and shows the nitrite spike', () => {
     const s = newGame(1);
     const g = new Game(s);
     const t = emptyTank(s, 1, 'rimless_60', 'fresh');
     t.equip = ['hob_filter'];
     s.tanks.push(t);
     let peakNo2 = 0;
-    for (let h = 0; h < 24 * 6; h++) {
+    let doneDay = 0;
+    for (let h = 0; h < 24 * 42 && !doneDay; h++) {
       if (h % 24 === 0) t.chem.nh3 += 2;
       g.tick(60);
       peakNo2 = Math.max(peakNo2, t.chem.no2);
+      if (cycleProgress(t.chem) > 0.9) doneDay = h / 24;
     }
-    expect(cycleProgress(t.chem)).toBeGreaterThan(0.9);
+    expect(doneDay).toBeGreaterThan(14);
+    expect(doneDay).toBeLessThan(42);
     expect(peakNo2).toBeGreaterThan(0.3);
     expect(t.chem.no3).toBeGreaterThan(1);
+  });
+
+  it('media from a mature filter nearly cycles a new tank at once', () => {
+    const s = running(7);
+    const g = new Game(s);
+    const t = emptyTank(s, 1, 'std_10', 'fresh');
+    t.equip = ['sponge_filter'];
+    s.tanks.push(t);
+    expect(act.seedFilter(g, t)).toBe('');
+    expect(cycleProgress(t.chem)).toBeGreaterThan(0.6);
+  });
+
+  it('free ammonia depends on pH: harmless-ish in blackwater, deadly in a rift lake', () => {
+    expect(freeAmmoniaShare(6, 25)).toBeLessThan(0.001);
+    expect(freeAmmoniaShare(8.2, 25)).toBeGreaterThan(0.05);
   });
 });
 
@@ -102,7 +138,7 @@ describe('archetypes', () => {
 
 describe('pests', () => {
   it('assassin snails clear pest snails', () => {
-    const s = newGame(5);
+    const s = running(5);
     const t = s.tanks[0];
     t.pests.snails = 10;
     for (let i = 0; i < 4; i++) t.animals.push(newAnimal(s, 'assassin_snail'));
@@ -114,7 +150,7 @@ describe('pests', () => {
 
 describe('wellbeing', () => {
   it('neons are hunted by an oscar', () => {
-    const s = newGame(6);
+    const s = running(6);
     const t = s.tanks[0];
     t.animals.push(newAnimal(s, 'oscar'));
     const g = new Game(s);
@@ -125,7 +161,7 @@ describe('wellbeing', () => {
 
 describe('saves', () => {
   it('round-trips', () => {
-    const g = new Game(newGame(8));
+    const g = new Game(running(8));
     g.tick(600);
     const copy = deserialize(serialize(g.state));
     expect(copy.tanks[0].animals.length).toBe(g.state.tanks[0].animals.length);

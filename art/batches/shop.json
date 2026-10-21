@@ -1,0 +1,17 @@
+{
+  "sheet": "shop",
+  "clean": true,
+  "sprites": {
+    "sh:counter": "art/raw/shop/counter.png",
+    "sh:cat": "art/raw/shop/cat.png",
+    "sh:shelf": "art/raw/shop/shelf.png",
+    "sh:monstera": "art/raw/shop/monstera.png",
+    "sh:pothos": "art/raw/shop/pothos.png",
+    "sh:poster": "art/raw/shop/poster.png",
+    "sh:open": "art/raw/shop/open.png",
+    "sh:buckets": "art/raw/shop/buckets.png",
+    "sh:chalkboard": "art/raw/shop/chalkboard.png",
+    "sh:supplies": "art/raw/shop/supplies.png",
+    "sh:corkboard": "art/raw/shop/corkboard.png"
+  }
+}

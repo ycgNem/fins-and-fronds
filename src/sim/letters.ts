@@ -1,6 +1,6 @@
 // Letters from the correspondents. Up to three are open at once; each one checks the whole
 // aquarium and becomes "ready" when any tank satisfies it, then the player sends a reply to claim.
-import { ITEMS, REQUESTS, request, species, SYMBIOSES, region, hasUpgrade, hasItem, hasShell, hasSpecies, upgrade } from '../data';
+import { ITEMS, REQUESTS, request, species, SYMBIOSES, region, hasUpgrade, hasItem, hasShell, hasSpecies, item, shell, upgrade } from '../data';
 import type { RequestCheck } from '../data/types';
 import { regionFrac } from './facts';
 import type { GameState } from './state';
@@ -11,12 +11,15 @@ export const MAX_LETTERS = 3;
 
 export function nextRequest(state: GameState, rnd: number): string | null {
   const open = new Set(state.letters.map((l) => l.id));
-  const pool = REQUESTS.filter((r) => r.tier <= state.tier && !state.lettersDone.includes(r.id) && !open.has(r.id));
+  const pests = state.tanks.some((t) => t.pests.had);
+  const pool = REQUESTS.filter((r) => r.tier <= state.tier && !state.lettersDone.includes(r.id) && !open.has(r.id) && (r.when !== 'pests' || pests));
   if (!pool.length) return null;
-  // favor the earliest-tier letters so the story unfolds in order
+  // favor the earliest-tier letters so the story unfolds in order, Ida's first of all
   const minTier = Math.min(...pool.map((r) => r.tier));
-  const first = pool.filter((r) => r.tier === minTier);
-  return first[Math.floor(rnd * first.length)].id;
+  const tierPool = pool.filter((r) => r.tier === minTier);
+  const firsts = tierPool.filter((r) => r.first);
+  const pick = firsts.length ? firsts : tierPool;
+  return pick[Math.floor(rnd * pick.length)].id;
 }
 
 export function checkRequest(c: RequestCheck, state: GameState, stats: Map<number, TankStats>): boolean {
@@ -58,7 +61,9 @@ export function applyUnlock(state: GameState, id: string): string {
   }
   if (hasItem(id) && !state.unlocked.items.includes(id)) state.unlocked.items.push(id);
   if (hasSpecies(id) && !state.unlocked.species.includes(id)) state.unlocked.species.push(id);
-  if (hasShell(id)) return id;
+  if (hasItem(id)) return item(id).name;
+  if (hasSpecies(id)) return species(id).name;
+  if (hasShell(id)) return shell(id).name;
   return id;
 }
 

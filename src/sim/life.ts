@@ -7,7 +7,7 @@ import type { Rng } from '../engine/rng';
 import { BAL } from './balance';
 import { type Facts, parAt } from './facts';
 import type { Animal, GameState, Tank } from './state';
-import { fit, type SpeciesMood } from './wellbeing';
+import { fit, hunts, type SpeciesMood } from './wellbeing';
 
 export interface LifeEvents {
   fry: { sp: string; n: number }[];
@@ -105,6 +105,27 @@ export function stepPests(t: Tank, f: Facts, dtH: number, fedRecently: boolean):
   return before > 0 && ps.snails === 0 && ps.had;
 }
 
+/** Predators eat what fits in their mouths, checked once per game hour. Cover, caves and a big
+ *  school make each hunt less likely to succeed. Returns the species eaten. */
+export function stepPredation(t: Tank, f: Facts, rng: Rng): string[] {
+  const eaten: string[] = [];
+  const present = [...f.bySpecies.keys()].map((id) => species(id));
+  for (const prey of present) {
+    let hunters = 0;
+    for (const o of present) if (o.id !== prey.id && hunts(o, prey)) hunters += f.bySpecies.get(o.id) ?? 0;
+    if (!hunters) continue;
+    const shelter = Math.min(0.75, f.coverage * 0.5 + f.caves * 0.06 + ((f.plantKinds.get('moss') ?? 0) > 0 && prey.kind === 'shrimp' ? 0.25 : 0));
+    if (!rng.chance(Math.min(0.6, 0.035 * hunters * (1 - shelter)))) continue;
+    // the smallest and youngest go first
+    const victims = t.animals.filter((a) => a.sp === prey.id).sort((a, b) => Number(b.fry) - Number(a.fry) || a.health - b.health);
+    const v = victims[0];
+    if (!v) continue;
+    t.animals = t.animals.filter((a) => a !== v);
+    eaten.push(prey.id);
+  }
+  return eaten;
+}
+
 /** Breeding, checked once per game hour per tank. */
 export function stepBreeding(state: GameState, t: Tank, f: Facts, moods: Map<string, SpeciesMood>, rng: Rng): { sp: string; n: number }[] {
   const out: { sp: string; n: number }[] = [];
@@ -117,16 +138,25 @@ export function stepBreeding(state: GameState, t: Tank, f: Facts, moods: Map<str
     if (s.breed.ease <= 0 || s.breed.type === 'none') continue;
     const adults = t.animals.filter((a) => a.sp === id && !a.fry).length;
     if (adults < 2) continue;
-    const mood = moods.get(id)?.mood ?? 0;
-    if (mood < 0.7) continue;
+    const m = moods.get(id);
+    const mood = m?.mood ?? 0;
+    if (mood < 0.7 || (m?.lethal ?? 0) > 0) continue;
     if (!breedingSiteOk(s, t, f)) continue;
-    const chance = s.breed.ease * 0.004 * mood * mood * Math.min(3, adults / 2);
+    // a fresh tank with ammonia or nitrite in it is no place to spawn
+    if (t.chem.nh3 > 0.25 || t.chem.no2 > 0.2) continue;
+    // any fry in a tank with something that hunts them are eaten before they are seen
+    if (present(f).some((o) => o.id !== id && hunts(o, s))) continue;
+    // two adults are a pair only half the time; a group almost always holds both sexes
+    const pair = 1 - Math.pow(0.5, adults - 1);
+    const chance = s.breed.ease * 0.004 * mood * mood * Math.min(3, adults / 2) * pair;
     if (!rng.chance(chance)) continue;
     let brood = broodSize(s, rng);
     // eggs and fry get eaten in busy tanks unless there is cover
     const cover = f.coverage + ((f.plantKinds.get('moss') ?? 0) > 0 ? 0.3 : 0) + nets * 0.25;
     const others = f.animals - n;
     if (s.breed.type === 'scatter' || s.breed.type === 'livebearer') brood = Math.round(brood * Math.min(1, 0.25 + cover) * (others > 6 ? 0.5 : 1));
+    // egg scatterers eat their own eggs: without dense moss almost none survive, and fewer with tankmates
+    if (s.breed.type === 'scatter' && rng.chance((f.plantKinds.get('moss') ?? 0) > 0 ? 0.4 : 0.8)) brood = 0;
     if (brood <= 0) continue;
     let fryId = id;
     // mixed Neocaridina colors revert toward wild-type brown
@@ -141,6 +171,10 @@ export function stepBreeding(state: GameState, t: Tank, f: Facts, moods: Map<str
     out.push({ sp: fryId, n: brood });
   }
   return out;
+}
+
+function present(f: Facts): SpeciesDef[] {
+  return [...f.bySpecies.keys()].map((id) => species(id));
 }
 
 function avgGrade(t: Tank, id: string): number {

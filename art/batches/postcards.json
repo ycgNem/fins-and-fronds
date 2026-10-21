@@ -1,0 +1,249 @@
+{
+  "sheet": "postcards",
+  "clean": false,
+  "sprites": {
+    "pc:amazon": {
+      "src": "art/raw/postcards/amazon.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:australia_png": {
+      "src": "art/raw/postcards/australia_png.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:caribbean": {
+      "src": "art/raw/postcards/caribbean.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:central_america": {
+      "src": "art/raw/postcards/central_america.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:cold_north": {
+      "src": "art/raw/postcards/cold_north.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:deep_sea": {
+      "src": "art/raw/postcards/deep_sea.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:east_asia": {
+      "src": "art/raw/postcards/east_asia.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:hillstream": {
+      "src": "art/raw/postcards/hillstream.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:indo_pacific": {
+      "src": "art/raw/postcards/indo_pacific.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:kelp_forest": {
+      "src": "art/raw/postcards/kelp_forest.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:lake_malawi": {
+      "src": "art/raw/postcards/lake_malawi.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:lake_tanganyika": {
+      "src": "art/raw/postcards/lake_tanganyika.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:mangrove": {
+      "src": "art/raw/postcards/mangrove.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:mexico_karst": {
+      "src": "art/raw/postcards/mexico_karst.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:open_ocean": {
+      "src": "art/raw/postcards/open_ocean.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:red_sea": {
+      "src": "art/raw/postcards/red_sea.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:rio_negro": {
+      "src": "art/raw/postcards/rio_negro.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:rocky_shore": {
+      "src": "art/raw/postcards/rocky_shore.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:se_asia_peat": {
+      "src": "art/raw/postcards/se_asia_peat.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:se_asia_river": {
+      "src": "art/raw/postcards/se_asia_river.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:seagrass": {
+      "src": "art/raw/postcards/seagrass.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:south_asia": {
+      "src": "art/raw/postcards/south_asia.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:sulawesi": {
+      "src": "art/raw/postcards/sulawesi.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:temperate_eu": {
+      "src": "art/raw/postcards/temperate_eu.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:temperate_na": {
+      "src": "art/raw/postcards/temperate_na.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:west_africa": {
+      "src": "art/raw/postcards/west_africa.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    },
+    "pc:xochimilco": {
+      "src": "art/raw/postcards/xochimilco.png",
+      "crop": [
+        6,
+        6,
+        148,
+        84
+      ]
+    }
+  }
+}

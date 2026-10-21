@@ -17,7 +17,6 @@ const MULTI_SLOTS = new Set(['filter', 'flow', 'media', 'heater']);
 
 function spend(g: Game, cost: number): boolean {
   if (g.state.coins < cost) {
-    g.toast('Not enough coins.', 'bad');
     g.emit({ t: 'sfx', name: 'error' });
     return false;
   }
@@ -27,10 +26,22 @@ function spend(g: Game, cost: number): boolean {
 
 // ---------------------------------------------------------------- livestock
 
+/** why this species cannot go into this tank at all, or '' (a poor fit is allowed, just unhappy) */
+export function cannotHouse(t: Tank, sp: string): string {
+  const s = species(sp);
+  if (shell(t.shell).tags.includes('pico') && s.kind === 'fish') return 'A bowl is no home for a fish.';
+  // brackish-tolerant species cross between fresh and brackish, never into the sea
+  const okWater = s.water === t.water || (s.tags.includes('brackish_ok') && t.water !== 'marine' && s.water !== 'marine');
+  if (!okWater) return `${s.name} needs ${s.water} water; it would not survive in ${t.water} water.`;
+  if (litersOf(t) < s.minL * 0.25) return `${s.name} needs at least ${s.minL} L; this tank holds ${Math.round(litersOf(t))}.`;
+  return '';
+}
+
 export function buyAnimals(g: Game, t: Tank, sp: string, n: number): string {
   const s = species(sp);
   if (!speciesForSale(g.state).some((x) => x.id === sp)) return 'The supplier does not list that yet.';
-  if (shell(t.shell).tags.includes('pico') && s.kind === 'fish') return 'A bowl is no home for a fish.';
+  const no = cannotHouse(t, sp);
+  if (no) return no;
   if (!spend(g, s.price * n)) return 'Not enough coins.';
   // fish arrive in a bag and float for half an hour to match the temperature
   t.bags.push({ sp, n, until: g.state.time + 30 });
@@ -38,34 +49,36 @@ export function buyAnimals(g: Game, t: Tank, sp: string, n: number): string {
   return '';
 }
 
-export function placeFromHolding(g: Game, t: Tank, uid: number): string {
-  const i = g.state.holding.findIndex((a) => a.uid === uid);
-  if (i < 0) return 'Not found.';
-  const a = g.state.holding[i];
-  g.state.holding.splice(i, 1);
-  t.bags.push({ sp: a.sp, n: 1, until: g.state.time + 20 });
+export function placeFromHolding(g: Game, t: Tank, uids: number[]): string {
+  const moving = g.state.holding.filter((a) => uids.includes(a.uid));
+  if (!moving.length) return 'Not found.';
+  const no = cannotHouse(t, moving[0].sp);
+  if (no) return no;
+  g.state.holding = g.state.holding.filter((a) => !moving.includes(a));
+  t.bags.push({ sp: moving[0].sp, n: moving.length, until: g.state.time + 20, animals: moving });
   g.emit({ t: 'sfx', name: 'splash' });
   return '';
 }
 
-export function moveToHolding(g: Game, t: Tank, uid: number): string {
-  const i = t.animals.findIndex((a) => a.uid === uid);
-  if (i < 0) return 'Not found.';
-  g.state.holding.push(t.animals[i]);
-  t.animals.splice(i, 1);
+export function moveToHolding(g: Game, t: Tank, uids: number[]): string {
+  const moving = t.animals.filter((a) => uids.includes(a.uid));
+  if (!moving.length) return 'Not found.';
+  g.state.holding.push(...moving);
+  t.animals = t.animals.filter((a) => !moving.includes(a));
   g.refresh(t);
   return '';
 }
 
-/** Rehome every animal of a species in holding to local hobbyists for half price. */
-export function sellHolding(g: Game, uid: number): string {
-  const i = g.state.holding.findIndex((a) => a.uid === uid);
-  if (i < 0) return 'Not found.';
-  const a = g.state.holding[i];
-  g.state.holding.splice(i, 1);
+/** Rehome animals from holding to local hobbyists for a little money. */
+export function sellHolding(g: Game, uids: number[]): string {
+  const going = g.state.holding.filter((a) => uids.includes(a.uid));
+  if (!going.length) return 'Not found.';
+  g.state.holding = g.state.holding.filter((a) => !going.includes(a));
   const club = (g.state.upgrades['fry_club'] ?? 0) > 0 ? 1 : 0.6;
-  g.state.coins += Math.round(species(a.sp).price * BAL.sellBack * club);
+  const coins = going.reduce((sum, a) => sum + Math.round(species(a.sp).price * BAL.sellBack * club * (a.fry ? 0.4 : 1)), 0);
+  g.state.coins += coins;
   g.emit({ t: 'sfx', name: 'coin' });
+  g.toast(`Rehomed ${going.length} ${species(going[0].sp).name.toLowerCase()} for ${coins} coins.`, 'info');
   return '';
 }
 
@@ -128,7 +141,7 @@ export function buyItem(g: Game, t: Tank, id: string, x: number, layer: 0 | 1 | 
   return '';
 }
 
-export function moveItem(g: Game, t: Tank, uid: number, x: number, layer: 0 | 1 | 2): string {
+export function moveItem(g: Game, t: Tank, uid: number, x: number, layer: 0 | 1 | 2, moved = Math.round(x) !== t.items.find((q) => q.uid === uid)?.x || layer !== t.items.find((q) => q.uid === uid)?.layer): string {
   const p = t.items.find((q) => q.uid === uid);
   if (!p) return 'Not found.';
   const dx = Math.round(x) - p.x;
@@ -140,7 +153,7 @@ export function moveItem(g: Game, t: Tank, uid: number, x: number, layer: 0 | 1 
     q.layer = layer;
   }
   // moving a crypt makes it melt (it grows back)
-  if (item(p.id).plant?.kind === 'crypt') p.health = Math.min(p.health, 0.4);
+  if (moved && item(p.id).plant?.kind === 'crypt') p.health = Math.min(p.health, 0.4);
   g.refresh(t);
   return '';
 }
@@ -209,12 +222,14 @@ export function buyEquip(g: Game, t: Tank, id: string): string {
   if (e.needsShell && !shell(t.shell).tags.includes(e.needsShell)) return `${e.name} needs a ${e.needsShell} tank.`;
   if (t.equip.includes(id) && !MULTI_SLOTS.has(e.slot)) return 'Already installed.';
   const count = t.equip.filter((x) => equip(x).slot === e.slot).length;
-  if (count >= (MULTI_SLOTS.has(e.slot) ? 2 : 1)) {
-    // replace the oldest one in this slot
-    const old = t.equip.findIndex((x) => equip(x).slot === e.slot);
-    t.equip.splice(old, 1);
+  // a full slot trades in the oldest piece there (at the usual sell-back price)
+  const old = count >= (MULTI_SLOTS.has(e.slot) ? 2 : 1) ? t.equip.find((x) => equip(x).slot === e.slot) : undefined;
+  const credit = old ? Math.round(equip(old).price * BAL.sellBack) : 0;
+  if (!spend(g, Math.max(0, e.price - credit))) return 'Not enough coins.';
+  if (old) {
+    t.equip.splice(t.equip.indexOf(old), 1);
+    g.toast(`Traded in the ${equip(old).name} for ${credit} coins.`, 'info');
   }
-  if (!spend(g, e.price)) return 'Not enough coins.';
   t.equip.push(id);
   g.emit({ t: 'sfx', name: 'place' });
   g.refresh(t);
@@ -298,13 +313,35 @@ export function wipe(g: Game, t: Tank, amount: number) {
   t.smudge = Math.max(0, t.smudge - amount);
 }
 
+/** the most mature filter in another tank, to borrow media from */
+export function seedSource(g: Game, t: Tank): Tank | undefined {
+  return g.state.tanks
+    .filter((o) => o !== t && o.water === t.water && o.equip.some((e) => equip(e).slot === 'filter') && Math.min(o.chem.bacA, o.chem.bacB) >= 0.7)
+    .sort((a, b) => Math.min(b.chem.bacA, b.chem.bacB) - Math.min(a.chem.bacA, a.chem.bacB))[0];
+}
+
+/** Squeeze a sponge from a mature filter into this one: the oldest trick in the hobby. */
+export function seedFilter(g: Game, t: Tank): string {
+  const from = seedSource(g, t);
+  if (!from) return 'No other tank has a mature filter to borrow from yet.';
+  if (!t.equip.some((e) => equip(e).slot === 'filter')) return 'Add a filter first: the bacteria need somewhere to live.';
+  t.chem.bacA = Math.max(t.chem.bacA, 0.7);
+  t.chem.bacB = Math.max(t.chem.bacB, 0.65);
+  g.toast(`Seeded with media from ${from.name}: this tank is nearly cycled. Stock it lightly at first.`, 'good');
+  g.refresh(t);
+  return '';
+}
+
 export function dose(g: Game, t: Tank, what: 'bacteria' | 'ammonia'): string {
   if (what === 'bacteria') {
+    // bottled bacteria help a little; they are no substitute for time or seeded media
+    if (Math.min(t.chem.bacA, t.chem.bacB) >= 0.6) return 'A bottle cannot help any more: the colony has to grow on its own now.';
     if (!spend(g, 15)) return 'Not enough coins.';
-    t.chem.bacA = Math.min(1, t.chem.bacA + 0.35);
-    t.chem.bacB = Math.min(1, t.chem.bacB + 0.3);
-    g.toast('Bottled bacteria added: the cycle jumps ahead.', 'good');
+    t.chem.bacA = Math.min(0.6, t.chem.bacA + 0.15);
+    t.chem.bacB = Math.min(0.6, t.chem.bacB + 0.12);
+    g.toast('Bottled bacteria added: the cycle gets a head start.', 'good');
   } else {
+    if (t.animals.length || t.bags.length) return 'Not with animals in the tank: dosing ammonia is for a fishless cycle.';
     if (!spend(g, 3)) return 'Not enough coins.';
     t.chem.nh3 += 1.5;
     g.toast('Ammonia dosed: a fishless cycle feeds the bacteria with no fish at risk.', 'info');
@@ -321,7 +358,7 @@ export function buildTank(g: Game, bay: number, shellId: string, water: Water, s
   if (g.state.tanks.some((t) => t.bay === bay)) return 'That bay already has a tank.';
   if (!spend(g, shellPrice(g.state, sh))) return 'Not enough coins.';
   const t = emptyTank(g.state, bay, shellId, water, source);
-  t.name = `${sh.name}`;
+  t.name = bay >= BAL.rackBay ? `Stock ${bay - BAL.rackBay + 1}` : `${sh.name}`;
   g.state.tanks.push(t);
   g.emit({ t: 'sfx', name: 'splash' });
   g.toast(`${sh.name} filled. Add a filter, then let it cycle before adding fish.`, 'info');
@@ -337,6 +374,11 @@ export function dismantleTank(g: Game, t: Tank): string {
   g.state.tanks = g.state.tanks.filter((x) => x !== t);
   g.stats.delete(t.id);
   return '';
+}
+
+/** a stock tank keeps this many of each species back as breeders */
+export function setKeep(g: Game, t: Tank, n: number) {
+  t.keep = Math.max(0, Math.min(20, Math.round(n)));
 }
 
 export function rename(g: Game, t: Tank, name: string) {

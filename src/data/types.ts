@@ -269,6 +269,8 @@ export interface ShellDef {
   id: string;
   name: string;
   liters: number;
+  /** nominal US gallons for the standard glass tanks sold in every fish shop */
+  gal?: number;
   /** real outer size in cm (w x h), for the codex */
   cm: readonly [number, number, number];
   /** interior pixel size */
@@ -405,6 +407,8 @@ export interface TierDef {
   name: string;
   rep: number;
   bays: number;
+  /** stock-rack slots in the back room: tanks whose fish and plants are for sale */
+  racks: number;
   unlocks: string;
 }
 
@@ -444,6 +448,10 @@ export interface RequestDef {
   check: RequestCheck;
   reward: { coins: number; rep: number; unlock?: string };
   tier: number;
+  /** sent before any other letter of its tier (Ida's opening letters) */
+  first?: boolean;
+  /** only sent once it makes sense: 'pests' waits until some tank has had pest snails */
+  when?: 'pests';
 }
 
 export interface SymbiosisDef {

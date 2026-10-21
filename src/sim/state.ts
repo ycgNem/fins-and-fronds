@@ -2,7 +2,7 @@
 // archetypes) live in TankStats, are recomputed after loading and are not saved.
 import type { Water } from '../data/types';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export type WaterSource = 'tap' | 'soft' | 'blackwater' | 'hard' | 'brackish' | 'marine';
 
@@ -103,9 +103,11 @@ export interface Tank {
   /** fingerprints and nose prints from visitors 0..1 */
   smudge: number;
   /** fish in bags floating at the surface, released when acclimated */
-  bags: { sp: string; n: number; until: number }[];
+  bags: { sp: string; n: number; until: number; animals?: Animal[] }[];
   /** coins earned today (for the plaque) */
   today: number;
+  /** stock tanks keep this many of each species back as breeders; the rest are for sale */
+  keep?: number;
 }
 
 export interface Expedition {
@@ -152,8 +154,12 @@ export interface GameState {
   lettersDone: string[];
   expeditions: Expedition[];
   guestbook: GuestEntry[];
-  stats: { visitors: number; coins: number; fry: number; expeditions: number };
-  settings: { gentle: boolean; volume: number; speed: number };
+  stats: { visitors: number; coins: number; fry: number; expeditions: number; sold?: number; salesToday?: number };
+  settings: { gentle: boolean; volume: number; speed: number; textSize?: number; calmColors?: boolean; sellCuttings?: boolean };
+  /** Ida's guided first tank: the step the player is on, or done (src/ui/tutorial.ts) */
+  tutorial: { step: number; done: boolean };
+  /** cutscenes already shown, so each plays once (src/ui/cutscene.ts) */
+  seen: string[];
   /** real-world ms timestamp of the last save, for offline income */
   savedAt: number;
 }

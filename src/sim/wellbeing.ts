@@ -17,11 +17,22 @@ export interface SpeciesMood {
   count: number;
   mood: number;
   reasons: Reason[];
+  /** acute harm 0..1 that damages health directly (toxins, heat, suffocation, starvation), whatever the mood */
+  lethal: number;
 }
 
 export interface MoodCtx {
   fedRecently: boolean;
   gentle: boolean;
+  /** hours since the last feeding (starvation sets in after a few days) */
+  hungryH?: number;
+}
+
+/** The share of total ammonia (what a test kit reads) that is free, toxic NH3 rather than ammonium.
+ *  pKa from Emerson et al. 1975: at 25 C about 0.06% at pH 6, 0.6% at pH 7 and 8% at pH 8.2. */
+export function freeAmmoniaShare(ph: number, tempC: number): number {
+  const pka = 0.09018 + 2729.92 / (tempC + 273.15);
+  return 1 / (1 + Math.pow(10, pka - ph));
 }
 
 /** 1 inside the range, falling linearly to 0 at `slack` beyond either edge. */
@@ -77,6 +88,13 @@ export function isPreySnail(prey: SpeciesDef, hunter: SpeciesDef): boolean {
   return hunter.tags.includes('eats_snails') && prey.cm <= 3;
 }
 
+/** the hunter eats the prey when they share a tank (it fits in its mouth) */
+export function hunts(o: SpeciesDef, s: SpeciesDef): boolean {
+  const eatsFish = (o.temper === 'predator' || o.tags.includes('eats_small')) && s.kind === 'fish' && o.cm >= s.cm * 3;
+  const eatsInvert = o.tags.includes('eats_inverts') && ['shrimp', 'crab', 'crayfish', 'star', 'urchin', 'slug'].includes(s.kind) && o.cm >= s.cm * 1.5;
+  return eatsFish || eatsInvert || isPreySnail(s, o);
+}
+
 export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, SpeciesMood> {
   const out = new Map<string, SpeciesMood>();
   const ch = t.chem;
@@ -110,14 +128,23 @@ export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, Speci
       sf = fit(ch.sg, r, 0.006);
       if (sf < 1) bad(ch.sg < r[0] ? 'not salty enough' : 'too salty');
     }
-    const tox = Math.max(0, 1 - Math.max(0, ch.nh3 - 0.05) * 2.2 - Math.max(0, ch.no2 - 0.1) * 1.6 - Math.max(0, ch.no3 - (t.water === 'marine' ? 30 : 50)) / 80);
-    if (ch.nh3 > 0.1) bad('ammonia burns');
+    // free NH3 is what burns gills: stress from about 0.005 mg/L, lethal by about 0.1-0.2
+    const free = ch.nh3 * freeAmmoniaShare(ch.ph, ch.temp);
+    const tox = Math.max(0, 1 - Math.max(0, free - 0.005) * 9 - Math.max(0, ch.no2 - 0.1) * 1.6 - Math.max(0, ch.no3 - (t.water === 'marine' ? 30 : 50)) / 80);
+    if (free > 0.005) bad(free > 0.05 ? 'ammonia burns' : 'a trace of toxic ammonia');
     if (ch.no2 > 0.15) bad('nitrite in the water');
     if (ch.no3 > (t.water === 'marine' ? 30 : 50)) bad('nitrate is high');
     const o2f = ch.o2 >= 5 ? 1 : Math.max(0, (ch.o2 - 2) / 3);
     if (o2f < 1) bad('gasping for oxygen');
     hard *= Math.max(0.05, tf) * Math.max(0.05, pf) * Math.max(0.05, hf) * Math.max(0.05, sf) * Math.max(0.05, tox) * Math.max(0.05, o2f);
-    if (tf === 1 && pf === 1 && hf === 1 && sf === 1) good('water is just right');
+    if (tf === 1 && pf === 1 && hf === 1 && sf === 1 && tox >= 1 && o2f >= 1) good('water is just right');
+    // acute harm: far outside its range, poisoned, suffocating or starving damages health directly
+    const days = (ctx.hungryH ?? 0) / 24;
+    const grazes = s.diet.includes('algae') && (ch.algae > 0.05 || ch.glass > 0.08);
+    const starving = grazes ? 0 : Math.max(0, Math.min(1, (days - 5) / 6));
+    if (starving > 0) bad('starving');
+    const acute = (v: number) => Math.max(0, Math.min(1, (0.35 - v) / 0.35));
+    const lethal = Math.max(okWater ? 0 : 0.7, acute(tf), acute(sf), acute(tox), acute(o2f), acute(pf) * 0.6, starving);
 
     // ---- soft factors
     const soft: [number, number][] = [];
@@ -155,10 +182,7 @@ export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, Speci
       if (o.id === s.id) continue;
       const on = f.bySpecies.get(o.id) ?? 0;
       if (o.temper === 'aggressive' && s.kind === 'fish') pressure += (o.cm >= s.cm * 0.7 ? 0.25 : 0.1) * Math.min(1, on / 3);
-      const eatsFish = (o.temper === 'predator' || o.tags.includes('eats_small')) && s.kind === 'fish' && o.cm >= s.cm * 3;
-      const eatsInvert = o.tags.includes('eats_inverts') && ['shrimp', 'crab', 'crayfish', 'star', 'urchin', 'slug'].includes(s.kind) && o.cm >= s.cm * 1.5;
-      const eatsSnail = isPreySnail(s, o);
-      if (eatsFish || eatsInvert || eatsSnail) {
+      if (hunts(o, s)) {
         add(0.35, 2);
         bad(`hunted by the ${o.name.toLowerCase()}`);
       }
@@ -217,7 +241,7 @@ export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, Speci
     let mood = hard * (soft.length ? Math.min(...soft.map((x) => x[0])) * 0.4 + softAvg * 0.6 : 1) * (partner ? 1.08 : 1);
     mood = Math.max(ctx.gentle ? 0.15 : 0, Math.min(1, mood));
     if (mood > 0.85 && reasons.every((r) => r.good)) good('thriving');
-    out.set(s.id, { sp: s.id, count: n, mood, reasons });
+    out.set(s.id, { sp: s.id, count: n, mood, reasons, lethal });
   }
   return out;
 }
@@ -241,6 +265,8 @@ export function updateAnimals(t: Tank, moods: Map<string, SpeciesMood>, dtH: num
     a.mood = m.mood;
     const rate = a.mood < a.health ? 0.05 : 0.03;
     a.health += (a.mood - a.health) * Math.min(1, rate * dtH);
+    // lethal conditions kill within about half a day at worst; fry and small animals go first
+    if (m.lethal > 0) a.health -= m.lethal * (a.fry ? 0.12 : 0.07) * dtH;
     a.age += dtH / 24;
     if (a.fry && a.age >= BAL.growDays) a.fry = false;
     if (gentle) a.health = Math.max(0.25, a.health);

@@ -13,6 +13,8 @@ import { facts, FLOW_NAMES, litersOf } from '../sim/facts';
 import { PART_NAMES, type RatingParts } from '../sim/rating';
 import { hourOf, type Tank, type WaterSource } from '../sim/state';
 import { cycleProgress, SOURCES } from '../sim/water';
+import { BAL } from '../sim/balance';
+import { isStock, offers } from '../sim/sales';
 import { type SpeciesMood, speciesMoods } from '../sim/wellbeing';
 import { TOOLBAR_H, TOP_H } from './hud';
 import { ICON, M, type TipLine, type UI } from './ui';
@@ -91,7 +93,9 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   const u = app.ui;
   const st = app.game!.stats.get(t.id);
   if (!st) return;
+  u.mark('report', x, y, w, Math.min(h, 120));
   column(u, 'look', x, y, w, h, (x, y, w) => {
+    if (isStock(t)) y = salesCard(app, t, x, y, w);
     const best = st.cls.best;
     u.text(best ? best.def.name : 'Unrecognized tank', x, y, best ? C.strong : C.textDim, { maxW: w });
     if (best && u.hover(x, y, w, M.line)) u.tip([{ text: best.def.blurb }, { text: best.def.real, color: C.textDim }], 260);
@@ -122,7 +126,7 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       y += 6;
       u.head('Ideas', x, y);
       y += M.row + 2;
-      for (const s of [...notes, ...hints]) y += u.para(`${ICON.right} ${s}`, x, y, w, C.text) + 3;
+      for (const s of new Set([...notes, ...hints])) y += u.para(`${ICON.right} ${s}`, x, y, w, C.text) + 3;
     }
     y += 3;
     u.divider(x, y, w);
@@ -156,9 +160,53 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
         y += 4;
         y += u.para(`${Math.ceil(t.pests.snails)} pest snails on the glass.`, x, y, w, C.warn);
       }
+      // the tank itself: a new name, or take it down and free the bay
+      y += 8;
+      u.divider(x, y, w);
+      y += 8;
+      const hw = Math.floor((w - 6) / 2);
+      if (u.button('rename', x, y, hw, M.btnS + 2, 'Rename', { style: 'flat', tip: 'Give this tank a name of its own' })) {
+        const name = window.prompt('Name this tank', t.name);
+        if (name) act.rename(app.game!, t, name.trim());
+      }
+      const c = app.panel.confirmDismantle === t.id;
+      const why = t.animals.length || t.bags.length ? 'Net the animals into holding first (Stock, In tank)' : '';
+      if (u.button('dismantle', x + hw + 6, y, hw, M.btnS + 2, c ? 'Sure? Click again' : 'Dismantle', { style: 'bad', disabled: !!why, tip: why || 'Take the tank down: half its price back, stones and wood to storage' })) {
+        if (c) {
+          app.panel.confirmDismantle = 0;
+          app.run(act.dismantleTank(app.game!, t));
+        } else app.panel.confirmDismantle = t.id;
+      }
+      if (c && !u.hover(x + hw + 6, y, hw, M.btnS + 2)) app.panel.confirmDismantle = 0;
+      y += M.btnS + 6;
     }
     return y;
   });
+}
+
+/** a stock tank: what is for sale, the breeders it keeps back, and today's takings */
+function salesCard(app: App, t: Tank, x: number, y: number, w: number): number {
+  const u = app.ui;
+  const st = app.game!.stats.get(t.id);
+  u.head('For sale', x, y);
+  u.text(`today ${ICON.coin} ${Math.round(app.state.stats.salesToday ?? 0)}`, x + w, y + 1, C.gold, { align: 'right' });
+  y += M.row + 2;
+  const keep = t.keep ?? BAL.keepDefault;
+  const d = u.stepper('keep', x, y, `keep ${keep}`, 90);
+  if (d) act.setKeep(app.game!, t, keep + d);
+  u.text('of each as breeders', x + 96, y + 1, C.textDim, { maxW: w - 96 });
+  y += M.btnS + 6;
+  const os = offers(t, st?.moods);
+  if (!os.length) y += u.para(t.animals.length ? 'Nothing to sell yet. Customers buy healthy adults above the breeders you keep; fry sell once they grow up.' : 'Stock it from the supplier or breed fish here; customers will buy them. Overgrown plants are cut into cuttings for sale.', x, y, w, C.textDim) + 4;
+  for (const o of os) {
+    u.sprite(creatureFrame(o.sp, 0), x, y, 32, 22);
+    u.text(species(o.sp).name, x + 38, y + 4, C.strong, { maxW: w - 120 });
+    u.text(`${o.n} x ${ICON.coin}${o.each}`, x + w, y + 4, C.gold, { align: 'right' });
+    y += M.item;
+  }
+  y += 4;
+  u.divider(x, y, w);
+  return y + 8;
 }
 
 function speciesCard(app: App, s: SpeciesDef, m: SpeciesMood | undefined, x: number, y: number, w: number, note?: string): number {
@@ -288,6 +336,12 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   }
   const cur = SCAPE_TABS[app.panel.scapeTab];
   if (cur.label === 'Sand') return ground(app, t, x, y, w, h);
+  if (cur.label === 'Kept') {
+    const on = u.toggle('sellcut', x, y, 'Sell cuttings and frags to customers', !!s.settings.sellCuttings);
+    if (on !== !!s.settings.sellCuttings) s.settings.sellCuttings = on;
+    y += M.row + 4;
+    h -= M.row + 4;
+  }
   let list: { it: ItemDef; n?: number }[];
   if (cur.label === 'Kept') list = Object.entries(s.inventory).filter(([id, n]) => n > 0 && item(id)).map(([id, n]) => ({ it: item(id), n }));
   else list = itemsForSale(s, t.water).filter((it) => cur.cats!.includes(it.cat)).map((it) => ({ it }));
@@ -388,6 +442,7 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   if (app.panel.stockTab === 0) {
     const list = speciesForSale(s, t.water).sort((a, b) => a.tier - b.tier || a.price - b.price);
     const buyH = app.panel.buySp ? 84 : 0;
+    u.mark('stocklist', x, y, w, Math.min(h - buyH, 90));
     column(u, 'stock', x, y, w, h - buyH, (x, y, w) => {
       for (const sp of list) {
         const p = predict(app, t, sp.id, Math.max(1, sp.school));
@@ -432,9 +487,12 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
         u.sprite(creatureFrame(sp, 0), x, y, 34, 28);
         u.text(s0.name, x + 40, y, C.strong, { maxW: w - 110 });
         u.text(`x${m.count}  mood ${Math.round(m.mood * 100)}%`, x + 40, y + M.line, moodColor(m.mood));
-        if (u.button(`net${sp}`, x + w - 56, y + 5, 56, M.btnS + 2, 'Net 1', { style: 'flat', tip: 'Move one to the holding tank' })) {
+        if (u.button(`net${sp}`, x + w - 86, y + 5, 48, M.btnS + 2, 'Net 1', { style: 'flat', tip: 'Move one to the holding tank' })) {
           const a = t.animals.find((q) => q.sp === sp && !q.fry) ?? t.animals.find((q) => q.sp === sp);
-          if (a) app.run(act.moveToHolding(g, t, a.uid));
+          if (a) app.run(act.moveToHolding(g, t, [a.uid]));
+        }
+        if (u.button(`netall${sp}`, x + w - 34, y + 5, 34, M.btnS + 2, 'All', { style: 'flat', tip: 'Net every one of them (fry too) into holding' })) {
+          app.run(act.moveToHolding(g, t, t.animals.filter((q) => q.sp === sp).map((q) => q.uid)));
         }
         y += M.item + 6;
       }
@@ -450,8 +508,10 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
         u.sprite(creatureFrame(sp, 0), x, y, 34, 28);
         u.text(s0.name, x + 40, y, C.strong, { maxW: w - 160 });
         u.text(`x${uids.length}`, x + 40, y + M.line, C.textDim);
-        if (u.button(`hadd${sp}`, x + w - 118, y + 5, 50, M.btnS + 2, 'Add', { style: 'good', tip: 'Float one into this tank' })) app.run(act.placeFromHolding(g, t, uids[0]));
-        if (u.button(`hsell${sp}`, x + w - 64, y + 5, 64, M.btnS + 2, 'Rehome', { style: 'flat', tip: 'Give one to a local hobbyist for a little money' })) app.run(act.sellHolding(g, uids[0]));
+        const no = act.cannotHouse(t, sp);
+        if (u.button(`hadd${sp}`, x + w - 150, y + 5, 40, M.btnS + 2, 'Add', { style: 'good', disabled: !!no, tip: no || 'Float one into this tank' })) app.run(act.placeFromHolding(g, t, [uids[0]]));
+        if (u.button(`haddall${sp}`, x + w - 106, y + 5, 38, M.btnS + 2, 'All', { style: 'good', disabled: !!no, tip: no || 'Float them all into this tank' })) app.run(act.placeFromHolding(g, t, uids));
+        if (u.button(`hsell${sp}`, x + w - 64, y + 5, 64, M.btnS + 2, 'Rehome', { style: 'flat', tip: 'Give them all to local hobbyists for a little money' })) app.run(act.sellHolding(g, uids));
         y += M.item + 6;
       }
       return y;
@@ -525,11 +585,12 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   y += used;
   const slots = GEAR_TABS[app.panel.gearTab].slots;
   const list = equipForSale(s, t.water).filter((e) => slots.includes(e.slot));
+  u.mark('gearlist', x, y, w, Math.min(bottom - y, 90));
   column(u, `gear${app.panel.gearTab}`, x, y, w, bottom - y, (x, y, w) => {
     for (const e of list) {
       const has = t.equip.includes(e.id);
       const rh = M.line * 2 + 4;
-      if (u.row(x - 3, y - 2, w + 6, rh, has, [{ text: e.name }, { text: e.blurb, color: C.textDim }, { text: equipStat(e), color: C.accent }, ...(e.needsShell ? [{ text: `Needs a ${e.needsShell} tank`, color: C.warn }] : [])])) app.run(act.buyEquip(g, t, e.id));
+      if (u.row(x - 3, y - 2, w + 6, rh, has, [{ text: e.name }, { text: e.blurb, color: C.textDim }, { text: equipStat(e), color: C.accent }, ...(e.needsShell ? [{ text: `Needs a ${e.needsShell} tank`, color: C.warn }] : []), ...(has ? [{ text: 'Installed. Remove it with the x in the list above.', color: C.good }] : [])]) && !has) app.run(act.buyEquip(g, t, e.id));
       u.text(e.name, x, y, C.strong, { maxW: w - 60 });
       u.text(equipStat(e), x, y + M.line, C.textDim, { maxW: w - 60 });
       u.text(has ? 'installed' : `${ICON.coin} ${e.price}`, x + w, y, has ? C.good : C.gold, { align: 'right' });
@@ -594,10 +655,11 @@ function water(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     }
     y += 4;
     const cyc = cycleProgress(ch);
+    u.mark('cycle', x - 2, y - 2, w + 4, M.row + 2);
     u.text('Nitrogen cycle', x, y, C.text);
     u.bar(x + 112, y + 3, w - 150, 10, cyc, cyc > 0.9 ? C.good : C.warn);
     u.text(`${Math.round(cyc * 100)}%`, x + w, y, C.strong, { align: 'right' });
-    if (u.hover(x, y, w, M.row)) u.tip([{ text: 'The nitrogen cycle' }, { text: 'Bacteria in the filter turn toxic ammonia into nitrite, then into much safer nitrate. A new tank needs weeks to grow them: dose ammonia with no fish (a fishless cycle) or add bottled bacteria.', color: C.textDim }], 260);
+    if (u.hover(x, y, w, M.row)) u.tip([{ text: 'The nitrogen cycle' }, { text: 'Bacteria in the filter turn toxic ammonia into nitrite, then into much safer nitrate. A new tank needs about three weeks to grow them: dose ammonia with no fish (a fishless cycle), or seed it with media from a mature filter.', color: C.textDim }], 260);
     y += M.row + 6;
     // water changes
     u.divider(x, y, w);
@@ -629,9 +691,14 @@ function water(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       if (u.button('topoff', x + 128, y, w - 128, M.btnS, 'Top off', { tip: 'Replace evaporated water with fresh' })) act.topOff(g, t);
       y += M.btnS + 8;
     }
-    u.head('Bottles', x, y);
+    u.head('Cycling', x, y);
     y += M.row + 2;
     const hw = Math.floor((w - 4) / 2);
+    const donor = act.seedSource(g, t);
+    if (cyc < 0.7) {
+      if (u.button('seed', x, y, w, M.btn, donor ? `Seed from ${donor.name}` : 'Seed from a mature filter', { style: 'good', disabled: !donor, tip: donor ? 'Move a sponge of bacteria-rich media from a mature filter: free, and nearly instant' : 'Needs another tank of the same water with a filter that is fully cycled' })) app.run(act.seedFilter(g, t));
+      y += M.btn + 4;
+    }
     if (u.button('bact', x, y, hw, M.btn, `Bacteria ${ICON.coin}15`, { tip: 'Bottled nitrifying bacteria: jump-start the cycle' })) app.run(act.dose(g, t, 'bacteria'));
     if (u.button('amm', x + hw + 4, y, hw, M.btn, `Ammonia ${ICON.coin}3`, { tip: 'Feed the bacteria in an empty tank: a fishless cycle' })) app.run(act.dose(g, t, 'ammonia'));
     y += M.btn + 6;

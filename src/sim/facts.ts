@@ -157,7 +157,7 @@ export function facts(t: Tank, hour = 12): Facts {
     bySpecies.set(a.sp, (bySpecies.get(a.sp) ?? 0) + 1);
     byKind.set(s.kind, (byKind.get(s.kind) ?? 0) + 1);
     for (const tag of s.tags) byTag.set(tag, (byTag.get(tag) ?? 0) + 1);
-    bioload += bioloadOf(s.cm) * (a.fry ? 0.25 : 1);
+    bioload += bioloadOf(s.cm, s.body) * (a.fry ? 0.25 : 1);
     if (!a.fry) adults++;
   }
   const itemsById = new Map<string, number>();
@@ -175,7 +175,8 @@ export function facts(t: Tank, hour = 12): Facts {
     for (const tag of it.tags ?? []) itemsByTag.set(tag, (itemsByTag.get(tag) ?? 0) + 1);
     if (it.tags?.includes('hitch')) hitch++;
     if (it.tags?.includes('cave')) caves++;
-    if (it.tags?.includes('stone')) stones.push(p);
+    // a scatter of pebbles is gravel, not a stone in the composition
+    if (it.tags?.includes('stone') && it.shape !== 'pebbles') stones.push(p);
     bioItems += it.fx?.bio ?? 0;
     if (it.plant) {
       plantCount++;
@@ -213,13 +214,20 @@ export function parAt(f: Facts, y: number): number {
   return f.par + (f.parTop - f.par) * frac;
 }
 
+/** How native a tank is to some regions: each animal species counts once (a big school of the
+ *  right fish cannot hide one wrong one), and each plant species counts half. */
 export function regionFrac(f: Facts, ids: RegionId[]): number {
   let n = 0, native = 0;
-  for (const a of f.tank.animals) {
-    const s = species(a.sp);
+  for (const id of f.bySpecies.keys()) {
+    const s = species(id);
     if (s.source === 'hitchhiker') continue;
     n++;
     if (s.regions.some((r) => ids.includes(r))) native++;
+  }
+  const plants = new Set(f.tank.items.filter((p) => item(p.id).plant).map((p) => p.id));
+  for (const id of plants) {
+    n += 0.5;
+    if (item(id).regions?.some((r) => ids.includes(r))) native += 0.5;
   }
   return n === 0 ? 0 : native / n;
 }

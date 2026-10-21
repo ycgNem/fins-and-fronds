@@ -16,9 +16,13 @@ export const BAL = {
   /** bioload units one liter of filter "bio" rating supports */
   bioPerFilterL: 0.2,
   /** bacteria logistic growth per hour (ammonia eaters, nitrite eaters) */
-  bacGrowA: 0.12,
-  bacGrowB: 0.09,
-  bacStarve: 0.004,
+  // a fishless cycle takes about three weeks (RESEARCH.md: two to six); seeded media skips it
+  bacGrowA: 0.017,
+  bacGrowB: 0.014,
+  /** per hour, so an unfed filter loses about a third of its bacteria in two weeks */
+  bacStarve: 0.0012,
+  /** total ammonia never climbs past this (ppm) */
+  nh3Max: 30,
 
   /** a "full load" of hardscape is this much item area (px) per 100 L */
   fxArea: 1400,
@@ -32,8 +36,9 @@ export const BAL = {
   repPerVisitor: 0.06,
   repNewArchetype: 12,
   repNewSpecies: 2,
-  /** offline income: game hours credited per real hour away, and the cap in real hours */
-  offlineGameHoursPerHour: 6,
+  /** offline income: Ida minds the counter while you are away. Each real hour away (up to the cap)
+   *  earns this share of what the displays make in an open hour; the tanks themselves wait. */
+  offlineShare: 0.5,
   offlineCapHours: 8,
 
   /** fry take this many days to grow up */
@@ -44,9 +49,25 @@ export const BAL = {
   waterChangeCostPerL: 0.01,
   saltCostPerL: 0.03,
   sellBack: 0.5,
-  startCoins: 300,
+  /** shop sales: customers per open hour with no displays at all, plus this share of everyone the displays draw in */
+  shopperBase: 1.2,
+  shopperShare: 0.18,
+  /** retail price over what the supplier charges you */
+  retailMarkup: 1.7,
+  /** a stock tank keeps this many of each species back as breeders unless told otherwise */
+  keepDefault: 2,
+  /** cuttings and frags sell at this share of the plant's shop price */
+  cuttingShare: 0.8,
+  /** first stock-rack bay number (display bays count up from 0) */
+  rackBay: 100,
+  startCoins: 400,
 } as const;
 
-export function bioloadOf(cm: number): number {
-  return Math.pow(cm / 5, BAL.bioExp);
+export function bioloadOf(cm: number, body?: string): number {
+  // waste follows body mass: an eel-thin kuhli loach makes far less than a deep-bodied cichlid
+  const shape = body && THIN.has(body) ? 0.4 : body && DEEP.has(body) ? 1.25 : 1;
+  return Math.pow(cm / 5, BAL.bioExp) * shape;
 }
+
+const THIN = new Set(['eel', 'loach', 'slender', 'knife', 'pipefish', 'seahorse', 'shrimp', 'gardeneel']);
+const DEEP = new Set(['deep', 'disc', 'koi', 'fancy', 'puffer', 'arowana']);

@@ -40,19 +40,31 @@ export function defaultSalt(w: Water): number {
 }
 
 /** Equilibrium chemistry from the water source, substrate and hardscape. */
-export function equilibrium(t: Tank, f: Facts): { ph: number; gh: number; kh: number; tannin: number } {
+export function equilibrium(t: Tank, f: Facts): { ph: number; phBase: number; gh: number; kh: number; tannin: number } {
   const src = SOURCES[t.set.source];
   let ph = src.ph, gh = src.gh, kh = src.kh, tannin = src.tannin;
+  let rockPh = 0, rockGh = 0, rockKh = 0;
   const load = 100 / Math.max(5, f.liters);
   for (const p of t.items) {
     const it = item(p.id);
     if (!it.fx) continue;
     const w = Math.min(3, ((it.w * it.h * p.size * p.size) / BAL.fxArea) * load);
-    ph += (it.fx.ph ?? 0) * w;
-    gh += (it.fx.gh ?? 0) * w;
-    kh += (it.fx.kh ?? 0) * w;
+    // dissolving rock (limestone, Seiryu) is summed separately: it can only go so far
+    if ((it.fx.gh ?? 0) > 0 || (it.fx.kh ?? 0) > 0) {
+      rockPh += (it.fx.ph ?? 0) * w;
+      rockGh += (it.fx.gh ?? 0) * w;
+      rockKh += (it.fx.kh ?? 0) * w;
+    } else {
+      ph += (it.fx.ph ?? 0) * w;
+      gh += (it.fx.gh ?? 0) * w;
+      kh += (it.fx.kh ?? 0) * w;
+    }
     tannin += (it.fx.tannin ?? 0) * w;
   }
+  // calcite in open water saturates at about pH 8.3 and 8-10 degrees of added hardness
+  gh += Math.min(8, rockGh);
+  kh += Math.min(8, rockKh);
+  if (rockPh > 0) ph = Math.max(ph, Math.min(8.3, ph + rockPh));
   const sx = f.sub.fx;
   ph += sx.ph ?? 0;
   gh += sx.gh ?? 0;
@@ -66,13 +78,21 @@ export function equilibrium(t: Tank, f: Facts): { ph: number; gh: number; kh: nu
   kh = Math.max(0, kh);
   // low carbonate hardness means a weakly buffered, more acidic tank
   ph += (Math.min(kh, 10) - src.kh) * 0.04;
-  ph -= Math.min(tannin, 1) * 0.5;
-  return { ph: Math.max(3.8, Math.min(9.2, ph)), gh, kh, tannin: Math.max(0, Math.min(1, tannin)) };
+  tannin = Math.max(0, Math.min(1, tannin));
+  const phBase = Math.max(3.8, Math.min(9.2, ph));
+  return { ph: Math.max(3.8, Math.min(9.2, ph - tanninAcid(tannin, kh))), phBase, gh, kh, tannin };
 }
 
-/** Dissolved oxygen saturation (mg/L) at a temperature, freshwater approximation. */
-export function o2Saturation(temp: number): number {
-  return 14.6 - 0.39 * temp + 0.007 * temp * temp;
+/** Humic and tannic acids only pull the pH down in soft water: carbonate hardness soaks them up. */
+export function tanninAcid(tannin: number, kh: number): number {
+  return (Math.min(tannin, 1) * 0.6) / (1 + Math.max(0, kh) / 1.5);
+}
+
+/** Dissolved oxygen saturation (mg/L) at a temperature (Benson and Krause fit, fresh water);
+ *  seawater holds about a fifth less. */
+export function o2Saturation(temp: number, sg = 1): number {
+  const fresh = 14.652 - 0.41022 * temp + 0.007991 * temp * temp - 0.000077774 * temp * temp * temp;
+  return fresh * (1 - Math.max(0, sg - 1) * 7.5);
 }
 
 /** The temperature the tank is heading for with its gear and lights. */
@@ -105,12 +125,16 @@ export function stepWater(t: Tank, f: Facts, c: WaterCtx) {
   const dtH = c.dtH;
   const eq = equilibrium(t, f);
   const co2 = f.lightsOn && t.set.co2 ? f.gear.co2 : 0;
-  ch.co2 = approach(ch.co2, 3 + co2, 0.8, dtH);
-  const buffer = Math.max(0.2, Math.min(2, ch.kh / 4));
-  ch.ph = approach(ch.ph, eq.ph - (ch.co2 - 3) / 25 * 0.5, 0.25 / (0.5 + buffer), dtH);
+  ch.co2 = approach(ch.co2, 3 + co2, 1.5, dtH);
   ch.gh = approach(ch.gh, eq.gh, 0.05, dtH);
   ch.kh = approach(ch.kh, eq.kh, 0.05, dtH);
   ch.tannin = approach(ch.tannin, eq.tannin, 0.03, dtH);
+  // pH follows the carbonate buffer: CO2 = 3 x KH x 10^(7 - pH), so every tenfold rise in CO2
+  // drops the pH by a whole unit, within the hour. Hardness and tannins move it slowly.
+  const co2Shift = -Math.log10(Math.max(1, ch.co2) / 3);
+  const khShift = Math.log10(Math.max(0.5, ch.kh) / Math.max(0.5, eq.kh)) * 0.5;
+  const phTarget = Math.max(3.8, Math.min(9.2, eq.phBase + khShift - tanninAcid(ch.tannin, ch.kh) + co2Shift));
+  ch.ph = approach(ch.ph, phTarget, 1.2, dtH);
   ch.temp = approach(ch.temp, targetTemp(t, f), BAL.tempRate, dtH);
 
   // salinity creeps up as fresh water evaporates
@@ -123,20 +147,25 @@ export function stepWater(t: Tank, f: Facts, c: WaterCtx) {
   } else ch.sg = 1.0;
 
   // oxygen
-  const sat = o2Saturation(ch.temp);
-  const photo = f.lightsOn ? f.coverage * 0.15 : -f.coverage * 0.08;
-  const aer = 0.65 + 0.1 * Math.min(3, f.flow) + f.gear.air + photo + (f.openTop ? 0.05 : 0);
-  const use = Math.min(0.5, (f.bioload / Math.max(1, f.liters)) * 0.6);
+  const sat = o2Saturation(ch.temp, ch.sg);
+  const photo = f.lightsOn ? f.coverage * 0.08 : -f.coverage * 0.05;
+  const aer = 0.8 + 0.05 * Math.min(3, f.flow) + f.gear.air * 0.5 + photo + (f.openTop ? 0.03 : 0);
+  const use = Math.min(0.5, (f.bioload / Math.max(1, f.liters)) * 0.3);
   ch.o2 = approach(ch.o2, sat * Math.max(0.3, Math.min(1.05, aer - use)), 0.6, dtH);
 
   // ---- nitrogen cycle
   let waste = 0;
-  for (const a of t.animals) waste += bioloadOf(species(a.sp).cm) * (a.fry ? 0.25 : 1);
+  for (const a of t.animals) {
+    const s = species(a.sp);
+    waste += bioloadOf(s.cm, s.body) * (a.fry ? 0.25 : 1);
+  }
   const fed = c.fedRecently ? 1 : 0.6;
   const nh3In = ((waste * fed * BAL.wastePerBio) / Math.max(1, f.liters)) * dtH;
-  ch.nh3 += nh3In;
-  // capacity in ppm/h that a fully colonized biofilter can process
-  const cap = ((f.bioCap * BAL.wastePerBio) / Math.max(1, f.liters)) * 1.6;
+  // (it never climbs without limit: past this, everything in the water is already dying)
+  ch.nh3 = Math.min(BAL.nh3Max, ch.nh3 + nh3In);
+  // capacity in ppm/h that a fully colonized biofilter can process. Without a filter the
+  // bacteria still live on the gravel, glass and wood, at about a quarter of the capacity.
+  const cap = ((Math.max(f.bioCap, f.gear.bio > 0 ? 0 : f.liters * 0.02) * BAL.wastePerBio) / Math.max(1, f.liters)) * (f.gear.bio > 0 ? 1.6 : 0.4);
   const convA = Math.min(ch.nh3, ch.bacA * cap * dtH);
   ch.nh3 -= convA;
   ch.no2 += convA;
@@ -144,10 +173,11 @@ export function stepWater(t: Tank, f: Facts, c: WaterCtx) {
   ch.no2 -= convB;
   ch.no3 += convB;
   // bacteria grow while they have food, and slowly starve without it
-  const foodA = Math.min(1, (ch.nh3 + nh3In) / 0.05);
-  const foodB = Math.min(1, (ch.no2 + convA) / 0.05);
-  ch.bacA += (BAL.bacGrowA * ch.bacA * (1 - ch.bacA) * foodA - (foodA < 0.05 && waste < 0.5 ? BAL.bacStarve * ch.bacA : 0)) * dtH;
-  ch.bacB += (BAL.bacGrowB * ch.bacB * (1 - ch.bacB) * foodB - (foodB < 0.05 && waste < 0.5 ? BAL.bacStarve * ch.bacB : 0)) * dtH;
+  const foodA = Math.min(1, (ch.nh3 + nh3In) / 0.02);
+  const foodB = Math.min(1, (ch.no2 + convA) / 0.02);
+  // starving colonies shrink slowly (a filter with nothing to eat stays mostly alive for weeks)
+  ch.bacA += (BAL.bacGrowA * ch.bacA * (1 - ch.bacA) * foodA - (foodA < 0.05 && waste < 0.5 && ch.bacA > 0.3 ? BAL.bacStarve * ch.bacA : 0)) * dtH;
+  ch.bacB += (BAL.bacGrowB * ch.bacB * (1 - ch.bacB) * foodB - (foodB < 0.05 && waste < 0.5 && ch.bacB > 0.3 ? BAL.bacStarve * ch.bacB : 0)) * dtH;
   ch.bacA = Math.max(0.01, Math.min(1, ch.bacA));
   ch.bacB = Math.max(0.01, Math.min(1, ch.bacB));
   // plants take up ammonia first, then nitrate; skimmers, refugiums and sumps export
@@ -203,6 +233,8 @@ export function freshChem(source: WaterSource, salt: number, cycled: number): Ch
 }
 
 /** How far along the nitrogen cycle the tank is, 0..1 (the second bacteria population lags). */
+/** How cycled the filter is, 0..1. A colony fed once a day settles a little below its ceiling
+ *  (it starves between meals), so four-fifths of the ceiling already clears a day's ammonia. */
 export function cycleProgress(ch: Chem): number {
-  return Math.min(ch.bacA, ch.bacB * 1.05);
+  return Math.min(1, Math.min(ch.bacA, ch.bacB * 1.05) / 0.8);
 }

@@ -8,6 +8,7 @@ import { PALETTE, rgba, UI as C } from '../data/palette';
 import type { Input } from '../engine/input';
 import type { Frame } from '../render/art/sprites';
 import { drawFit } from '../render/art/sprites';
+import { drawIcon, hasArt } from '../render/icons';
 import { drawText, ellipsize, type Face, FONT_H, ICON, LINE_H, textWidth, wrapText } from './font';
 
 export interface Rect {
@@ -60,8 +61,17 @@ export class UI {
   tipWidth = 220;
   scroll = new Map<string, number>();
   sfx: (id: string) => void = () => {};
+  /** where each button, tab and marked area was drawn this frame, by id (the tutorial points at them) */
+  rects = new Map<string, Rect>();
   private blocks: Rect[] = [];
   private prevBlocks: Rect[] = [];
+  /** visible areas of scrolling lists: what is clipped away cannot be hovered or clicked */
+  private clips: Rect[] = [];
+  /** a window was open last frame: only the top layer (the window, its pills, the tutorial) takes input */
+  private modalPrev = false;
+  private modalNow = false;
+  /** 0 for the shop floor, 1 for windows and what is drawn over them */
+  layer = 0;
 
   /** w and h are the UI size in UI pixels (the canvas may be larger and scaled) */
   begin(ctx: CanvasRenderingContext2D, input: Input, dt: number, w: number, h: number) {
@@ -74,10 +84,21 @@ export class UI {
     this.dt = dt;
     this.time += dt;
     this.tooltip = null;
+    this.rects.clear();
     this.prevBlocks = this.blocks;
     this.blocks = [];
     this.captured = this.prevBlocks.some((b) => this.inside(b));
     this.clicked = input.clicked;
+    this.clips = [];
+    this.modalPrev = this.modalNow;
+    this.modalNow = false;
+    this.layer = 0;
+  }
+
+  /** start drawing a window: everything drawn before it stops taking input from next frame */
+  modal() {
+    this.modalNow = true;
+    this.layer = 1;
   }
 
   inside(r: Rect) {
@@ -85,6 +106,8 @@ export class UI {
   }
 
   hover(x: number, y: number, w: number, h: number) {
+    if (this.modalPrev && this.layer === 0) return false;
+    for (const c of this.clips) if (!this.inside(c)) return false;
     return this.mx >= x && this.my >= y && this.mx < x + w && this.my < y + h;
   }
 
@@ -100,6 +123,11 @@ export class UI {
   eat() {
     this.clicked = false;
     this.input.released = false;
+  }
+
+  /** remember an area by id without drawing anything (for the tutorial's pointer) */
+  mark(id: string, x: number, y: number, w: number, h: number) {
+    this.rects.set(id, { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) });
   }
 
   fill(x: number, y: number, w: number, h: number, c: number, a = 1) {
@@ -180,9 +208,16 @@ export class UI {
     return wrapText(s, w).length * lineH;
   }
 
-  button(id: string, x: number, y: number, w: number, h: number, label: string, opts: { disabled?: boolean; active?: boolean; tip?: TipLine[] | string; style?: ButtonStyle; badge?: number } = {}): boolean {
+  /** button width for a label, with room for a 16 px icon when the art is there */
+  buttonW(label: string, icon?: string, pad = 20) {
+    const art = icon && hasArt(icon);
+    return (label ? textWidth(label) + pad : 8) + (art ? (label ? 16 : 18) : 0);
+  }
+
+  button(id: string, x: number, y: number, w: number, h: number, label: string, opts: { disabled?: boolean; active?: boolean; tip?: TipLine[] | string; style?: ButtonStyle; badge?: number; icon?: string } = {}): boolean {
     x = Math.round(x);
     y = Math.round(y);
+    this.rects.set(id, { x, y, w, h });
     const hov = this.hover(x, y, w, h) && !opts.disabled;
     const down = hov && this.input.down;
     const st = opts.style ?? 'normal';
@@ -201,7 +236,10 @@ export class UI {
     this.rr(x + 1, y + 1, w - 2, h - 2, r - 1, lip);
     this.rr(x + 1, y + 1 + sink, w - 2, h - 4, r - 1, face);
     if (!down) this.fill(x + 3, y + 2, w - 6, 1, hi);
-    if (label) this.text(label, x + w / 2, y + Math.floor((h - 2 - 12) / 2) + sink, txt, { align: 'center', maxW: w - 6 });
+    // a 16 px icon at the left; the label centers in what is left
+    const art = opts.icon && h >= 18 && drawIcon(this.ctx, opts.icon, x + (label ? 4 : (w - 16) / 2), y + Math.floor((h - 2 - 16) / 2) + sink, 16, opts.disabled ? 0.5 : 1);
+    const lx = art && label ? x + 18 : x;
+    if (label) this.text(label, lx + (x + w - lx) / 2, y + Math.floor((h - 2 - 12) / 2) + sink, txt, { align: 'center', maxW: x + w - lx - 6 });
     if (opts.badge) {
       const s = String(opts.badge);
       const bw = Math.max(13, textWidth(s) + 7);
@@ -262,6 +300,7 @@ export class UI {
       const tw = natural[i] + Math.floor(spare / n) + (i < spare % n ? 1 : 0), sel = i === current;
       const th = sel ? 22 : 19, ty = y + (sel ? 0 : 3);
       const hov = this.hover(tx, ty, tw, th);
+      this.rects.set(`${id}:${i}`, { x: tx, y: ty, w: tw, h: th });
       this.rr(tx, ty, tw, th + 4, 3, C.edge);
       this.rr(tx + 1, ty + 1, tw - 2, th + 3, 2, sel ? C.panel : hov ? 8 : C.panelLo);
       if (sel) this.fill(tx + 3, ty + 1, tw - 6, 1, C.panelHi);
@@ -363,6 +402,7 @@ export class UI {
   }
 
   clip(x: number, y: number, w: number, h: number) {
+    this.clips.push({ x, y, w, h });
     this.ctx.save();
     this.ctx.beginPath();
     this.ctx.rect(x, y, w, h);
@@ -370,6 +410,7 @@ export class UI {
   }
 
   unclip() {
+    this.clips.pop();
     this.ctx.restore();
   }
 

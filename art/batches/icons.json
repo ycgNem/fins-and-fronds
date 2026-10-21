@@ -1,0 +1,33 @@
+{
+  "sheet": "icons",
+  "clean": true,
+  "sprites": {
+    "ui:search": "art/raw/icons/search.png",
+    "ui:plant": "art/raw/icons/plant.png",
+    "ui:fish": "art/raw/icons/fish.png",
+    "ui:equip": "art/raw/icons/equip.png",
+    "ui:water": "art/raw/icons/water.png",
+    "ui:food": "art/raw/icons/food.png",
+    "ui:letters": "art/raw/icons/letters.png",
+    "ui:codex": "art/raw/icons/codex.png",
+    "ui:trips": "art/raw/icons/trips.png",
+    "ui:upgrades": "art/raw/icons/upgrades.png",
+    "ui:guestbook": "art/raw/icons/guestbook.png",
+    "ui:settings": "art/raw/icons/settings.png",
+    "ui:eye": "art/raw/icons/eye.png",
+    "ui:coin": "art/raw/icons/coin.png",
+    "ui:rep": "art/raw/icons/rep.png",
+    "st:frond": "art/raw/icons/stamp_frond.png",
+    "st:fish": "art/raw/icons/stamp_fish.png",
+    "st:lighthouse": "art/raw/icons/stamp_lighthouse.png",
+    "st:shell": "art/raw/icons/stamp_shell.png",
+    "st:shrimp": "art/raw/icons/stamp_shrimp.png",
+    "st:cichlid": "art/raw/icons/stamp_cichlid.png",
+    "st:ship": "art/raw/icons/stamp_ship.png",
+    "st:coral": "art/raw/icons/stamp_coral.png",
+    "st:lily": "art/raw/icons/stamp_lily.png",
+    "ui:postmark": "art/raw/icons/postmark.png",
+    "ui:scroll": "art/raw/icons/scroll.png",
+    "ui:logo": "art/raw/icons/logo_emblem.png"
+  }
+}

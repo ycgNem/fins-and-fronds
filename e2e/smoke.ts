@@ -1,5 +1,6 @@
-// Browser smoke test: start the dev server, open the game, start a new aquarium, exercise a few
-// actions and fail on any console error. Run with `npm run e2e` (needs a Playwright Chromium:
+// Browser smoke test: start the dev server, open the game, start a new shop (the intro plays and
+// is skipped), build and stock the first tank and a stock tank, open every mode and window, and
+// fail on any console error. Run with `npm run e2e` (needs a Playwright Chromium:
 // `npx playwright install chromium`). Writes a screenshot to e2e/out/smoke.png.
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
@@ -27,6 +28,23 @@ try {
       requestAnimationFrame(step);
     });
     await frames(30);
+    const introPlayed = !!app.cutscene;
+    app.cutscene?.end();
+    await frames(60);
+    // the first tank, the way the tour builds it
+    // (a page-side import: vite-node would rewrite a plain import() in this file)
+    const act = await (new Function('p', 'return import(p)') as (p: string) => Promise<any>)('/src/sim/actions.ts');
+    const g = app.game;
+    act.buildTank(g, 0, 'std_20l', 'fresh');
+    const t = g.state.tanks[0];
+    app.setTank(t.id);
+    for (const e of ['hob_filter', 'heater_50', 'led_basic']) act.buyEquip(g, t, e);
+    act.buyItem(g, t, 'malaysian_driftwood', 110, 1, undefined, false);
+    act.buyItem(g, t, 'crypt_wendtii', 220, 2, undefined, false);
+    t.chem.bacA = t.chem.bacB = 0.96;
+    act.buyAnimals(g, t, 'neon_tetra', 8);
+    act.buildTank(g, 100, 'std_10', 'fresh');
+    await frames(30);
     for (const m of ['scape', 'stock', 'gear', 'water', 'care', 'look']) {
       app.setMode(m);
       await frames(5);
@@ -41,12 +59,19 @@ try {
     app.view = 'tank';
     app.state.settings.speed = 10;
     await frames(120);
-    return { screen: app.screen, tanks: app.state.tanks.length, time: app.state.time, coins: Math.round(app.state.coins) };
+    app.playScene('intro', true);
+    await frames(20);
+    const replay = !!app.cutscene;
+    app.cutscene?.end();
+    await frames(60);
+    return { screen: app.screen, tanks: app.state.tanks.length, time: app.state.time, coins: Math.round(app.state.coins), introPlayed, replay, animals: t.animals.length + t.bags.length };
   });
   mkdirSync('e2e/out', { recursive: true });
   await page.screenshot({ path: 'e2e/out/smoke.png' });
   console.log('smoke:', JSON.stringify(result));
-  if (result.screen !== 'game' || result.tanks < 1) errors.push('game did not start');
+  if (result.screen !== 'game' || result.tanks < 2) errors.push('game did not start');
+  if (!result.introPlayed || !result.replay) errors.push('the intro did not play');
+  if (!result.animals) errors.push('the first tank was not stocked');
 } finally {
   await browser.close();
   await server.close();

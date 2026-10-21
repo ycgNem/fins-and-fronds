@@ -1,15 +1,16 @@
-// Progression: aquarium tiers (reputation), upgrade tracks, the correspondents who write letters,
-// their requests, and animal partnerships. Characters are never drawn: you know them by their
-// stationery and their handwriting.
+// Progression: the shop's tiers (reputation), upgrade tracks, the correspondents who write
+// letters, their requests, and animal partnerships. The story: you take over Ida Fenwick's
+// closed-down fish shop and grow it, tank by tank, into the town's aquarium. Correspondents are
+// known by their stationery and their handwriting; Ida also appears in the cutscenes.
 import type { CorrespondentDef, RequestDef, SymbiosisDef, TierDef, UpgradeDef } from './types';
 
 export const TIERS: TierDef[] = [
-  { level: 0, name: 'Front-Window Tank', rep: 0, bays: 1, unlocks: 'One bay, freshwater, the supplier\'s starter list.' },
-  { level: 1, name: 'Corner Aquarium', rep: 80, bays: 2, unlocks: 'A second bay, CO2, paludariums and ripariums, the first expeditions.' },
-  { level: 2, name: 'Little Aquarium', rep: 300, bays: 3, unlocks: 'Brackish water, chillers, mangroves and coldwater specialists.' },
-  { level: 3, name: 'Town Aquarium', rep: 900, bays: 5, unlocks: 'Saltwater and reefs, koi ponds and touch pools.' },
-  { level: 4, name: 'Regional Aquarium', rep: 2400, bays: 7, unlocks: 'Kreisels, kelp towers, SPS reefs and big sharks.' },
-  { level: 5, name: 'Grand Oceanarium', rep: 6000, bays: 10, unlocks: 'The ocean window and the deep chamber.' },
+  { level: 0, name: 'Little Fish Shop', rep: 0, bays: 1, racks: 1, unlocks: 'One display bay in the front window, freshwater, the supplier\'s starter list.' },
+  { level: 1, name: 'Neighborhood Fish Shop', rep: 80, bays: 2, racks: 2, unlocks: 'A second display bay, CO2, bigger tanks, paludariums and ripariums, the first expeditions.' },
+  { level: 2, name: 'Aquarium Store', rep: 300, bays: 3, racks: 3, unlocks: 'Brackish water, chillers, mangroves and coldwater specialists.' },
+  { level: 3, name: 'Town Aquarium', rep: 900, bays: 5, racks: 4, unlocks: 'The shop becomes a public aquarium: saltwater and reefs, koi ponds and touch pools.' },
+  { level: 4, name: 'Regional Aquarium', rep: 2400, bays: 7, racks: 6, unlocks: 'Kreisels, kelp towers, SPS reefs and big sharks.' },
+  { level: 5, name: 'Grand Oceanarium', rep: 6000, bays: 10, racks: 8, unlocks: 'The ocean window and the deep chamber.' },
 ];
 
 export const UPGRADES: UpgradeDef[] = [
@@ -65,6 +66,7 @@ export const UPGRADES: UpgradeDef[] = [
 ];
 
 export const CORRESPONDENTS: CorrespondentDef[] = [
+  { id: 'ida', name: 'Ida Fenwick', role: 'who ran Fins & Fronds for forty-one years and handed you the keys', stationery: 'sage', signoff: 'Love, Ida. (Mind the buckets.)' },
   { id: 'reyes', name: 'Dr. Marisol Reyes', role: 'a retired marine biologist who sits on the same bench every Tuesday', stationery: 'sky', signoff: 'Warmly, M. Reyes' },
   { id: 'okafor', name: "Mr. Okafor's Class", role: 'Room 4 of the primary school down the road, who visit every Friday', stationery: 'yellow', signoff: 'From all of Room 4!!' },
   { id: 'driftwood', name: 'The Driftwood Club', role: 'the town aquascaping society, who meet in the café across the street', stationery: 'green', signoff: 'Yours in hardscape, The Driftwood Club' },
@@ -77,7 +79,11 @@ export const CORRESPONDENTS: CorrespondentDef[] = [
 ];
 
 export const REQUESTS: RequestDef[] = [
-  // tier 0
+  // tier 0: Ida's letters come first, then the town finds the shop
+  { id: 'ida_window', from: 'ida', tier: 0, first: true, title: 'The window tank', check: { t: 'rating', stars: 3 }, reward: { coins: 60, rep: 10 },
+    text: 'Folk judge a fish shop by its window. Get that first tank to three stars, healthy fish and clean glass, and they will start coming in out of the rain.' },
+  { id: 'ida_plants', from: 'ida', tier: 0, first: true, title: 'Living plants', check: { t: 'plant_species', min: 2 }, reward: { coins: 40, rep: 6 },
+    text: 'Plastic plants never sold a single fish. Two kinds of real plants, please: they eat the ammonia before your fish ever notice it.' },
   { id: 'first_school', from: 'okafor', tier: 0, title: 'Can they swim together?', check: { t: 'school', size: 8 }, reward: { coins: 60, rep: 10 },
     text: 'Dear Aquarium, we read that some fish swim in a big group called a SCHOOL. Can you make one? We will count them on Friday.' },
   { id: 'three_plants', from: 'driftwood', tier: 0, title: 'A proper planted tank', check: { t: 'plant_species', min: 3 }, reward: { coins: 50, rep: 8 },
@@ -86,7 +92,7 @@ export const REQUESTS: RequestDef[] = [
     text: 'can you get fish that glow like a night lite. 3 of them please. (I drew one)' },
   { id: 'cherries', from: 'pip', tier: 0, title: 'A cherry shrimp colony', check: { t: 'species', id: 'cherry_shrimp', min: 10 }, reward: { coins: 70, rep: 12 },
     text: 'Nothing calms me like a swarm of cherry shrimp grazing on moss. Ten would be a start; they will make the rest themselves.' },
-  { id: 'assassins', from: 'pip', tier: 0, title: 'The snail situation', check: { t: 'pests_clear' }, reward: { coins: 90, rep: 15, unlock: 'quarantine' },
+  { id: 'assassins', from: 'pip', tier: 0, when: 'pests', title: 'The snail situation', check: { t: 'pests_clear' }, reward: { coins: 90, rep: 15, unlock: 'quarantine' },
     text: 'I noticed little pest snails in your tanks, riding in on new plants. Assassin snails will tidy them up without chemicals. Clear one tank of pests and I will tell you my dipping secret.' },
   { id: 'two_stars', from: 'reyes', tier: 0, title: 'A tank worth sitting by', check: { t: 'rating', stars: 4 }, reward: { coins: 80, rep: 12 },
     text: 'I sit here most Tuesdays. Tidy up that front window until it earns four stars and I will bring my old field notebooks to share.' },
@@ -161,7 +167,7 @@ export const SYMBIOSES: SymbiosisDef[] = [
   { id: 'goby_pistol', a: 'yellow_watchman_goby', b: 'pistol_shrimp', name: 'Goby & Pistol Shrimp',
     text: 'Mutualism: the nearly blind shrimp digs and maintains the burrow; the goby stands guard and warns with a flick of its tail.' },
   { id: 'bitterling_mussel', a: 'bitterling', b: 'swan_mussel', name: 'Bitterling & Mussel',
-    text: 'Each uses the other as a nursery: bitterling eggs develop inside the mussel, mussel larvae ride on the fish.' },
+    text: 'The bitterling lays its eggs inside the living mussel, where the fry grow up safe. It is more lodger than partner: the mussel gets little in return.' },
   { id: 'cleaner_station', a: 'cleaner_shrimp', b: 'kind:fish', name: 'Cleaning Station',
     text: 'Mutualism: fish get parasites removed; the shrimp gets a meal. Even predators wait their turn.' },
   { id: 'neon_goby_station', a: 'neon_goby', b: 'kind:fish', name: 'Goby Cleaning Station',

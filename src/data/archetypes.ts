@@ -131,7 +131,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
       H({ t: 'one_rock_type' }, 'All stones of one kind.'),
       S({ t: 'plants', species: true, max: 2 }, 'One or two plant species only.', 2),
       S({ t: 'plants', kinds: ['carpet', 'foreground'], min: 1 }, 'Carpet the ground.', 2),
-      S({ t: 'plants', kinds: ['stem', 'rosette', 'ribbon', 'floating', 'bulb'], max: 0 }, 'No tall plants.'),
+      H({ t: 'plants', kinds: ['stem', 'rosette', 'ribbon', 'floating', 'bulb'], max: 0 }, 'No tall plants: only a carpet.'),
       S({ t: 'focal_thirds' }, 'Set the Oyaishi (largest stone) about a third of the way across.', 2),
       S({ t: 'species', max: 1 }, 'A single species of fish.'),
       S({ t: 'schools', size: 10, min: 1 }, 'A school of ten or more.'),

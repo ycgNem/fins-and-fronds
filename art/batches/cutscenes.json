@@ -1,0 +1,14 @@
+{
+  "sheet": "cutscenes",
+  "clean": false,
+  "sprites": {
+    "cs:intro_street": "art/raw/cutscenes/intro_street.png",
+    "cs:intro_keys": "art/raw/cutscenes/intro_keys.png",
+    "cs:intro_inside": "art/raw/cutscenes/intro_inside.png",
+    "cs:intro_note": "art/raw/cutscenes/intro_note.png",
+    "cs:intro_morning": "art/raw/cutscenes/intro_morning.png",
+    "cs:town_crowd": "art/raw/cutscenes/town_crowd.png",
+    "cs:town_ribbon": "art/raw/cutscenes/town_ribbon.png",
+    "cs:town_inside": "art/raw/cutscenes/town_inside.png"
+  }
+}

@@ -65,6 +65,10 @@ export function rate(t: Tank, f: Facts, moods: Map<string, SpeciesMood>, cls: Cl
   pen(Math.min(12, t.pests.snails * 0.4 + t.pests.aiptasia * 1.5 + t.pests.bubble), 'Pests are multiplying.');
   const load = f.bioload / Math.max(0.5, f.bioCap);
   pen(Math.max(0, load - 1) * 40, 'Overstocked for the filter.');
+  // crowding, by the old rule of thumb of about a centimeter of fish per liter
+  let bodyCm = 0;
+  for (const a of t.animals) bodyCm += species(a.sp).cm * (a.fry ? 0.3 : 1);
+  pen(Math.min(40, Math.max(0, bodyCm / Math.max(1, f.liters) - 1.3) * 30), 'Overcrowded: sell, rehome or move some.');
   pen(Math.max(0, 5 - ch.o2) * 10, 'Oxygen is low: add aeration.');
   if (t.animals.length && f.bioCap <= 0) pen(30, 'No filter!');
   let lightMiss = 0;

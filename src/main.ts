@@ -12,7 +12,12 @@ let last = performance.now();
 function loop(now: number) {
   const dt = Math.min(0.25, (now - last) / 1000);
   last = now;
-  app.frame(dt);
+  // one bad frame must never stop the loop (the game would freeze with no way out)
+  try {
+    app.frame(dt);
+  } catch (e) {
+    console.error(e);
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

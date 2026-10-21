@@ -1,7 +1,9 @@
 // Creature motion for the tank view. Presentation only: the sim knows each animal's species,
 // health and mood; here they get a position and a behavior from their zone and tags (schools
 // that hold together, cories that glide and root along the bottom, nerites inching over the
-// glass, jellies riding the kreisel's current, crabs pottering on the land shelf).
+// glass, jellies riding the kreisel's current, crabs pottering on the land shelf). Shy and
+// nocturnal animals claim a cave or a hollow log as a den: they tuck in behind it (drawn behind
+// the rock or wood), peek out now and then, and come out to forage when it suits them.
 import { species } from '../data';
 import type { SpeciesDef } from '../data/types';
 import { Rng } from '../engine/rng';
@@ -34,8 +36,40 @@ export interface Agent {
   mood: number;
   /** depth layer it sits on (bottom dwellers), for the ground line */
   layer: 0 | 1 | 2;
-  /** drawn half-hidden (burrowed, tucked into a cave in daylight) */
+  /** drawn half-hidden (burrowed, or nocturnal and out in daylight) */
   hidden: number;
+  /** the cave item this one has claimed as its den (uid; BURIED for the sand), and how far in it is 0..1 */
+  den: number;
+  inDen: number;
+  /** heading home to the den */
+  home: boolean;
+  homeTimer: number;
+  /** how far its head pokes out of the den 0..1, and which side of the den it uses */
+  peek: number;
+  peekTimer: number;
+  side: number;
+  /** depth in the tank, 0 at the back glass to 1 at the front (swimmers drift through it) */
+  z: number;
+  tz: number;
+}
+
+/** the den of a burrower that found no cave big enough: it digs into the sand, head out */
+export const BURIED = -2;
+
+/** a cave or hollow log in tank pixels: its base center, size and depth layer */
+export interface Cave {
+  uid: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  layer: 0 | 1 | 2;
+}
+
+/** animals that keep a den: nocturnal fish, cave spawners, plecos, loaches, crayfish */
+export function keepsDen(s: SpeciesDef): boolean {
+  return s.tags.includes('nocturnal') || s.tags.includes('cave') || s.tags.includes('shell_dweller') || s.needs.includes('caves') || s.breed.type === 'cave' ||
+    s.body === 'pleco' || s.body === 'loach' || s.kind === 'crayfish';
 }
 
 export interface Food {
@@ -53,7 +87,7 @@ export interface SceneCtx {
   /** water movement 0..4 (drifts creatures and food) */
   flow: number;
   kreisel: boolean;
-  caves: { x: number; y: number }[];
+  caves: Cave[];
   perches: { x: number; y: number }[];
 }
 
@@ -88,6 +122,8 @@ function band(s: SpeciesDef, g: Geom): [number, number] {
 export class Agents {
   list: Agent[] = [];
   food: Food[] = [];
+  /** little clouds of sand kicked up by rooting bottom fish (drawn by the tank view) */
+  puffs: { x: number; y: number; vx: number; vy: number; life: number }[] = [];
   private rng = new Rng(7);
   private byUid = new Map<number, Agent>();
 
@@ -127,6 +163,8 @@ export class Agents {
     return {
       uid: a.uid, sp: a.sp, def, x, y, vx: r.range(-4, 4), vy: 0, face: r.chance(0.5) ? 1 : -1, phase: r.range(0, 4),
       mode, tx: x, ty: y, timer: r.range(0, 3), scared: 0, len: creatureLength(a.sp), fry: a.fry, grade: a.grade, mood: a.mood, layer, hidden: 0,
+      den: -1, inDen: 0, home: false, homeTimer: r.range(0, 4), peek: 0, peekTimer: r.range(1, 4), side: r.chance(0.5) ? 1 : -1,
+      z: layer / 2, tz: r.range(0.1, 0.9),
     };
   }
 
@@ -165,13 +203,21 @@ export class Agents {
       f.life -= dt;
     }
     this.food = this.food.filter((f) => f.life > 0);
+    for (const p of this.puffs) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 6 * dt;
+      p.life -= dt;
+    }
+    this.puffs = this.puffs.filter((p) => p.life > 0);
+    if (this.puffs.length > 120) this.puffs.splice(0, this.puffs.length - 120);
 
     // per-species school centers for cohesion
-    const centers = new Map<string, { x: number; y: number; vx: number; vy: number; n: number }>();
+    const centers = new Map<string, { x: number; y: number; vx: number; vy: number; z: number; n: number }>();
     for (const a of this.list) {
       if (a.mode !== 'swim') continue;
-      const ce = centers.get(a.sp) ?? { x: 0, y: 0, vx: 0, vy: 0, n: 0 };
-      ce.x += a.x; ce.y += a.y; ce.vx += a.vx; ce.vy += a.vy; ce.n++;
+      const ce = centers.get(a.sp) ?? { x: 0, y: 0, vx: 0, vy: 0, z: 0, n: 0 };
+      ce.x += a.x; ce.y += a.y; ce.vx += a.vx; ce.vy += a.vy; ce.z += a.z; ce.n++;
       centers.set(a.sp, ce);
     }
 
@@ -179,9 +225,82 @@ export class Agents {
       const s = a.def;
       const speed = (a.fry ? 0.6 : 1) * Math.min(26, 5 + a.len * 0.35) * (a.scared > 0 ? 2.6 : 1);
       const nocturnalDay = s.tags.includes('nocturnal') && c.lightsOn;
+      const asleep = !c.lightsOn && !s.tags.includes('nocturnal') && a.mode === 'swim';
       a.timer -= dt;
       a.scared = Math.max(0, a.scared - dt);
-      a.hidden += ((nocturnalDay && a.mode !== 'drift' ? 1 : 0) - a.hidden) * Math.min(1, dt * 0.8);
+      a.hidden += ((nocturnalDay && a.mode !== 'drift' && a.inDen < 0.5 ? 1 : 0) - a.hidden) * Math.min(1, dt * 0.8);
+
+      // ---- dens: shy animals go home by day (nocturnal) or on and off (the rest), and when startled
+      if (c.caves.length && (a.mode === 'swim' || a.mode === 'bottom' || a.mode === 'perch') && keepsDen(s)) {
+        a.homeTimer -= dt;
+        if (a.homeTimer <= 0) {
+          a.homeTimer = r.range(8, 22);
+          a.home = s.tags.includes('nocturnal') ? c.lightsOn : r.chance(this.food.length ? 0.1 : 0.55);
+        }
+        if (a.scared > 0) a.home = true;
+        if (this.food.length && !nocturnalDay && a.scared <= 0) a.home = false;
+        // only a den longer than the animal hides it; burrowers that fit nowhere dig in instead
+        const fits = c.caves.filter((q) => q.w >= a.len * 1.1);
+        if (a.home && !fits.length && s.tags.includes('burrower') && a.mode === 'bottom') {
+          a.den = BURIED;
+          a.inDen = Math.min(1, a.inDen + dt * 0.8);
+          a.vx = 0;
+          a.y = groundY(t, g, a.x, a.layer) - 1;
+          a.phase += dt * 0.6;
+          continue;
+        }
+        if (a.home && fits.length) {
+          let cv = fits.find((q) => q.uid === a.den);
+          if (!cv) {
+            // the nearest den with the fewest lodgers
+            const lodgers = (u: number) => this.list.filter((b) => b.den === u).length;
+            cv = [...fits].sort((p, q) => lodgers(p.uid) - lodgers(q.uid) || Math.abs(p.x - a.x) - Math.abs(q.x - a.x))[0];
+            a.den = cv.uid;
+          }
+          const mates = this.list.filter((b) => b.den === cv!.uid);
+          const idx = mates.indexOf(a), n = mates.length;
+          const spread = n > 1 ? ((idx / (n - 1)) - 0.5) * Math.min(cv.w * 0.6, n * a.len * 0.35) : 0;
+          const hx = cv.x + spread * 0.5, hy = cv.y - Math.max(2, Math.min(cv.h * 0.22, a.len * 0.22));
+          const dx = hx - a.x, dy = hy - a.y, d = Math.hypot(dx, dy);
+          if (d > 2 && a.inDen < 0.5) {
+            const v = speed * 0.8;
+            a.vx = (dx / d) * v;
+            a.vy = (dy / d) * v;
+            a.x += a.vx * dt;
+            a.y += a.vy * dt;
+            if (Math.abs(a.vx) > 0.6) a.face = a.vx > 0 ? 1 : -1;
+            a.phase += dt * 4;
+          } else {
+            if (s.tags.includes('territorial') || s.temper === 'aggressive') {
+              for (const b of this.list) {
+                if (b === a || b.sp === a.sp || b.inDen > 0.5 || b.mode === 'glass') continue;
+                if (Math.abs(b.x - cv.x) < cv.w * 0.6 + 6 && Math.abs(b.y - hy) < 14 && b.scared <= 0) {
+                  // a dash at the intruder, who bolts
+                  b.scared = 0.7;
+                  b.vx += Math.sign(b.x - cv.x || 1) * 30;
+                  a.peek = 1;
+                  a.peekTimer = 1.2;
+                }
+              }
+            }
+            a.inDen = Math.min(1, a.inDen + dt * 1.5);
+            // peek out of the side of the den now and then, then duck back in
+            a.peekTimer -= dt;
+            if (a.peekTimer <= 0) a.peekTimer = r.range(3, 7);
+            const out = a.peekTimer < 1.6 && a.scared <= 0 ? 1 : 0;
+            a.peek += (out - a.peek) * Math.min(1, dt * 2.5);
+            a.face = a.side;
+            a.x = hx + a.side * (Math.max(0, cv.w * 0.42 - a.len * 0.5) + a.len * 0.35 * a.peek);
+            a.y = hy;
+            a.vx = a.vy = 0;
+            a.phase += dt * 0.8;
+          }
+          continue;
+        }
+        a.inDen = Math.max(0, a.inDen - dt * 2);
+        a.peek = 0;
+        if (a.inDen === 0 && a.den === BURIED) a.den = -1;
+      }
 
       // hungry fish chase sinking food
       let chasing = false;
@@ -208,14 +327,15 @@ export class Agents {
           const [y0, y1] = band(s, g);
           if (!chasing && (a.timer <= 0 || Math.hypot(a.tx - a.x, a.ty - a.y) < 4)) {
             a.timer = r.range(1.5, 5);
-            if (nocturnalDay && c.caves.length) {
-              const cv = r.pick(c.caves);
-              a.tx = cv.x + r.range(-4, 4);
-              a.ty = cv.y - 3;
-            } else if (a.mode === 'perch' && c.perches.length) {
+            if (r.chance(0.35)) a.tz = r.range(0.05, 0.95);
+            if (a.mode === 'perch' && c.perches.length) {
               const p = r.pick(c.perches);
               a.tx = p.x + r.range(-10, 10);
               a.ty = p.y - r.range(2, 14);
+            } else if (asleep) {
+              // lights out: settle low among the plants and barely move
+              a.tx = Math.max(8, Math.min(waterR - 8, a.x + r.range(-12, 12)));
+              a.ty = r.range(y0 + (y1 - y0) * 0.6, y1);
             } else {
               a.tx = r.range(8, waterR - 8);
               a.ty = r.range(y0, y1);
@@ -241,8 +361,11 @@ export class Agents {
           }
           a.vx += ax * dt;
           a.vy += ay * dt;
+          // drift forward and back through the tank; a school keeps to one depth
+          const schoolZ = ce && ce.n > 1 && s.tags.includes('schooling') ? ce.z / ce.n : a.tz;
+          a.z += ((a.tz * 0.4 + schoolZ * 0.6) - a.z) * Math.min(1, dt * 0.35);
           const sp = Math.hypot(a.vx, a.vy);
-          const max = nocturnalDay ? speed * 0.25 : speed;
+          const max = nocturnalDay || asleep ? speed * 0.25 : speed;
           if (sp > max) {
             a.vx *= max / sp;
             a.vy *= max / sp;
@@ -262,6 +385,11 @@ export class Agents {
           a.vx = Math.abs(dx) > 1 ? Math.sign(dx) * Math.min(crawl, Math.abs(dx) * 2) : 0;
           a.vy = 0;
           a.y = groundY(t, g, a.x, a.layer) - Math.max(1, a.len * 0.12);
+          a.z += (a.layer / 2 - a.z) * Math.min(1, dt * 2);
+          if (a.vx === 0 && s.kind === 'fish' && (s.body === 'cory' || s.tags.includes('scavenger')) && r.chance(dt * 3)) {
+            const mx = a.x + a.face * a.len * 0.45, my = a.y + Math.max(1, a.len * 0.12);
+            for (let i = 0; i < 3; i++) this.puffs.push({ x: mx + r.range(-1, 1), y: my, vx: r.range(-3, 3), vy: -r.range(2, 6), life: r.range(0.6, 1.2) });
+          }
           break;
         }
         case 'glass': {

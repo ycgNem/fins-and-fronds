@@ -6,7 +6,7 @@ export const EQUIPMENT: EquipDef[] = [
   // ---------------------------------------------------------------- filtration
   { id: 'sponge_filter', name: 'Sponge Filter', slot: 'filter', bio: 60, lph: 120, gentle: true, price: 10, tier: 0,
     blurb: 'Air-driven foam: gentle, cheap and shrimp-safe, with a huge surface for bacteria. Fry and shrimplets cannot be sucked in.' },
-  { id: 'hob_filter', name: 'Hang-on-back Filter', slot: 'filter', bio: 120, lph: 400, price: 30, tier: 0,
+  { id: 'hob_filter', name: 'Hang-on-back Filter', slot: 'filter', bio: 160, lph: 400, price: 30, tier: 0,
     blurb: 'Hangs on the rim, cascades water back in and keeps the surface rippling.' },
   { id: 'canister_filter', name: 'Canister Filter', slot: 'filter', bio: 400, lph: 1000, price: 90, tier: 1,
     blurb: 'A sealed canister under the stand packed with media trays; quiet, powerful and invisible but for the lily pipes.' },

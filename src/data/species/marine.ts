@@ -355,7 +355,8 @@ export const MARINE: SpeciesDef[] = [
       id: 'horseshoe_crab', name: 'Atlantic Horseshoe Crab', sci: 'Limulus polyphemus', kind: 'crab', cm: 50, body: 'crab', temp: [14, 26],
       look: { body: 'brown', accent: 'olive' }, temper: 'peaceful', zone: 'bottom', minL: 800, diet: ['detritus', 'frozen'], rarity: 2, appeal: 9,
       tags: ['touchable', 'iconic', 'oddball', 'scavenger'], needs: ['sand'],
-      fact: 'Older than the dinosaurs, horseshoe crabs have copper-based blue blood that is used to test medicines for contamination.',
+      regions: ['seagrass'],
+      fact: 'Not crabs at all: horseshoe crabs are older than the dinosaurs and closer kin to spiders and scorpions. Their copper-based blue blood is used to test medicines for contamination. They live on Atlantic and Gulf coasts.',
     },
   ]),
   // ---------------------------------------------------------------- open ocean drifters
@@ -374,9 +375,9 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'comb_jelly', name: 'Sea Gooseberry', sci: 'Pleurobrachia bachei', kind: 'jelly', regions: ['open_ocean', 'cold_north'], cm: 2, body: 'jelly', temp: [10, 18],
-      look: { body: 'pearl', clear: true, pattern: 'glow' }, temper: 'peaceful', zone: 'drift', school: 5, minL: 100, flow: [1, 2], diet: ['plankton'], rarity: 4,
-      appeal: 9, tags: ['glow', 'transparent', 'oddball'], needs: ['kreisel'], tier: 5, source: 'expedition',
-      fact: 'Comb jellies are not true jellyfish: they row with rows of beating cilia that scatter light into running rainbows.',
+      look: { body: 'pearl', clear: true }, temper: 'peaceful', zone: 'drift', school: 5, minL: 100, flow: [1, 2], diet: ['plankton'], rarity: 4,
+      appeal: 9, tags: ['transparent', 'oddball'], needs: ['kreisel'], tier: 5, source: 'expedition',
+      fact: 'Comb jellies are not true jellyfish: they row with rows of beating cilia. The running rainbows are light diffracting off the combs; sea gooseberries do not glow in the dark.',
     },
     {
       id: 'pacific_sardine', name: 'Pacific Sardine', sci: 'Sardinops sagax', kind: 'fish', cm: 20, body: 'torpedo', temp: [14, 22],

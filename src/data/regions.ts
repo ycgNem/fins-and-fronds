@@ -50,15 +50,15 @@ export const REGIONS: RegionDef[] = [
   },
   {
     id: 'lake_malawi', name: 'Lake Malawi Rock Shore', continent: 'Africa', water: 'fresh',
-    temp: [24, 28], ph: [7.8, 8.6], gh: [10, 20], look: 'rift',
-    blurb: 'A Rift lake as clear as a reef, with rock piles crowded by colorful, quarrelsome mbuna. The water chemistry is remarkably uniform.',
+    temp: [24, 28], ph: [7.7, 8.6], gh: [4, 8], look: 'rift',
+    blurb: 'A Rift lake as clear as a reef, with rock piles crowded by colorful, quarrelsome mbuna. The lake itself is only moderately hard (about 4-6 GH, 6-8 KH) but very stable; keepers usually run their tanks harder.',
     scape: 'Piled rounded rock with many caves and sight-breaks, sand, few or no plants (Vallisneria at most).',
     expedition: { hours: 12, cost: 280, tier: 1 },
   },
   {
     id: 'lake_tanganyika', name: 'Lake Tanganyika', continent: 'Africa', water: 'fresh',
-    temp: [24, 28], ph: [7.8, 9.0], gh: [12, 20], look: 'rift',
-    blurb: 'The second-deepest lake on Earth: very hard, very alkaline water, shell beds of Neothauma snails and endless rocky slopes.',
+    temp: [24, 28], ph: [8.4, 9.2], gh: [9, 14], look: 'rift',
+    blurb: 'The second-deepest lake on Earth: alkaline water with a huge carbonate buffer (KH 16-19), shell beds of Neothauma snails and endless rocky slopes.',
     scape: 'Sand with beds of empty snail shells, rock stacks, open water above.',
     expedition: { hours: 12, cost: 280, tier: 1 },
   },
@@ -145,7 +145,7 @@ export const REGIONS: RegionDef[] = [
   },
   {
     id: 'red_sea', name: 'Red Sea Reefs', continent: 'Ocean', water: 'marine',
-    temp: [24, 28], ph: [8.1, 8.4], sg: [1.025, 1.027], look: 'reef',
+    temp: [24, 28], ph: [8.1, 8.4], sg: [1.027, 1.030], look: 'reef',
     blurb: 'Warm, salty and crystal clear, with endemic tangs, dottybacks and some of the hardiest corals in the world.',
     scape: 'Reef rock, white sand, SPS and soft corals, very bright light.',
     expedition: { hours: 16, cost: 480, tier: 3 },

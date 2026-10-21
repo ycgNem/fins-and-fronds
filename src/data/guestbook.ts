@@ -27,7 +27,7 @@ export const GUEST_LINES: Record<GuestTrigger, string[]> = {
   whimsy: ['The treasure chest bubbled and everyone cheered!', 'My son wants a castle for his room now.'],
   night: ['Came for the night opening. The fish we never see in the day!', 'Moonlight tanks are magic.'],
   shrimp: ['So many tiny shrimp! They never stop eating.', 'The red shrimp look like little cherries.'],
-  snail: ['We watched a snail cross the whole glass. It took a while. Worth it.', 'An assassin snail! I did not know snails could hunt.'],
+  snail: ['We watched a snail cross the whole glass. It took a while. Worth it.', 'Two snails raced each other across the glass. Nobody won. We cheered anyway.'],
   axolotl: ['THE AXOLOTL SMILED AT ME.', 'Learned that axolotls can regrow legs. My mind is blown.'],
   seahorse: ['The seahorses hold hands with the grass!', 'Daddy seahorses have the babies. Today I learned.'],
   stressed: ['The {sp} looked pale. Hope it feels better.', 'One of the fish was hiding the whole time.'],

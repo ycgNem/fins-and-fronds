@@ -60,12 +60,20 @@ Ids come from `src/data` (for example `sp:cherry_shrimp:2`, `it:spider_wood`).
 | scape-5 | stems, ribbons, kelp, lotus, banks, galleon (Pixen) | 21 |
 | backdrops | far strips for 13 water looks | 13 |
 | equipment | in-tank gear | 12 |
+| cutscenes | the intro (keys, dusty shop, note, morning) and the town opening (cs:) | 8 |
+| shop | props around the tanks: counter, cat, shelf, plants, poster, buckets, chalkboard, supplies, notice board, OPEN sign (sh:) | 11 |
+| plates | codex plates, one per tank type (pl:<archetype>) | 63 |
+| icons | window and tab icons, coin, reputation, letter stamps, postmark, scroll, title emblem (ui:, st:) | 27 |
+| postcards | one picture per collecting region (pc:<region>), cropped inside the drawn border | 27 |
+
+The kuhli loach in creatures-4 is hand-painted (the PixelLab candidates were noisy pink worms;
+the first version read as a ladder). The old one is kept in `art/raw/old/`.
 
 All 189 species and all 153 scape items have imported art.
 
 ## Budget
 
-The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M7 used about 280.
+The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the redesign art used about 600.
 
 | Milestone | Area | Planned | Spent | Status |
 |---|---|---|---|---|
@@ -73,9 +81,9 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M7 used about 
 | M5 | 189 species stills (swim, crawl and pulse frames derived) | 320 | 125 | done |
 | M6 | 153 scape items (sway frames derived) | 170 | 63 | done |
 | M7 | 13 backdrops, 12 pieces of equipment, stand tries | 100 | 29 | done |
-| M8 | UI skin and icons, 63 codex plates, stationery, 27 postcards, logo | 150 | | |
-| | Reserve | 200 | | |
-| | **Total** | **1000** | **about 277** | |
+| M8 | Icons and stamps, 63 codex plates, 27 postcards, logo emblem | 150 | 77 (plates 40, icons 10, postcards 27) | done |
+| Redesign | Intro and town cutscenes, shop props, a kuhli retry | (reserve) | 250 (cutscenes 120, shop 120, kuhli 10) | done |
+| | **Total** | **1000** | **about 600** | |
 
 ## Batch log
 
@@ -88,3 +96,9 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M7 used about 
 | 2026-10-21 | Scape Pixen: 20 large items, pagoda stone, 7 redos | 28 | redos: potted ambulia, cactus-like aponogeton, blob elodea, tiny ceramic rock, banks, galleon |
 | 2026-10-21 | Backdrops: 14 looks, 3 redos | 17 | pelagic dropped (fish school too heavy); stays procedural |
 | 2026-10-21 | Equipment pack (24 px), two cabinet tries | 12 | cabinets snapped badly to the palette; stand is procedural |
+| 2026-10-21 | Cutscenes: 8 Pro scenes at 400x224, two retried after timeouts | 120 | style ref for the later scenes was intro_inside |
+| 2026-10-21 | Shop props: 11 Pro props, the counter twice | 120 | styled from intro_inside so the shop matches the intro |
+| 2026-10-21 | Kuhli loach Pro retry (64 candidates at 48x16) | 10 | none used: hand-painted instead |
+| 2026-10-21 | Codex plates: four 64 px 16-packs (63 plates + the emblem) | 40 | every candidate used, in archetype order |
+| 2026-10-21 | Icons: one 32 px pack of 26 | 10 | 15 icons, 9 stamps, postmark, scroll; 16 px copies made at runtime (majority 2x2) |
+| 2026-10-21 | Postcards: 27 Pixen at 160x96 | 27 | 2 resubmitted after the 10-job limit; cropped 6 px for the drawn borders |

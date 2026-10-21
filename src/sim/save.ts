@@ -7,7 +7,12 @@ export const SAVE_KEY = 'fins-and-fronds/save';
 
 type Migration = (s: any) => void;
 const MIGRATIONS: Record<number, Migration> = {
-  // 1 -> 2: add migrations here when the format changes
+  // 1 -> 2: the fish-shop story. Old saves already have a running aquarium, so they skip the
+  // intro and the guided first tank.
+  1: (s) => {
+    s.tutorial = { step: 0, done: true };
+    s.seen = ['intro'];
+  },
 };
 
 export function serialize(s: GameState): string {

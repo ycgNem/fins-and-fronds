@@ -9,9 +9,11 @@ import { creatureFrame, itemFrame } from '../render/art/sprites';
 import * as act from '../sim/actions';
 import { canExpedition, expeditionHours, expeditionSlots } from '../sim/expeditions';
 import { shellPrice, shellsForSale, watersAvailable } from '../sim/catalog';
+import { BAL } from '../sim/balance';
 import { deserialize, serialize } from '../sim/save';
 import { clockText, dayOf } from '../sim/state';
-import { TOOLBAR_H, TOP_H } from './hud';
+import { drawIcon, drawPicture, hasArt } from '../render/icons';
+import { TOOLBAR_H, TOP_H, WIN_ICON } from './hud';
 import { ICON, M, type UI } from './ui';
 
 const heights = new Map<string, number>();
@@ -33,14 +35,16 @@ const RIBBON = 30;
 export function drawWindow(app: App) {
   const u = app.ui;
   const id = app.window!;
-  const w = Math.min(app.W - 32, id === 'menu' ? 340 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, id === 'menu' ? 360 : 500);
+  const w = Math.min(app.W - 32, id === 'menu' ? 340 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, id === 'menu' ? 400 : 500);
   const x = Math.floor((app.W - w) / 2), y = TOP_H + Math.floor((app.H - TOP_H - TOOLBAR_H - h) / 2);
-  u.fill(0, 0, app.W, app.H, 0, 0.3);
-  u.block(0, TOP_H, app.W, app.H - TOP_H - TOOLBAR_H);
+  u.modal();
+  u.fill(0, 0, app.W, app.H - TOOLBAR_H, 0, 0.3);
+  u.block(0, 0, app.W, app.H);
   u.panel(x, y, w, h, 'window');
   u.rr(x + 4, y + 4, w - 8, RIBBON - 4, 3, C.head);
   u.fill(x + 7, y + 5, w - 14, 1, 40);
-  u.head(TITLES[id], x + 14, y + 8, 9);
+  const titled = drawIcon(u.ctx, `ui:${WIN_ICON[id]}`, x + 10, y + 7, 16);
+  u.head(id === 'newtank' && app.newTankBay >= BAL.rackBay ? 'A stock tank' : TITLES[id], x + (titled ? 32 : 14), y + 8, 9);
   if (u.button('wclose', x + w - 30, y + 7, 22, 20, 'x', { style: 'flat', tip: 'Close (Esc)' })) app.window = null;
   const ix = x + 14, iy = y + RIBBON + 10, iw = w - 28, ih = h - RIBBON - 20;
   switch (id) {
@@ -89,6 +93,13 @@ function codex(app: App, x: number, y: number, w: number, h: number) {
     const a = ARCHETYPES.find((q) => q.id === app.panel.codexSel) ?? ARCHETYPES.find((q) => found.archetypes.includes(q.id)) ?? ARCHETYPES[0];
     const got = found.archetypes.includes(a.id);
     column(u, 'cx-archd', dx, y, dw, h, (x, y, w) => {
+      if (hasArt(`pl:${a.id}`)) {
+        // the plate: in color once recognized, faded until then
+        u.panel(x, y, w, 136, 'inset', false);
+        drawPicture(u.ctx, `pl:${a.id}`, x + 4, y + 4, w - 8, 128, got ? 1 : 0.35);
+        if (!got) u.text('Not yet recognized', x + w / 2, y + 116, C.textDim, { align: 'center' });
+        y += 144;
+      }
       u.head(a.name, x, y, C.head, { maxW: w });
       y += M.row + 2;
       u.text(`${a.family}${got ? ', recognized!' : a.tier > s.tier ? `, from ${TIERS[a.tier].name}` : ''}`, x, y, got ? C.good : C.textDim, { maxW: w });
@@ -177,6 +188,14 @@ function describe(c: RequestCheck): string {
   }
 }
 
+const STAMPS = ['frond', 'fish', 'lighthouse', 'shell', 'shrimp', 'cichlid', 'ship', 'coral', 'lily'];
+
+function hashOf(s: string) {
+  let h = 7;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
 function letters(app: App, x: number, y: number, w: number, h: number) {
   const u = app.ui;
   const s = app.state;
@@ -210,9 +229,12 @@ function letters(app: App, x: number, y: number, w: number, h: number) {
   u.panel(px, y, pw, h, 'paper', false);
   const ramp = RAMP[who.stationery];
   u.fill(px + 2, y + 2, pw - 4, 6, ramp[ramp.length - 2]);
+  const stamp = STAMPS[hashOf(who.name) % STAMPS.length];
+  const stamped = drawIcon(u.ctx, `st:${stamp}`, px + pw - 46, y + 14, 32);
+  if (stamped) drawIcon(u.ctx, 'ui:postmark', px + pw - 64, y + 22, 32, 0.7);
   column(u, 'letter', px + 14, y + 18, pw - 24, h - 56, (x, y, w) => {
-    u.head(r.title, x, y, C.paperInk, { maxW: w });
-    y += M.row + 6;
+    u.head(r.title, x, y, C.paperInk, { maxW: w - (stamped ? 64 : 0) });
+    y += M.row + 6 + (stamped ? 16 : 0);
     y += u.para(r.text, x, y, w, C.paperInk) + 10;
     u.text(who.signoff, x + w, y, C.paperInk, { align: 'right' });
     y += M.row + 4;
@@ -237,8 +259,12 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
     const reg = REGIONS.find((r) => r.id === back.region)!;
     u.panel(x, y, w, h, 'paper', false);
     u.fill(x + 2, y + 2, w - 4, 6, 40);
+    const stamped = drawIcon(u.ctx, `st:${STAMPS[hashOf(reg.id) % STAMPS.length]}`, x + w - 46, y + 14, 32);
+    if (stamped) drawIcon(u.ctx, 'ui:postmark', x + w - 64, y + 22, 32, 0.7);
     column(u, 'postcard', x + 16, y + 18, w - 32, h - 56, (x, y, w) => {
-      u.head(`A postcard from the ${reg.name}`, x, y, C.paperInk, { maxW: w });
+      const ph = drawPicture(u.ctx, `pc:${reg.id}`, x, y, Math.min(w - 70, 300), 180);
+      if (ph) y += ph + 10;
+      u.head(`A postcard from the ${reg.name}`, x, y, C.paperInk, { maxW: w - (ph ? 0 : 64) });
       y += M.row + 6;
       y += u.para(back.postcard ?? '', x, y, w, C.paperInk) + 10;
       u.text('Fair winds, Wren', x + w, y, C.paperInk, { align: 'right' });
@@ -289,6 +315,8 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
   if (!r) return;
   const dx = x + lw + 14, dw = w - lw - 14;
   column(u, 'regiond', dx, top, dw, listH - 32, (x, y, w) => {
+    const ph = drawPicture(u.ctx, `pc:${r.id}`, x, y, w, 180, r.expedition.tier > s.tier ? 0.4 : 1);
+    if (ph) y += ph + 8;
     u.head(r.name, x, y, C.head, { maxW: w });
     y += M.row + 2;
     u.text(`${r.continent}, ${r.water}`, x, y, C.textDim);
@@ -301,7 +329,8 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
     return y + M.row;
   });
   const why = canExpedition(s, r.id as RegionId);
-  if (u.button('sail', dx + dw - 180, top + listH - M.btn - 2, 180, M.btn + 2, why ? why.slice(0, 24) : `Set sail ${ICON.coin}${r.expedition.cost}`, { style: why ? 'flat' : 'good', disabled: !!why, tip: why ?? 'Captain Wren will bring back animals, plants and stones from here' })) app.run(act.sendExpedition(g, r.id as RegionId));
+  if (why) u.para(why, dx, top + listH - M.btn - 4, dw - 190, C.warn);
+  if (u.button('sail', dx + dw - 180, top + listH - M.btn - 2, 180, M.btn + 2, `Set sail ${ICON.coin}${r.expedition.cost}`, { style: why ? 'flat' : 'good', disabled: !!why, tip: why ?? 'Captain Wren will bring back animals, plants and stones from here' })) app.run(act.sendExpedition(g, r.id as RegionId));
 }
 
 // ---------------------------------------------------------------- upgrades
@@ -328,7 +357,7 @@ function upgrades(app: App, x: number, y: number, w: number, h: number) {
       u.text(text, x + 10, y + 23, next ? C.textDim : C.good, { maxW: w - 160 });
       if (next) {
         const locked = next.tier > s.tier;
-        if (u.button(`up${up.id}`, x + w - 138, y + 12, 128, M.btn + 2, locked ? TIERS[next.tier].name.split(' ')[0] + ' tier' : `${ICON.coin} ${next.cost}`, { style: locked ? 'flat' : 'good', disabled: locked || s.coins < next.cost, tip: locked ? `Needs the ${TIERS[next.tier].name} tier` : next.text })) app.run(act.buyUpgrade(app.game!, up.id));
+        if (u.button(`up${up.id}`, x + w - 138, y + 12, 128, M.btn + 2, locked ? 'Locked' : `${ICON.coin} ${next.cost}`, { style: locked ? 'flat' : 'good', disabled: locked || s.coins < next.cost, tip: locked ? `Needs the ${TIERS[next.tier].name} tier` : next.text })) app.run(act.buyUpgrade(app.game!, up.id));
       } else u.text('Done', x + w - 14, y + 15, C.good, { align: 'right' });
       y += ch + 6;
     }
@@ -359,8 +388,18 @@ function guestbook(app: App, x: number, y: number, w: number, h: number) {
 function menu(app: App, x: number, y: number, w: number, _h: number) {
   const u = app.ui;
   const s = app.state;
-  if (u.button('resume', x, y, w, M.btn + 4, 'Back to the aquarium', { style: 'good' })) app.window = null;
-  y += M.btn + 12;
+  if (u.button('resume', x, y, w, M.btn + 4, 'Back to the shop', { style: 'good' })) app.window = null;
+  y += M.btn + 10;
+  const hw0 = Math.floor((w - 6) / 2);
+  if (u.button('replaytut', x, y, hw0, M.btn, 'Replay the tour', { tip: 'Ida walks you through every feature again' })) {
+    s.tutorial = { step: 0, done: false };
+    app.window = null;
+  }
+  if (u.button('replayintro', x + hw0 + 6, y, hw0, M.btn, 'Watch the intro', { tip: 'The night you got the keys' })) {
+    app.window = null;
+    app.playScene('intro', true);
+  }
+  y += M.btn + 10;
   const gentle = u.toggle('gentle', x, y, 'Gentle mode (no deaths)', s.settings.gentle);
   if (gentle !== s.settings.gentle) {
     s.settings.gentle = gentle;
@@ -431,12 +470,13 @@ function newTank(app: App, x: number, y: number, w: number, h: number) {
   const shells = shellsForSale(s);
   const lw = Math.floor(w * 0.5);
   u.panel(x, y, lw, h, 'inset', false);
+  u.mark('shells', x, y, lw, h);
   column(u, 'shells', x + 6, y + 6, lw - 8, h - 12, (x, y, w) => {
     for (const sh of shells) {
       const rh = M.line * 2 + 6;
       if (u.row(x - 3, y - 2, w + 6, rh, app.panel.shellSel === sh.id)) app.panel.shellSel = sh.id;
       u.text(sh.name, x, y, C.strong, { maxW: w - 70 });
-      u.text(`${sh.liters} L, ${sh.cm[0]}x${sh.cm[1]}x${sh.cm[2]} cm`, x, y + M.line, C.textDim, { maxW: w - 70 });
+      u.text(`${sh.gal ? `${sh.gal} gal, ` : `${Math.round(sh.liters / 3.785)} gal, `}${sh.liters} L, ${sh.cm[0]}x${sh.cm[1]}x${sh.cm[2]} cm`, x, y + M.line, C.textDim, { maxW: w - 70 });
       u.text(`${ICON.coin} ${shellPrice(s, sh)}`, x + w, y, C.gold, { align: 'right' });
       y += rh;
     }
@@ -461,12 +501,13 @@ function newTank(app: App, x: number, y: number, w: number, h: number) {
   for (const wt of ['fresh', 'brackish', 'marine'] as Water[]) {
     const ok = waters.includes(wt);
     const bw = Math.floor((dw - 6) / 3);
-    if (u.button(`water${wt}`, bx, dy, bw, M.btn, wt, { active: app.panel.waterSel === wt, disabled: !ok, style: 'flat', tip: ok ? undefined : wt === 'brackish' ? 'Brackish opens at the Little Aquarium tier' : 'Saltwater opens at the Town Aquarium tier' })) app.panel.waterSel = wt;
+    if (u.button(`water${wt}`, bx, dy, bw, M.btn, wt, { active: app.panel.waterSel === wt, disabled: !ok, style: 'flat', tip: ok ? undefined : wt === 'brackish' ? 'Brackish opens at the Aquarium Store tier' : 'Saltwater opens at the Town Aquarium tier' })) app.panel.waterSel = wt;
     bx += bw + 3;
   }
   dy += M.btn + 10;
   const cost = shellPrice(s, sh);
-  u.para('It arrives filled and empty. Add a filter, let the nitrogen cycle establish, then scape and stock it.', dx, dy, dw, C.textDim);
+  const rack = app.newTankBay >= BAL.rackBay;
+  u.para(rack ? 'A stock tank for the back room. Breed fish and grow plants in it; customers buy the healthy adults (above the breeders you keep) and the cuttings.' : 'It arrives filled and empty. Add a filter, let the nitrogen cycle establish, then scape and stock it.', dx, dy, dw, rack ? C.accent : C.textDim);
   if (u.button('build', dx, y + h - M.btn - 4, dw, M.btn + 4, `Build for ${ICON.coin}${cost}`, { style: 'good', disabled: s.coins < cost })) {
     const msg = act.buildTank(app.game!, app.newTankBay, sh.id, app.panel.waterSel);
     if (msg) app.toast(msg, 'bad');

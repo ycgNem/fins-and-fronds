@@ -1,24 +1,27 @@
 // The app: owns the canvas, the game, one TankView per tank and the UI state, and routes input.
 // The screen is a low-resolution buffer (800x450 or a little more) scaled up by a whole number; the tank is
 // drawn at a whole-number zoom inside it, so every sprite pixel stays square.
-import { item, species } from '../data';
+import { item, species, TIERS } from '../data';
 import { PALETTE, rgba, UI as C } from '../data/palette';
 import { Audio } from '../engine/audio';
 import { Input } from '../engine/input';
 import { creatureFrame } from '../render/art/sprites';
+import { prop, propSize, wallClock } from '../render/shop';
 import { MARGIN, TankView, waterLook } from '../render/tankview';
 import * as act from '../sim/actions';
 import { BAL } from '../sim/balance';
 import { geom } from '../sim/facts';
 import { Game, type GameEvent } from '../sim/Game';
-import { newGame } from '../sim/newgame';
+import { newGame, showcaseTank } from '../sim/newgame';
 import { clearLocal, hasSave, loadLocal, saveLocal } from '../sim/save';
-import { hourOf, type Tank } from '../sim/state';
+import { clockText, dayOf, hourOf, type Tank } from '../sim/state';
 import { isOpen } from '../sim/visitors';
 import { drawHud, TOOLBAR_H, TOP_H } from '../ui/hud';
 import { drawPanel, panelW } from '../ui/panels';
+import { Cutscene, SCENES } from '../ui/cutscene';
 import { drawTitle } from '../ui/title';
-import { textWidth, UI } from '../ui/ui';
+import { drawTutorial, PAUSED_UNTIL } from '../ui/tutorial';
+import { M, textWidth, UI } from '../ui/ui';
 import { drawWindow } from '../ui/windows';
 
 export type Mode = 'look' | 'scape' | 'stock' | 'gear' | 'water' | 'care';
@@ -63,18 +66,25 @@ export class App {
   placing: { id: string; fromInventory: boolean } | null = null;
   layer: 0 | 1 | 2 = 1;
   tool: 'scrape' | 'wipe' | 'sculpt' | null = null;
-  drag: { uid: number; dx: number } | null = null;
+  drag: { uid: number; dx: number; x0: number; layer0: number } | null = null;
   zoomBoost = 0;
+  /** watch mode: the interface steps aside and the tank gets the whole screen */
+  watch = false;
+  private watchHint = 0;
   pan = { x: 0, y: 0 };
   toasts: Toast[] = [];
   pops: Pop[] = [];
   /** species whose bags just opened (their fish swim in from the surface) */
   released = new Map<number, Set<string>>();
   /** panel state: tabs, filters, selected rows, quantities */
-  panel = { scapeTab: 0, stockTab: 0, gearTab: 0, codexTab: 0, codexSel: '', buySp: '', buyN: 1, upgradeTab: 0, letterSel: '', tripSel: '', shellSel: '', waterSel: 'fresh' as 'fresh' | 'brackish' | 'marine', confirmNew: 0 };
+  panel = { scapeTab: 0, stockTab: 0, gearTab: 0, codexTab: 0, codexSel: '', buySp: '', buyN: 1, upgradeTab: 0, letterSel: '', tripSel: '', shellSel: '', waterSel: 'fresh' as 'fresh' | 'brackish' | 'marine', confirmNew: 0, confirmDismantle: 0 };
   /** the last guestbook line, shown under the tank for a while */
   guest: { text: string; who: string; life: number } | null = null;
   banner: { title: string; sub: string; life: number } | null = null;
+  /** a cutscene playing over everything (the game waits) */
+  cutscene: Cutscene | null = null;
+  /** things the tutorial watches for that are not in the state (fed, sculpted, windows opened) */
+  tutorialFlags = new Set<string>();
   private saveTimer = 0;
   private lastX = 0;
   private lastY = 0;
@@ -127,22 +137,35 @@ export class App {
   startNew() {
     clearLocal();
     this.load(new Game(newGame()));
-    this.toast('Welcome! The previous owner left you one tank, a little neglected. Fix it up and the visitors will come.', 'info');
+    this.view = 'hall';
+    this.tutorialFlags.clear();
+    this.playScene('intro');
+  }
+
+  /** Play a cutscene once per save (state.seen); the game waits until it ends or is skipped. */
+  playScene(id: string, force = false) {
+    const s = this.game?.state;
+    if (!s || (!force && s.seen.includes(id)) || !SCENES[id]) return;
+    this.cutscene = new Cutscene(SCENES[id], () => {
+      this.cutscene = null;
+      if (!s.seen.includes(id)) s.seen.push(id);
+      this.save();
+    });
   }
 
   continueSave() {
     const s = loadLocal();
     if (!s) return this.startNew();
     const g = new Game(s);
-    // a little offline income: the aquarium kept running while you were away
-    const away = (Date.now() - s.savedAt) / 3600000;
-    const hours = Math.min(BAL.offlineCapHours, away * BAL.offlineGameHoursPerHour);
-    if (hours > 0.1) {
-      const before = s.coins;
-      g.tick(hours * 60);
-      const earned = Math.round(s.coins - before);
-      g.events.length = 0;
-      if (earned > 0) this.toast(`While you were away the aquarium earned ${earned} coins.`, 'good');
+    // a little offline income: the tanks wait for you (nothing grows, breeds or dies), but Ida
+    // keeps the counter and the window open, whatever the time of day you left
+    const away = Math.min(BAL.offlineCapHours, (Date.now() - s.savedAt) / 3600000);
+    if (away > 0.05 && s.tutorial.done) {
+      const perHour = [...g.stats.values()].reduce((a, st) => a + st.coinsPerHour, 0);
+      const earned = Math.round(perHour * away * BAL.offlineShare);
+      s.coins += earned;
+      s.stats.coins += earned;
+      if (earned > 0) this.toast(`While you were away, Ida minded the shop: +${earned} coins.`, 'good');
     }
     this.load(g);
   }
@@ -202,7 +225,11 @@ export class App {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
     this.ui.begin(ctx, this.input, dt, this.W, this.H);
-    if (this.screen === 'title') {
+    // (a scene that ends during its update has already cleared itself)
+    if (this.cutscene) this.cutscene.update(dt);
+    if (this.cutscene) {
+      this.cutscene.draw(this);
+    } else if (this.screen === 'title') {
       this.drawTitleScreen(dt);
     } else if (this.game) {
       this.update(dt);
@@ -221,7 +248,9 @@ export class App {
 
   private drawTitleScreen(dt: number) {
     if (!this.titleDemo) {
-      const g = new Game(newGame(12345));
+      const s = newGame(12345);
+      showcaseTank(s);
+      const g = new Game(s);
       const t = g.state.tanks[0];
       t.chem.glass = 0;
       t.chem.algae = 0;
@@ -248,13 +277,18 @@ export class App {
   private update(dt: number) {
     const g = this.game!;
     const s = g.state;
+    // nothing lives in the shop yet: Ida's first steps keep the clock still
+    if (!s.tutorial.done && s.tutorial.step < PAUSED_UNTIL) s.settings.speed = 0;
     const speed = SPEEDS.includes(s.settings.speed) ? s.settings.speed : 1;
-    if (speed > 0 && !(this.window && this.window !== 'letters' && this.window !== 'guestbook')) g.tick(dt * speed);
+    // any open window pauses the clock (the shop waits while you read or plan)
+    if (speed > 0 && !this.window) g.tick(dt * speed);
     this.handleKeys();
     for (const e of g.events.splice(0)) this.onEvent(e);
     for (const t of s.tanks) if (!this.views.has(t.id)) this.viewFor(t);
     for (const id of [...this.views.keys()]) if (!s.tanks.some((t) => t.id === id)) this.views.delete(id);
     if (!this.tank && s.tanks.length) this.tankId = s.tanks[0].id;
+    if (!s.tanks.length) this.view = 'hall';
+    if (this.window) this.tutorialFlags.add('w:' + this.window);
     // every tank keeps living, but only the visible one animates every frame
     const hour = hourOf(s.time);
     const open = !!isOpen(s, s.time);
@@ -314,9 +348,11 @@ export class App {
         break;
       }
       case 'tier':
-        this.banner = { title: 'A new chapter', sub: `Your aquarium is now a ${['Front-Window Tank', 'Corner Aquarium', 'Little Aquarium', 'Town Aquarium', 'Regional Aquarium', 'Grand Oceanarium'][e.level]}!`, life: 6 };
+        if (e.level === 3) this.playScene('town');
+        this.banner = { title: 'A new chapter', sub: `Fins & Fronds is now a ${TIERS[e.level].name}!`, life: 6 };
         break;
       case 'feed': {
+        this.tutorialFlags.add('fed');
         const t = g.tank(e.tank);
         if (t) this.viewFor(t).agents.feed(geom(t), 10 + Math.min(30, t.animals.length));
         break;
@@ -344,9 +380,10 @@ export class App {
   private handleKeys() {
     const k = this.input.keysPressed;
     if (k.has('Escape')) {
-      if (this.placing) this.placing = null;
-      else if (this.tool) this.tool = null;
+      if (this.watch) this.toggleWatch();
       else if (this.window) this.window = null;
+      else if (this.placing) this.placing = null;
+      else if (this.tool) this.tool = null;
       else if (this.select) this.select = null;
       else this.window = 'menu';
     }
@@ -364,6 +401,7 @@ export class App {
     }
     if (k.has('f') && this.tank) this.run(act.feed(this.game!, this.tank));
     if (k.has('h')) this.view = this.view === 'hall' ? 'tank' : 'hall';
+    if (k.has('v') || k.has('V')) this.toggleWatch();
     if (k.has('Tab') || k.has(']')) this.cycleTank(1);
     if (k.has('[')) this.cycleTank(-1);
   }
@@ -442,23 +480,64 @@ export class App {
 
   private draw(dt: number) {
     this.drawRoom();
+    if (this.watch && (this.view !== 'tank' || !this.tank)) this.watch = false;
     if (this.view === 'hall') {
       // drawn by the HUD (bay cards)
     } else if (this.tank) {
-      this.neighborGlow(-1);
-      this.neighborGlow(1);
+      if (!this.watch) {
+        this.neighborGlow(-1);
+        this.neighborGlow(1);
+      }
       this.drawTank(this.tank, dt);
     }
     this.uiSpace();
+    if (this.watch) {
+      this.drawWatchHint(dt);
+      this.drawOverlays();
+      return;
+    }
     if (this.view === 'tank' && this.tank) this.drawPlaque(this.tank);
     drawHud(this);
-    if (this.view === 'tank' && this.tank) drawPanel(this);
+    if (this.view === 'tank' && this.tank) {
+      drawPanel(this);
+      const vp = this.viewport();
+      const ww = this.ui.buttonW('Watch (V)', 'ui:eye', 16);
+      if (this.ui.button('watch', vp.x + vp.w - ww - 4, vp.y + 2, ww, Math.max(18, M.btn), 'Watch (V)', { style: 'flat', tip: 'Hide the shop and watch this tank full screen', icon: 'ui:eye' })) this.toggleWatch();
+    }
     if (this.window) drawWindow(this);
     this.drawOverlays();
+    drawTutorial(this);
+  }
+
+  toggleWatch() {
+    this.watch = !this.watch && this.view === 'tank' && !!this.tank;
+    this.watchHint = this.watch ? 4 : 0;
+    this.zoomBoost = 0;
+    this.pan = { x: 0, y: 0 };
+  }
+
+  /** watch mode's only interface: a fading hint, and the clock and coins kept small in a corner */
+  private drawWatchHint(dt: number) {
+    const u = this.ui;
+    this.watchHint = Math.max(0, this.watchHint - dt);
+    const s = this.state;
+    const corner = `Day ${dayOf(s.time)} ${clockText(s.time)}`;
+    u.ctx.globalAlpha = 0.75;
+    u.text(corner, this.W - 8, this.H - 16, C.onDark, { align: 'right', shadow: 0 });
+    u.ctx.globalAlpha = 1;
+    if (this.watchHint > 0) {
+      const text = 'Watching. V or Esc to step back; F feeds; the wheel zooms.';
+      const w = textWidth(text) + 24;
+      u.ctx.globalAlpha = Math.min(1, this.watchHint);
+      u.panel(Math.round((this.W - w) / 2), 10, w, 24, 'chip', false);
+      u.text(text, this.W / 2, 15, C.text, { align: 'center' });
+      u.ctx.globalAlpha = 1;
+    }
   }
 
   /** area the tank may use, between the bars and left of the side panel */
   viewport() {
+    if (this.watch) return { x: 0, y: 0, w: this.W, h: this.H };
     const x = 4, y = TOP_H + 4;
     return { x, y, w: this.W - panelW(this) - 16, h: this.H - TOP_H - TOOLBAR_H - 30 };
   }
@@ -482,7 +561,8 @@ export class App {
     const maxPx = Math.max(0, (dw - sw) / 2), maxPy = Math.max(0, (dh - sh) / 2);
     this.pan.x = Math.max(-maxPx, Math.min(maxPx, this.pan.x));
     this.pan.y = Math.max(-maxPy, Math.min(maxPy, this.pan.y));
-    const ox = Math.round(sx + (sw - dw) / 2 + this.pan.x), oy = Math.round(sy + (sh - dh) / 2 + this.pan.y);
+    // a tank that fits stands on the floor (its stand at the bottom of the view), not mid-air
+    const ox = Math.round(sx + (sw - dw) / 2 + this.pan.x), oy = Math.round(dh <= sh && !this.watch ? sy + sh - dh : sy + (sh - dh) / 2 + this.pan.y);
     this.tankRect = { x: ox + MARGIN.l * z, y: oy + MARGIN.t * z, w: v.g.w * z, h: v.g.h * z, z };
 
     // pointer in tank pixels (input is in UI pixels)
@@ -506,10 +586,34 @@ export class App {
       ghost,
       tool: inTank && (this.tool === 'scrape' || this.tool === 'wipe') ? { kind: this.tool, x: tx, y: ty } : undefined,
     });
+    if (!this.watch) this.shopAround(ox, oy, dw, dh);
     this.ctx.imageSmoothingEnabled = z < 1;
     this.ctx.drawImage(v.canvas, ox, oy, dw, dh);
     this.ctx.imageSmoothingEnabled = false;
     this.plaqueAt = { x: (ox + dw / 2) / k, y: (oy + dh - MARGIN.b * z * 0.55) / k };
+  }
+
+  /** The shop in the margins around the tank (window pixels in, UI pixels drawn): a plant and
+   *  a poster on the left, buckets and a hanging pothos on the right, where there is room. */
+  private shopAround(ox: number, oy: number, dw: number, dh: number) {
+    const k = this.scale, ctx = this.ctx;
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    const vp = this.viewport();
+    const floorY = Math.floor(this.H * 0.93);
+    const l = ox / k, r = (ox + dw) / k, top = oy / k;
+    const room = (name: string) => propSize(name) ?? { w: 0, h: 0 };
+    if (l - vp.x > room('sh:monstera').w + 12) prop(ctx, 'sh:monstera', l - room('sh:monstera').w - 8, floorY + 4);
+    if (l - vp.x > room('sh:poster').w + 16 && top - TOP_H > 20) prop(ctx, 'sh:poster', l - room('sh:poster').w - 14, Math.min(floorY - 140, top + room('sh:poster').h + 10));
+    // a shelf of supplies and the clock on the wall above the tank
+    const shelf = room('sh:shelf');
+    if (top - TOP_H > shelf.h + 30) {
+      prop(ctx, 'sh:shelf', l + 10, top - 18);
+      wallClock(ctx, r - 30, TOP_H + Math.min(40, (top - TOP_H) / 2), 11, this.state.time);
+    }
+    const rightRoom = vp.x + vp.w - r;
+    if (rightRoom > room('sh:buckets').w + 10) prop(ctx, 'sh:buckets', r + 8, floorY + 3);
+    if (rightRoom > room('sh:pothos').w + 10) prop(ctx, 'sh:pothos', r + Math.floor((rightRoom - room('sh:pothos').w) / 2), TOP_H + room('sh:pothos').h + 2);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
   /** the brass plaque on the stand: the tank's name and stars (UI pixels) */
@@ -582,7 +686,8 @@ export class App {
     if (this.drag) {
       if (!inp.down) {
         const p = t.items.find((q) => q.uid === this.drag!.uid);
-        if (p) this.run(act.moveItem(g, t, p.uid, tx - this.drag.dx, p.layer));
+        // a click without a real move is just a selection (a crypt only melts when it is moved)
+        if (p) this.run(act.moveItem(g, t, p.uid, tx - this.drag.dx, p.layer, Math.abs(tx - this.drag.dx - this.drag.x0) > 2 || p.layer !== this.drag.layer0));
         this.drag = null;
       } else {
         const p = t.items.find((q) => q.uid === this.drag!.uid);
@@ -622,6 +727,7 @@ export class App {
     }
     if (this.tool === 'sculpt') {
       if (inp.down) {
+        this.tutorialFlags.add('sculpted');
         const n = t.profile.length;
         const i = Math.round((tx / v.g.w) * (n - 1));
         const val = (v.g.h - 5 - ty) / v.g.maxDepth;
@@ -635,7 +741,9 @@ export class App {
         const host = this.hostUnder(t, v, tx, ty);
         const msg = act.buyItem(g, t, this.placing.id, tx, this.layer, host, this.placing.fromInventory);
         if (msg) this.toast(msg, 'bad');
-        if (this.placing.fromInventory && !(this.state.inventory[this.placing.id] > 0)) this.placing = null;
+        // one piece per click; hold Shift to keep placing the same thing
+        if (!msg && !inp.keys.has('Shift')) this.placing = null;
+        else if (this.placing.fromInventory && !(this.state.inventory[this.placing.id] > 0)) this.placing = null;
       }
       return;
     }
@@ -646,7 +754,7 @@ export class App {
       if (inp.pressed && itemUid !== undefined) {
         const p = t.items.find((q) => q.uid === itemUid)!;
         this.select = { kind: 'item', uid: itemUid };
-        this.drag = { uid: itemUid, dx: tx - p.x };
+        this.drag = { uid: itemUid, dx: tx - p.x, x0: p.x, layer0: p.layer };
       } else if (inp.clicked && itemUid === undefined) this.select = null;
     } else {
       if (agent) {
@@ -671,7 +779,7 @@ export class App {
 
   private drawOverlays() {
     const u = this.ui;
-    for (const p of this.pops) u.text(p.text, p.x, p.y, p.color, { align: 'center', shadow: 0, face: 'display' });
+    if (!this.window) for (const p of this.pops) u.text(p.text, p.x, p.y, p.color, { align: "center", shadow: 0, face: "display" });
     if (this.banner) {
       const w = Math.max(320, textWidth(this.banner.sub) + 40), x = (this.W - w) / 2, y = 80;
       u.panel(x, y, w, 56, 'card', false);

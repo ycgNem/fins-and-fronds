@@ -18,7 +18,7 @@ export function expeditionHours(s: GameState, r: RegionId): number {
 
 export function canExpedition(s: GameState, r: RegionId): string | null {
   const def = region(r);
-  if (s.tier < 1) return 'Expeditions open at the Corner Aquarium tier.';
+  if (s.tier < 1) return 'Expeditions open at the Neighborhood Fish Shop tier.';
   if (def.expedition.tier > s.tier) return `Needs tier ${def.expedition.tier}.`;
   if (s.expeditions.filter((e) => !e.finds).length >= expeditionSlots(s)) return 'The crew is already out.';
   if (s.coins < def.expedition.cost) return 'Not enough coins.';

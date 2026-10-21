@@ -15,9 +15,9 @@ export const FRESHWATER: SpeciesDef[] = [
       fact: 'Most cardinals are still caught by piabeiros, fishermen of the middle Rio Negro, whose sustainable trade helps protect the flooded forest.',
     },
     {
-      id: 'rummynose_tetra', name: 'Rummynose Tetra', sci: 'Hemigrammus rhodostomus', cm: 4.5, body: 'torpedo', temp: [24, 28], ph: [5.5, 7.0],
+      id: 'rummynose_tetra', name: 'Rummynose Tetra', sci: 'Hemigrammus rhodostomus', regions: ['amazon'], cm: 4.5, body: 'torpedo', temp: [24, 28], ph: [5.5, 7.0],
       look: { body: 'silver', accent: 'red', pattern: 'tail', fin: 'pearl' }, temper: 'peaceful', zone: 'mid', school: 10, flow: [1, 2],
-      appeal: 5, tags: ['schooling'], fact: 'Their red noses blush brightest in clean, stable water and fade when something is off, so keepers read them like a test kit.',
+      appeal: 5, tags: ['schooling'], fact: 'Their red noses blush brightest in clean, stable water and fade when something is off, so keepers read them like a test kit. This one is from the lower Amazon; its Rio Negro cousin is Hemigrammus bleheri.',
     },
     {
       id: 'marbled_hatchetfish', name: 'Marbled Hatchetfish', sci: 'Carnegiella strigata', cm: 3.5, body: 'hatchet', temp: [24, 28], ph: [5.5, 7.0],
@@ -106,7 +106,7 @@ export const FRESHWATER: SpeciesDef[] = [
       fact: 'Bristlenoses rasp driftwood for fiber, and males grow branching bristles on their snouts.',
     },
     {
-      id: 'german_blue_ram', name: 'German Blue Ram', sci: 'Mikrogeophagus ramirezi', cm: 6, body: 'cichlid', temp: [27, 30], ph: [5.0, 7.0], gh: [0, 6],
+      id: 'german_blue_ram', name: 'German Blue Ram', sci: 'Mikrogeophagus ramirezi', regions: [], cm: 6, body: 'cichlid', temp: [27, 30], ph: [5.0, 7.0], gh: [0, 6],
       look: { body: 'gold', accent: 'blue', pattern: 'spots', fin: 'red' }, temper: 'peaceful', zone: 'bottom', max: 4, rarity: 2, appeal: 8,
       tags: ['colorful', 'sensitive'], needs: ['soft_water', 'plants'], breed: { type: 'pair', ease: 2 },
       fact: 'Rams come from the warm, soft llanos of the Orinoco basin; pairs dig little pits in the sand to keep their fry together.',
@@ -269,7 +269,7 @@ export const FRESHWATER: SpeciesDef[] = [
     },
   ]),
   // ---------------------------------------------------------------- Lake Malawi
-  ...group({ ...fish, regions: ['lake_malawi'], temp: [24, 28], ph: [7.8, 8.6], gh: [10, 20], tier: 1 }, [
+  ...group({ ...fish, regions: ['lake_malawi'], temp: [24, 28], ph: [7.6, 8.8], gh: [4, 20], tier: 1 }, [
     {
       id: 'yellow_lab', name: 'Electric Yellow Lab', sci: 'Labidochromis caeruleus', cm: 10, body: 'cichlid', look: { body: 'yellow', fin: 'black' },
       temper: 'semi', zone: 'rock', appeal: 7, tags: ['colorful', 'mouthbrooder'], needs: ['rocks', 'caves', 'hard_water'], breed: { type: 'mouthbrooder', ease: 3 },
@@ -293,7 +293,7 @@ export const FRESHWATER: SpeciesDef[] = [
     },
   ]),
   // ---------------------------------------------------------------- Lake Tanganyika
-  ...group({ ...fish, regions: ['lake_tanganyika'], temp: [24, 27], ph: [7.8, 9.0], gh: [12, 20], tier: 1 }, [
+  ...group({ ...fish, regions: ['lake_tanganyika'], temp: [24, 27], ph: [7.8, 9.2], gh: [8, 20], tier: 1 }, [
     {
       id: 'multies', name: 'Multies (Shell Dwellers)', sci: 'Neolamprologus multifasciatus', cm: 4, body: 'cichlid', look: { body: 'sand', pattern: 'bars', accent: 'blue' },
       temper: 'semi', zone: 'bottom', school: 6, rarity: 2, appeal: 7, tags: ['shell_dweller', 'tiny'], needs: ['shells', 'sand', 'hard_water'],
@@ -543,7 +543,7 @@ export const FRESHWATER: SpeciesDef[] = [
       id: 'cherry_shrimp', name: 'Cherry Shrimp', sci: "Neocaridina davidi 'Red Cherry'", kind: 'shrimp', cm: 2.5, body: 'shrimp', temp: [18, 28],
       look: { body: 'red', accent: 'crimson' }, temper: 'peaceful', zone: 'bottom', school: 10, flow: [0, 2], diet: ['algae', 'detritus', 'flake'], appeal: 5,
       tags: ['algae', 'scavenger', 'tiny', 'neo_color', 'colorful'], needs: ['moss'], breed: { type: 'colony', ease: 5 }, source: 'start',
-      fact: "Wild Neocaridina are brown and camouflaged. Red cherries were bred in Taiwan and graded from Sakura and Fire Red up to solid 'Bloody Mary'.",
+      fact: "Wild Neocaridina are brown and camouflaged. Red cherries were bred in Taiwan and graded from Sakura through Fire Red to Painted Fire Red. Bloody Mary is a separate, deeper red line.",
     },
     {
       id: 'blue_dream_shrimp', name: 'Blue Dream Shrimp', sci: "Neocaridina davidi 'Blue Dream'", kind: 'shrimp', cm: 2.5, body: 'shrimp', temp: [18, 28],

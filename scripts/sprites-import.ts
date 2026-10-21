@@ -130,11 +130,24 @@ const WAVE = [0, 1, 0, -1];
 
 /** fish: the rear of the body beats; the head holds still (the sprite faces right) */
 function swim(p: Pix, k: number): Pix {
+  // long, thin bodies (kuhlis, eels, pipefish) ripple along their whole length instead
+  if (p.w >= p.h * 3.5) return ripple(p, k);
   const out = new Pix(p.w, p.h + 2);
   const amp = p.h >= 20 ? 2 : 1, rear = Math.max(3, Math.round(p.w * 0.45));
   for (let x = 0; x < p.w; x++) {
     const t = x < rear ? Math.pow((rear - x) / rear, 1.4) : 0;
     const dy = Math.round(WAVE[k] * amp * t);
+    for (let y = 0; y < p.h; y++) if (p.a(x, y)) out.set(x, y + 1 + dy, p.get(x, y));
+  }
+  return out;
+}
+
+/** eel-like swimming: a wave travels from head to tail, larger toward the tail */
+function ripple(p: Pix, k: number): Pix {
+  const out = new Pix(p.w, p.h + 2);
+  for (let x = 0; x < p.w; x++) {
+    const along = 1 - x / p.w; // 0 at the head (right), 1 at the tail
+    const dy = Math.round(Math.sin(along * Math.PI * 2.2 + (k * Math.PI) / 2) * (0.35 + 0.65 * along));
     for (let y = 0; y < p.h; y++) if (p.a(x, y)) out.set(x, y + 1 + dy, p.get(x, y));
   }
   return out;

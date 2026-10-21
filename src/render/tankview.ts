@@ -8,18 +8,37 @@
 //
 // Scene-level light and water grading are the one place colors blend off-palette (STYLE.md).
 import { equip, item, species, substrate } from '../data';
-import { PALETTE_RGB, RAMP, rgba } from '../data/palette';
+import { PALETTE as PALETTE_HEX, PALETTE_RGB, RAMP, rgba } from '../data/palette';
 import type { WaterLook } from '../data/types';
 import { hash2, Rng } from '../engine/rng';
 import { itemBase } from '../sim/actions';
 import { type Geom, geom, groundY } from '../sim/facts';
 import type { TankStats } from '../sim/Game';
 import type { Tank } from '../sim/state';
-import { type Agent, Agents, type SceneCtx } from './agents';
+import { type Agent, Agents, BURIED, type Cave, type SceneCtx } from './agents';
 import { bayer, ctx2d, makeCanvas, Pix, shadeOf } from './art/pix';
 import { creatureFrame, drawFrame, type Frame, importedFrame, itemFrame } from './art/sprites';
 
 export const MARGIN = { l: 8, r: 8, t: 14, b: 18 };
+
+const silhouettes = new WeakMap<Frame, Frame>();
+
+/** a creature frame filled with deep shadow (an animal tucked into its den) */
+function silhouetteOf(fr: Frame): Frame {
+  let s = silhouettes.get(fr);
+  if (s) return s;
+  const cv = document.createElement('canvas');
+  cv.width = fr.w;
+  cv.height = fr.h;
+  const x = cv.getContext('2d')!;
+  x.drawImage(fr.img, fr.sx, fr.sy, fr.w, fr.h, 0, 0, fr.w, fr.h);
+  x.globalCompositeOperation = 'source-in';
+  x.fillStyle = PALETTE_HEX[1];
+  x.fillRect(0, 0, fr.w, fr.h);
+  s = { img: cv, sx: 0, sy: 0, w: fr.w, h: fr.h, ax: fr.ax, ay: fr.ay };
+  silhouettes.set(fr, s);
+  return s;
+}
 
 /** backdrop gradient (top to bottom), the far silhouette tone and the depth haze tone */
 const LOOKS: Record<WaterLook, { grad: number[]; far: number; haze: number }> = {
@@ -114,6 +133,8 @@ export class TankView {
   itemRects: Rect[] = [];
   private bubbles: Bubble[] = [];
   private motes: Bubble[] = [];
+  /** the tank being drawn (for the ground line under a buried animal) */
+  private drawing?: Tank;
   private rng = new Rng(11);
   private bg: HTMLCanvasElement | null = null;
   private bgKey = '';
@@ -380,12 +401,16 @@ export class TankView {
     this.g = geom(t);
     this.look = waterLook(t, st);
     this.agents.sync(t, this.g, released);
-    const caves: { x: number; y: number }[] = [];
+    const caves: Cave[] = [];
     const perches: { x: number; y: number }[] = [];
     for (const p of t.items) {
       const it = item(p.id);
       const base = itemBase(t, p);
-      if (it.tags?.includes('cave')) caves.push(base);
+      if (it.tags?.includes('cave') && !p.on) {
+        // the drawn size (imported art can differ from the item's nominal size)
+        const f = itemFrame(p.id, p.size, p.seed, 0, p.health);
+        caves.push({ uid: p.uid, x: base.x, y: base.y, w: f.w, h: f.h, layer: p.layer });
+      }
       if (it.cat === 'rock' || it.cat === 'coral' || it.cat === 'wood') perches.push({ x: base.x, y: base.y - it.h * p.size * 0.5 });
     }
     const ctx: SceneCtx = { t, g: this.g, lightsOn: opts.lightsOn, flow: st?.facts.flow ?? 1, kreisel: this.g.shell.tags.includes('kreisel'), caves, perches };
@@ -429,6 +454,7 @@ export class TankView {
   // ---------------------------------------------------------------- draw
 
   draw(t: Tank, st: TankStats | undefined, o: DrawOpts) {
+    this.drawing = t;
     const c = this.ctx;
     const g = this.g;
     const { w, h } = g;
@@ -458,24 +484,52 @@ export class TankView {
     // things sitting on other things draw after their host
     for (const list of byLayer) list.sort((a, b) => (a.on ? 1 : 0) - (b.on ? 1 : 0) || a.y - b.y);
 
-    const swimmers = this.agents.list.filter((a) => a.mode !== 'glass' && a.mode !== 'land');
-    const backSw = swimmers.filter((a) => a.mode === 'bottom' && a.layer === 0);
-    const midSw = swimmers.filter((a) => !(a.mode === 'bottom' && a.layer === 0));
+    // animals tucked into a den draw behind the rock or log, on its layer
+    const denLayer = new Map<number, 0 | 1 | 2>();
+    for (const p of t.items) denLayer.set(p.uid, p.layer);
+    const inDen = (a: Agent) => a.inDen > 0.5 && denLayer.has(a.den);
+    const denned = (l: number) => this.agents.list.filter((a) => inDen(a) && denLayer.get(a.den) === l);
+    const homes = new Set(this.agents.list.filter(inDen).map((a) => a.den));
+    const pockets = (l: number) => {
+      for (const p of t.items) {
+        if (p.layer !== l || !homes.has(p.uid)) continue;
+        const f = itemFrame(p.id, p.size, p.seed, 0, p.health), b = itemBase(t, p);
+        const pw = Math.round(f.w * 0.6), ph = Math.max(3, Math.round(f.h * 0.15));
+        c.fillStyle = rgba(0, 0.26);
+        c.beginPath();
+        c.ellipse(b.x, b.y - ph / 2, pw / 2, ph, 0, Math.PI, 0);
+        c.fill();
+      }
+    };
+    const lodgers = (l: number, base: number) => {
+      pockets(l);
+      for (const a of denned(l)) this.drawAgent(c, a, o, base * (0.45 + 0.55 * a.peek), a.peek < 0.5);
+    };
+    // swimmers weave between the three planes of the scape by depth: the back third swims behind
+    // the middle plants and under the haze, the front third passes in front of everything
+    const swimmers = this.agents.list.filter((a) => a.mode !== 'glass' && a.mode !== 'land' && !inDen(a));
+    const band = (a: Agent): 0 | 1 | 2 => (a.mode === 'bottom' ? a.layer : a.z < 0.34 ? 0 : a.z < 0.67 ? 1 : 2);
+    const inBand = (l: number) => swimmers.filter((a) => band(a) === l).sort((p, q) => p.z - q.z);
+    const backSw = inBand(0);
+    const midSw = [...inBand(1), ...inBand(2)];
 
     c.drawImage(ground[0], 0, 0);
+    lodgers(0, 0.85);
     for (const p of byLayer[0]) this.drawItem(c, t, p, frame, o);
     for (const a of backSw) this.drawAgent(c, a, o);
     c.fillStyle = rgba(L.haze, 0.22);
     c.fillRect(0, 0, w, h);
     c.drawImage(ground[1], 0, 0);
+    lodgers(1, 0.9);
     for (const p of byLayer[1]) this.drawItem(c, t, p, frame, o);
-    for (const a of midSw.filter((a) => a.mode !== 'bottom' || a.layer === 1)) this.drawAgent(c, a, o);
+    for (const a of midSw.filter((a) => band(a) === 1)) this.drawAgent(c, a, o);
     c.fillStyle = rgba(L.haze, 0.06);
     c.fillRect(0, 0, w, h);
     c.drawImage(ground[2], 0, 0);
     this.drawPests(c, t, 'ground');
+    lodgers(2, 1);
     for (const p of byLayer[2]) this.drawItem(c, t, p, frame, o);
-    for (const a of midSw.filter((a) => a.mode === 'bottom' && a.layer === 2)) this.drawAgent(c, a, o);
+    for (const a of midSw.filter((a) => band(a) === 2)) this.drawAgent(c, a, o);
     for (const p of land) this.drawItem(c, t, p, frame, o);
     for (const a of this.agents.list) if (a.mode === 'land') this.drawAgent(c, a, o);
     if (o.ghost) this.drawGhost(c, t, o.ghost, frame);
@@ -495,10 +549,15 @@ export class TankView {
       c.fillStyle = rgba(f.sunk ? 21 : 17, 1);
       c.fillRect(Math.round(f.x), Math.round(f.y), 1, 1);
     }
+    for (const p of this.agents.puffs) {
+      c.fillStyle = rgba(4, Math.min(0.7, p.life * 0.7));
+      c.fillRect(Math.round(p.x), Math.round(p.y), 1, 1);
+    }
     for (const m of this.motes) {
       c.fillStyle = rgba(8, 0.25 + t.chem.cloud * 0.3);
       c.fillRect(Math.round(m.x), Math.round(m.y), 1, 1);
     }
+    this.drawSideGlass(c);
     if (o.lightsOn) this.drawCaustics(c, t);
 
     // water tints: tea from tannins, pea soup from green water, milk from a bacterial bloom
@@ -558,6 +617,22 @@ export class TankView {
       c.lineTo(x + wd + h * 0.25, h);
       c.lineTo(x + h * 0.25, h);
       c.fill();
+    }
+  }
+
+  /** The end panes seen at a slight angle: a shadowed sliver of water at each end, edged with
+   *  a line of light where the glass turns the corner. It reads as a box with depth. */
+  private drawSideGlass(c: CanvasRenderingContext2D) {
+    const { w, h, surface } = this.g;
+    const wx = Math.min(w, this.g.landX);
+    const sw = Math.max(3, Math.round(w * 0.022));
+    for (const right of [false, true]) {
+      for (let i = 0; i < sw; i++) {
+        c.fillStyle = rgba(0, 0.18 * (1 - i / sw));
+        c.fillRect(right ? wx - 1 - i : i, surface, 1, h - surface);
+      }
+      c.fillStyle = rgba(9, 0.1);
+      c.fillRect(right ? wx - sw : sw, surface + 1, 1, h - surface - 2);
     }
   }
 
@@ -703,6 +778,12 @@ export class TankView {
     const base = itemBase(t, p);
     const f = itemFrame(p.id, p.size, p.seed, frame + (p.seed % 4), p.health);
     const by = it.place === 'surface' ? this.g.surface - 1 : it.place === 'hang' ? this.g.surface - 10 : base.y;
+    if (it.place !== 'surface' && it.place !== 'hang' && !p.on && it.cat !== 'plant') {
+      c.fillStyle = rgba(0, 0.16);
+      c.beginPath();
+      c.ellipse(base.x + 2, by, Math.max(3, f.w * 0.42), Math.max(1.5, f.h * 0.05), 0, 0, Math.PI * 2);
+      c.fill();
+    }
     drawFrame(c, f, base.x, by, p.flip);
     const rx = base.x - f.ax, ry = by - f.ay;
     this.itemRects.push({ uid: p.uid, x: rx, y: ry, w: f.w, h: f.h });
@@ -742,12 +823,39 @@ export class TankView {
     c.fillRect(x2, y2 - k + 1, 1, k);
   }
 
-  private drawAgent(c: CanvasRenderingContext2D, a: Agent, o: DrawOpts) {
+  private drawAgent(c: CanvasRenderingContext2D, a: Agent, o: DrawOpts, shade = 1, silhouette = false) {
     const frame = Math.floor(a.phase) % 4;
-    const fr: Frame = creatureFrame(a.sp, frame, a.len);
-    let alpha = 1 - a.hidden * 0.55;
+    const depth = a.mode === 'swim' || a.mode === 'perch' || a.mode === 'drift' ? 0.8 + 0.2 * a.z : 1;
+    const fr: Frame = creatureFrame(a.sp, frame, Math.max(3, Math.round(a.len * depth)));
+    if (silhouette) {
+      // a dark shape in the shadow under the wood, the way it reads from the front glass
+      drawFrame(c, silhouetteOf(fr), a.x, a.y, a.face < 0, 0.8);
+      const hw = fr.w, hh = fr.h;
+      // two pale eye glints facing out of the dark
+      c.fillStyle = rgba(8, 0.55);
+      c.fillRect(Math.round(a.x + a.face * (hw / 2 - 3)), Math.round(a.y - hh * 0.12), 1, 1);
+      if (o.hoverAgent === a.uid || o.selectAgent === a.uid) this.bracket(c, Math.round(a.x - hw / 2), Math.round(a.y - hh / 2), hw, hh, o.selectAgent === a.uid ? 18 : 9);
+      return;
+    }
+    let alpha = (1 - a.hidden * 0.55) * shade;
     if (a.def.tags.includes('neo_color') && a.def.id !== 'wild_neocaridina') alpha *= 0.55 + a.grade * 0.15;
-    if (a.mode === 'burrow') {
+    if (a.den === BURIED && a.inDen > 0.05) {
+      // dug into the sand: the body sinks below the surface and only the head end stays out
+      const ground = groundY(this.drawing!, this.g, a.x, a.layer);
+      // how much of the frame stays above the sand line: the whole fish on the way down, a head at rest
+      const out = Math.round(4 + (1 - a.inDen) * (fr.h - 4));
+      const vis = Math.max(3, Math.round(fr.w * (1 - 0.7 * a.inDen)));
+      const cx = a.face > 0 ? Math.round(a.x + fr.w / 2) - vis : Math.round(a.x - fr.w / 2);
+      c.save();
+      c.beginPath();
+      c.rect(cx, ground - fr.h - 4, vis, fr.h + 4);
+      c.clip();
+      drawFrame(c, fr, a.x, ground - out + fr.ay, a.face < 0, alpha);
+      c.restore();
+      // a little dimple of disturbed sand where the rest of it went
+      c.fillStyle = rgba(0, 0.16 * a.inDen);
+      c.fillRect(Math.round(a.x - fr.w * 0.35), Math.round(ground - 1), Math.round(fr.w * 0.7), 1);
+    } else if (a.mode === 'burrow') {
       // garden eels: only the top shows above the sand
       const show = Math.round(fr.h * (1 - a.hidden));
       c.save();

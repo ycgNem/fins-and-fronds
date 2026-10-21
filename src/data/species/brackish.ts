@@ -25,7 +25,7 @@ export const BRACKISH: SpeciesDef[] = [
       fact: "Spotted scats graze algae and almost anything else; their Latin name politely means 'dung-eater'.",
     },
     {
-      id: 'figure_eight_puffer', name: 'Figure Eight Puffer', sci: 'Tetraodon biocellatus', cm: 8, body: 'puffer', temp: [24, 28], ph: [7.0, 8.0], sg: [1.000, 1.006],
+      id: 'figure_eight_puffer', name: 'Figure Eight Puffer', sci: 'Dichotomyctere ocellatus', cm: 8, body: 'puffer', temp: [24, 28], ph: [7.0, 8.0], sg: [1.000, 1.006],
       look: { body: 'olive', pattern: 'marble', accent: 'yellow' }, temper: 'semi', zone: 'mid', diet: ['snails', 'frozen'], rarity: 2, appeal: 8,
       tags: ['eats_snails', 'eats_inverts', 'brackish_ok', 'oddball'], needs: ['plants'], tier: 1,
       fact: "Puffers' beaks grow constantly, and crunching snails keeps them trimmed. Inflating is an emergency move, never something to provoke.",

@@ -1,6 +1,6 @@
-// A new game: one front-window tank already running (a mature community tank that came with
-// the building), a little money, and a few pest snails that rode in on the Java fern, waiting
-// for the player's first assassin snails.
+// A new game: Ida Fenwick has just handed you the keys to Fins & Fronds, her closed-down fish
+// shop. The display bay in the front window is empty, there is a little money in the till, and
+// her guided notes (src/ui/tutorial.ts) walk you through setting up and stocking the first tank.
 import { shell } from '../data';
 import type { Water } from '../data/types';
 import { BAL } from './balance';
@@ -43,10 +43,11 @@ export function place(s: GameState, t: Tank, id: string, x: number, layer: 0 | 1
 }
 
 export function newGame(seed = Date.now() >>> 0): GameState {
-  const s: GameState = {
+  return {
     version: SAVE_VERSION,
     seed,
-    time: 8 * 60 + 50,
+    // the morning you get the keys: the shop would open at 9:00, but not before there is a tank
+    time: 8 * 60,
     coins: BAL.startCoins,
     rep: 0,
     tier: 0,
@@ -62,12 +63,20 @@ export function newGame(seed = Date.now() >>> 0): GameState {
     expeditions: [],
     guestbook: [],
     stats: { visitors: 0, coins: 0, fry: 0, expeditions: 0 },
-    settings: { gentle: true, volume: 0.6, speed: 1 },
+    settings: { gentle: true, volume: 0.6, speed: 0 },
+    tutorial: { step: 0, done: false },
+    seen: [],
     savedAt: Date.now(),
   };
-  // The previous owner's tank, a little neglected: green glass, nose prints, pest snails, a
-  // lopsided scape and schools that are too small. Fixing it teaches every system in the game.
-  const t = emptyTank(s, 0, 'rimless_60', 'fresh');
+}
+
+/**
+ * A mature, slightly neglected community tank: green glass, nose prints, pest snails, a lopsided
+ * scape and schools that are too small. The title screen shows it cleaned up; tests use it as a
+ * known running tank.
+ */
+export function showcaseTank(s: GameState, bay = s.tanks.length): Tank {
+  const t = emptyTank(s, bay, 'std_20l', 'fresh');
   t.name = 'The Front Window';
   t.equip = ['hob_filter', 'heater_150', 'led_basic'];
   t.chem.bacA = 1;
@@ -81,17 +90,17 @@ export function newGame(seed = Date.now() >>> 0): GameState {
   t.ageDays = 40;
   t.slope = 0.15;
   t.profile = [0.4, 0.45, 0.5, 0.5, 0.45, 0.4, 0.4, 0.4, 0.35];
-  const wood = place(s, t, 'malaysian_driftwood', 122, 1);
-  place(s, t, 'java_fern', 116, 1, { on: wood.uid, y: 14 });
-  place(s, t, 'vallisneria', 30, 0, { size: 0.9 });
-  place(s, t, 'vallisneria', 44, 0);
-  place(s, t, 'crypt_wendtii', 190, 2, { size: 0.8 });
-  place(s, t, 'amazon_frogbit', 60, 1);
+  const wood = place(s, t, 'malaysian_driftwood', 150, 1);
+  place(s, t, 'java_fern', 144, 1, { on: wood.uid, y: 14 });
+  place(s, t, 'vallisneria', 36, 0, { size: 0.9 });
+  place(s, t, 'vallisneria', 54, 0);
+  place(s, t, 'crypt_wendtii', 240, 2, { size: 0.8 });
+  place(s, t, 'amazon_frogbit', 76, 1);
   for (let i = 0; i < 10; i++) t.animals.push(newAnimal(s, 'neon_tetra'));
   for (let i = 0; i < 4; i++) t.animals.push(newAnimal(s, 'bronze_cory'));
   for (let i = 0; i < 5; i++) t.animals.push(newAnimal(s, 'harlequin_rasbora'));
   for (let i = 0; i < 2; i++) t.animals.push(newAnimal(s, 'zebra_nerite'));
   t.pests = { snails: 6, aiptasia: 0, bubble: 0, had: true };
   s.tanks.push(t);
-  return s;
+  return t;
 }

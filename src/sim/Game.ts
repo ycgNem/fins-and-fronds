@@ -12,8 +12,9 @@ import { BAL } from './balance';
 import { resolveExpedition } from './expeditions';
 import { type Facts, facts } from './facts';
 import { checkRequest, MAX_LETTERS, nextRequest } from './letters';
-import { grazers, newAnimal, plantMass, stepBreeding, stepGrowth, stepPests } from './life';
+import { grazers, newAnimal, plantMass, stepBreeding, stepGrowth, stepPests, stepPredation } from './life';
 import { rate, type Rating } from './rating';
+import { stepSales } from './sales';
 import { dayOf, type GameState, type GuestEntry, hourOf, type Tank } from './state';
 import { coinsPerVisitor, guestLine, isOpen, visitorRate } from './visitors';
 import { stepWater } from './water';
@@ -94,13 +95,16 @@ export class Game {
     const autoFeed = (s.upgrades['auto_feeders'] ?? 0) > 0;
     const autoWater = s.upgrades['auto_water'] ?? 0;
 
+    if (newDay) s.stats.salesToday = 0;
     for (const t of s.tanks) {
       if (newDay) t.today = 0;
       t.ageDays += dtH / 24;
       // fish acclimating in their bags
       for (const b of t.bags) {
         if (b.until <= s.time) {
-          for (let i = 0; i < b.n; i++) t.animals.push(newAnimal(s, b.sp));
+          // animals from holding keep who they are (age, grade, born here); new ones are made up
+          if (b.animals) t.animals.push(...b.animals);
+          else for (let i = 0; i < b.n; i++) t.animals.push(newAnimal(s, b.sp));
           this.emit({ t: 'release', tank: t.id, sp: b.sp, n: b.n });
           this.discoverSpecies(b.sp);
         }
@@ -117,6 +121,9 @@ export class Game {
       });
       stepGrowth(t, f, dtH);
       if (stepPests(t, f, dtH, this.fedRecently(t))) this.toast(`${t.name} is clear of pest snails!`, 'good');
+      // hitchhikers count for the codex: bladder snails first, trumpet snails once they boom
+      if (t.pests.snails >= 1) this.discoverSpecies('bladder_snail');
+      if (t.pests.snails >= 6) this.discoverSpecies('malaysian_trumpet_snail');
     }
 
     this.sinceEval += dtMin;
@@ -139,6 +146,14 @@ export class Game {
       for (const t of s.tanks) {
         const st = this.stats.get(t.id);
         if (!st) continue;
+        if (!s.settings.gentle) {
+          const eaten = stepPredation(t, st.facts, this.rng);
+          for (const sp of eaten) {
+            this.emit({ t: 'died', tank: t.id, sp });
+            this.toast(`A ${species(sp).name.toLowerCase()} in ${t.name} was eaten.`, 'bad');
+          }
+          if (eaten.length) this.refresh(t);
+        }
         for (const b of stepBreeding(s, t, st.facts, st.moods, this.rng)) {
           this.emit({ t: 'fry', tank: t.id, sp: b.sp, n: b.n });
           this.toast(`${b.n} baby ${species(b.sp).name.toLowerCase()} in ${t.name}!`, 'good');
@@ -148,6 +163,7 @@ export class Game {
     }
 
     this.stepVisitors(dtH);
+    stepSales(this, dtH, this.rng);
     for (const e of s.expeditions) {
       if (!e.finds && e.end <= s.time) {
         resolveExpedition(s, e, this.rng);
@@ -236,7 +252,7 @@ export class Game {
   refresh(t: Tank, discover = true): TankStats {
     const s = this.state;
     const f = facts(t, hourOf(s.time));
-    const moods = speciesMoods(t, f, { fedRecently: this.fedRecently(t), gentle: s.settings.gentle });
+    const moods = speciesMoods(t, f, { fedRecently: this.fedRecently(t), gentle: s.settings.gentle, hungryH: (s.time - t.fedAt) / 60 });
     const cls = classify(f);
     const rating = rate(t, f, moods, cls);
     const visitorsPerHour = visitorRate(s, t, f, rating, cls);
