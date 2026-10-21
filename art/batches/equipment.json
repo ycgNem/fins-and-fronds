@@ -1,0 +1,17 @@
+{
+  "sheet": "equipment",
+  "sprites": {
+    "eq:sponge_filter": "art/raw/equipment/sponge_filter.png",
+    "eq:heater": { "src": "art/raw/equipment/heater.png", "alpha": 0.85 },
+    "eq:titanium_heater": "art/raw/equipment/titanium_heater.png",
+    "eq:lily_in": { "src": "art/raw/equipment/lily_in.png", "alpha": 0.7, "flip": true },
+    "eq:lily_out": { "src": "art/raw/equipment/lily_out.png", "alpha": 0.7 },
+    "eq:powerhead": "art/raw/equipment/powerhead.png",
+    "eq:wavemaker": "art/raw/equipment/wavemaker.png",
+    "eq:airstone": "art/raw/equipment/airstone.png",
+    "eq:co2": { "src": "art/raw/equipment/co2.png", "alpha": 0.85 },
+    "eq:feeder": "art/raw/equipment/feeder.png",
+    "eq:mister": "art/raw/equipment/mister.png",
+    "eq:hob": "art/raw/equipment/hob.png"
+  }
+}

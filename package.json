@@ -1,0 +1,24 @@
+{
+  "name": "fins-and-fronds",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A cozy pixel-art aquarium tycoon: build every kind of real aquarium, from Iwagumi scapes to kelp towers.",
+  "author": "jacksonwalley",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.scripts.json",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "e2e": "vite-node e2e/smoke.ts",
+    "pixellab": "vite-node scripts/pixellab.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "playwright": "^1.48.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

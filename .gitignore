@@ -1,0 +1,11 @@
+node_modules
+dist
+e2e/out
+*.log
+fins-and-fronds-web.zip
+.claude/settings.local.json
+release
+# reference screenshots of other games are copyrighted; keep them local
+references/games/
+# art pipeline scratch
+art/**/try/

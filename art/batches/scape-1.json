@@ -1,0 +1,17 @@
+{
+  "sheet": "scape-1",
+  "clean": true,
+  "sprites": {
+    "it:spider_wood": "art/raw/scape-1/spider_wood.png",
+    "it:amazon_sword": "art/raw/scape-1/amazon_sword.png",
+    "it:seiryu_stone": "art/raw/scape-1/seiryu_stone.png",
+    "it:manzanita": "art/raw/scape-1/manzanita.png",
+    "it:ghost_wood": "art/raw/scape-1/ghost_wood.png",
+    "it:redmoor": "art/raw/scape-1/redmoor.png",
+    "it:bonsai_driftwood": "art/raw/scape-1/bonsai_driftwood.png",
+    "it:mangrove_root": "art/raw/scape-1/mangrove_root.png",
+    "it:bogwood": "art/raw/scape-1/bogwood.png",
+    "it:malawi_rock": "art/raw/scape-1/malawi_rock.png",
+    "it:granite_boulder": "art/raw/scape-1/granite_boulder.png"
+  }
+}

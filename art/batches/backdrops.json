@@ -1,0 +1,18 @@
+{
+  "sheet": "backdrops",
+  "sprites": {
+    "bg:clear": "art/raw/backdrops/clear.png",
+    "bg:green": "art/raw/backdrops/green.png",
+    "bg:blackwater": "art/raw/backdrops/blackwater.png",
+    "bg:amber": "art/raw/backdrops/amber.png",
+    "bg:rift": "art/raw/backdrops/rift.png",
+    "bg:brackish": "art/raw/backdrops/brackish.png",
+    "bg:reef": "art/raw/backdrops/reef.png",
+    "bg:lagoon": "art/raw/backdrops/lagoon.png",
+    "bg:kelp": "art/raw/backdrops/kelp.png",
+    "bg:cold": "art/raw/backdrops/cold.png",
+    "bg:deep": "art/raw/backdrops/deep.png",
+    "bg:pond": "art/raw/backdrops/pond.png",
+    "bg:cave": "art/raw/backdrops/cave.png"
+  }
+}

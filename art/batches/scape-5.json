@@ -1,0 +1,26 @@
+{
+  "sheet": "scape-5",
+  "sprites": {
+    "it:ambulia": "art/raw/scape-5/ambulia.png",
+    "it:aponogeton_crispus": "art/raw/scape-5/aponogeton_crispus.png",
+    "it:bacopa": "art/raw/scape-5/bacopa.png",
+    "it:bull_kelp": "art/raw/scape-5/bull_kelp.png",
+    "it:cabomba": "art/raw/scape-5/cabomba.png",
+    "it:ceramic_rock": "art/raw/scape-5/ceramic_rock.png",
+    "it:elodea": "art/raw/scape-5/elodea.png",
+    "it:giant_kelp": "art/raw/scape-5/giant_kelp.png",
+    "it:hornwort": "art/raw/scape-5/hornwort.png",
+    "it:jungle_val": "art/raw/scape-5/jungle_val.png",
+    "it:ludwigia_repens": "art/raw/scape-5/ludwigia_repens.png",
+    "it:ludwigia_super_red": "art/raw/scape-5/ludwigia_super_red.png",
+    "it:moss_bank": "art/raw/scape-5/moss_bank.png",
+    "it:mudflat": "art/raw/scape-5/mudflat.png",
+    "it:pagoda_stone": "art/raw/scape-5/pagoda_stone.png",
+    "it:rotala_rotundifolia": "art/raw/scape-5/rotala_rotundifolia.png",
+    "it:sacred_lotus": "art/raw/scape-5/sacred_lotus.png",
+    "it:sumatra_wood": "art/raw/scape-5/sumatra_wood.png",
+    "it:sunken_galleon": "art/raw/scape-5/sunken_galleon.png",
+    "it:vallisneria": "art/raw/scape-5/vallisneria.png",
+    "it:water_wisteria": "art/raw/scape-5/water_wisteria.png"
+  }
+}
