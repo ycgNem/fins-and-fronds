@@ -117,6 +117,9 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     y += 4;
     u.text(`${ICON.fish} ${Math.round(st.visitorsPerHour)} visitors/h`, x, y, C.text);
     u.text(`${ICON.coin} ${Math.round(st.coinsPerHour)}/h`, x + w, y, C.gold, { align: 'right' });
+    y += M.row;
+    u.text(`Upkeep ${Math.round(st.upkeep)}/day`, x, y, C.textDim);
+    if (u.hover(x, y, w, M.row)) u.tip([{ text: 'Running costs per day' }, { text: 'Power and water for its size, wear on its gear, and food for every animal.', color: C.textDim }]);
     y += M.row + 4;
     // advice: what keeps this from being more true to its type, or what would make it one
     const hints = best ? best.hints.slice(0, 3) : st.cls.near.slice(0, 2).flatMap((n) => n.hints.slice(0, 1).map((hh) => `${n.def.name}: ${hh}`));

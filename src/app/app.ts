@@ -157,16 +157,8 @@ export class App {
     const s = loadLocal();
     if (!s) return this.startNew();
     const g = new Game(s);
-    // a little offline income: the tanks wait for you (nothing grows, breeds or dies), but Ida
-    // keeps the counter and the window open, whatever the time of day you left
-    const away = Math.min(BAL.offlineCapHours, (Date.now() - s.savedAt) / 3600000);
-    if (away > 0.05 && s.tutorial.done) {
-      const perHour = [...g.stats.values()].reduce((a, st) => a + st.coinsPerHour, 0);
-      const earned = Math.round(perHour * away * BAL.offlineShare);
-      s.coins += earned;
-      s.stats.coins += earned;
-      if (earned > 0) this.toast(`While you were away, Ida minded the shop: +${earned} coins.`, 'good');
-    }
+    const earned = g.offlineIncome((Date.now() - s.savedAt) / 3600000);
+    if (earned > 0) this.toast(`While you were away, Ida minded the shop: +${earned} coins.`, 'good');
     this.load(g);
   }
 

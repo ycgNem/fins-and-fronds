@@ -4,7 +4,7 @@
 // Each step (at most 2 game minutes):
 //   clock -> bags & feeding -> water chemistry -> growth & pests -> (every 5 min) moods, archetype,
 //   rating -> (every hour) breeding -> visitors & income -> expeditions -> letters -> tiers
-import { ARCHETYPES, request, species, SYMBIOSES, TIERS } from '../data';
+import { ARCHETYPES, request, REQUESTS, species, SYMBIOSES, TIERS } from '../data';
 import type { Sfx } from '../engine/audio';
 import { Rng } from '../engine/rng';
 import { classify, type Classification } from './archetype';
@@ -16,6 +16,7 @@ import { grazers, newAnimal, plantMass, stepBreeding, stepGrowth, stepPests, ste
 import { rate, type Rating } from './rating';
 import { stepSales } from './sales';
 import { dayOf, type GameState, type GuestEntry, hourOf, type Tank } from './state';
+import { upkeepPerDay } from './upkeep';
 import { coinsPerVisitor, guestLine, isOpen, visitorRate } from './visitors';
 import { stepWater } from './water';
 import { partnerPresent, type SpeciesMood, speciesMoods, updateAnimals } from './wellbeing';
@@ -42,6 +43,8 @@ export interface TankStats {
   rating: Rating;
   visitorsPerHour: number;
   coinsPerHour: number;
+  /** running costs per game day */
+  upkeep: number;
 }
 
 export class Game {
@@ -73,6 +76,19 @@ export class Game {
 
   fedRecently(t: Tank): boolean {
     return this.state.time - t.fedAt < 1440;
+  }
+
+  /** A little offline income for real hours away: the tanks wait (nothing grows, breeds or dies),
+   *  but Ida keeps the counter and the window open, whatever the time of day you left. Capped. */
+  offlineIncome(hoursAway: number): number {
+    const s = this.state;
+    const away = Math.min(BAL.offlineCapHours, hoursAway);
+    if (!(away > 0.05) || !s.tutorial.done) return 0;
+    const perHour = [...this.stats.values()].reduce((a, st) => a + st.coinsPerHour, 0);
+    const earned = Math.round(perHour * away * BAL.offlineShare);
+    s.coins += earned;
+    s.stats.coins += earned;
+    return earned;
   }
 
   /** Advance the game by dtMin game minutes. */
@@ -163,6 +179,11 @@ export class Game {
     }
 
     this.stepVisitors(dtH);
+    // running costs tick down with the clock (never below zero: the bank is patient)
+    let upkeep = 0;
+    for (const t of s.tanks) upkeep += (this.stats.get(t.id)?.upkeep ?? 0) * (dtH / 24);
+    s.coins = Math.max(0, s.coins - upkeep);
+    s.stats.upkeep = (s.stats.upkeep ?? 0) + upkeep;
     stepSales(this, dtH, this.rng);
     for (const e of s.expeditions) {
       if (!e.finds && e.end <= s.time) {
@@ -213,11 +234,18 @@ export class Game {
   private stepLetters(dtMin: number) {
     const s = this.state;
     this.sinceLetter += dtMin;
+    // old asks nobody could answer make room for new ones
+    const stale = s.letters.filter((l) => !l.ready && !request(l.id).first && s.time - l.arrived > BAL.letterPatienceDays * 1440);
+    if (stale.length) {
+      s.letters = s.letters.filter((l) => !stale.includes(l));
+      s.lettersResting = [...(s.lettersResting ?? []).filter((x) => x.until > s.time), ...stale.map((l) => ({ id: l.id, until: s.time + BAL.letterPatienceDays * 2 * 1440 }))];
+    }
     const open = s.letters.length;
-    const gap = open === 0 ? 20 : 150;
+    const idaFirst = REQUESTS.some((r) => r.first && !s.lettersDone.includes(r.id) && !s.letters.some((l) => l.id === r.id));
+    const gap = idaFirst ? BAL.letterGapFirst : open === 0 ? BAL.letterGapIdle : BAL.letterGapBusy;
     if (open < MAX_LETTERS && this.sinceLetter >= gap) {
       this.sinceLetter = 0;
-      const id = nextRequest(s, this.rng.next());
+      const id = nextRequest(s, this.rng.next(), (rid) => !checkRequest(request(rid).check, s, this.stats));
       if (id) {
         s.letters.push({ id, arrived: s.time, ready: false, read: false });
         this.emit({ t: 'letter', id });
@@ -256,7 +284,7 @@ export class Game {
     const cls = classify(f);
     const rating = rate(t, f, moods, cls);
     const visitorsPerHour = visitorRate(s, t, f, rating, cls);
-    const st: TankStats = { facts: f, moods, cls, rating, visitorsPerHour, coinsPerHour: visitorsPerHour * coinsPerVisitor(s, rating) };
+    const st: TankStats = { facts: f, moods, cls, rating, visitorsPerHour, coinsPerHour: visitorsPerHour * coinsPerVisitor(s, rating), upkeep: upkeepPerDay(t) };
     this.stats.set(t.id, st);
     if (discover) {
       for (const m of cls.matches) this.discoverArchetype(m.def.id);

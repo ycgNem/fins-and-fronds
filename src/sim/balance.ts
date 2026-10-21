@@ -27,15 +27,17 @@ export const BAL = {
   /** a "full load" of hardscape is this much item area (px) per 100 L */
   fxArea: 1400,
 
-  /** visitors per open hour for a perfect tank, by aquarium tier */
-  visitorsByTier: [20, 34, 55, 85, 130, 200],
+  /** visitors per open hour that a perfect 20 gallon long draws; bigger water draws more (see
+   *  sizeFactor), and a bigger name brings a bigger town (townByTier) */
+  visitorsPerTank: 14,
+  townByTier: [1, 1.1, 1.2, 1.3, 1.4, 1.5],
   openHour: 9,
   closeHour: 19,
   nightClose: 23,
   coinsPerVisitor: 1.0,
   repPerVisitor: 0.06,
-  repNewArchetype: 12,
-  repNewSpecies: 2,
+  repNewArchetype: 10,
+  repNewSpecies: 1,
   /** offline income: Ida minds the counter while you are away. Each real hour away (up to the cap)
    *  earns this share of what the displays make in an open hour; the tanks themselves wait. */
   offlineShare: 0.5,
@@ -45,6 +47,20 @@ export const BAL = {
   growDays: 4,
   /** chance per plant bought (without quarantine) of hitchhiking pest snails */
   hitchhikeChance: 0.3,
+
+  /** running costs per game day: power and water for a 20 gallon long (scaled by sizeFactor ^ 1.3),
+   *  gear wear as a share of its price, and food per animal (src/sim/upkeep.ts) */
+  upkeepWater: { fresh: 4.5, brackish: 7, marine: 12 },
+  upkeepGear: 0.04,
+  upkeepFood: 0.15,
+  /** wild-caught animals from an expedition sell for this share of the supplier price (collectors pay well) */
+  wildPremium: 1.2,
+  /** game minutes between letters: Ida's first notes, then with none open, then with some open */
+  letterGapFirst: 20,
+  letterGapIdle: 240,
+  letterGapBusy: 480,
+  /** a letter left unanswered this many days goes back in the pile (it may come again later) */
+  letterPatienceDays: 6,
 
   waterChangeCostPerL: 0.01,
   saltCostPerL: 0.03,
@@ -62,6 +78,17 @@ export const BAL = {
   rackBay: 100,
   startCoins: 400,
 } as const;
+
+/** how much more a tank of this size draws (and costs) than a 20 gallon long: steady growth up to
+ *  300 L, slower to 3000 L, and slowest beyond, so a 200,000 L ocean window is a flagship that
+ *  draws five times a 20 gallon, not two hundred tanks' worth */
+export function sizeFactor(liters: number): number {
+  const l = Math.max(1, liters);
+  if (l <= 300) return Math.pow(l / 76, 0.45);
+  const at300 = Math.pow(300 / 76, 0.45);
+  if (l <= 3000) return at300 * Math.pow(l / 300, 0.25);
+  return at300 * Math.pow(10, 0.25) * Math.pow(l / 3000, 0.12);
+}
 
 export function bioloadOf(cm: number, body?: string): number {
   // waste follows body mass: an eel-thin kuhli loach makes far less than a deep-bodied cichlid

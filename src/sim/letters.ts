@@ -9,17 +9,26 @@ import type { TankStats } from './Game';
 
 export const MAX_LETTERS = 3;
 
-export function nextRequest(state: GameState, rnd: number): string | null {
+/** the next letter to send: Ida's first notes before anything, then letters of the aquarium's
+ *  own tier more often than older ones, and when `unmet` is given, something the aquarium does
+ *  not already do (a letter is a little goal). Letters put back unanswered rest a while first. */
+export function nextRequest(state: GameState, rnd: number, unmet?: (id: string) => boolean): string | null {
   const open = new Set(state.letters.map((l) => l.id));
+  const resting = new Set((state.lettersResting ?? []).filter((x) => x.until > state.time).map((x) => x.id));
   const pests = state.tanks.some((t) => t.pests.had);
-  const pool = REQUESTS.filter((r) => r.tier <= state.tier && !state.lettersDone.includes(r.id) && !open.has(r.id) && (r.when !== 'pests' || pests));
+  const pool = REQUESTS.filter((r) => r.tier <= state.tier && !state.lettersDone.includes(r.id) && !open.has(r.id) && !resting.has(r.id) && (r.when !== 'pests' || pests));
   if (!pool.length) return null;
-  // favor the earliest-tier letters so the story unfolds in order, Ida's first of all
-  const minTier = Math.min(...pool.map((r) => r.tier));
-  const tierPool = pool.filter((r) => r.tier === minTier);
-  const firsts = tierPool.filter((r) => r.first);
-  const pick = firsts.length ? firsts : tierPool;
-  return pick[Math.floor(rnd * pick.length)].id;
+  const firsts = pool.filter((r) => r.first);
+  if (firsts.length) return firsts[Math.floor(rnd * firsts.length)].id;
+  const goals = unmet ? pool.filter((r) => unmet(r.id)) : pool;
+  const from = goals.length ? goals : pool;
+  const weight = (tier: number) => (tier === state.tier ? 3 : tier === state.tier - 1 ? 1.5 : 1);
+  let r = rnd * from.reduce((a, q) => a + weight(q.tier), 0);
+  for (const q of from) {
+    r -= weight(q.tier);
+    if (r <= 0) return q.id;
+  }
+  return from[from.length - 1].id;
 }
 
 export function checkRequest(c: RequestCheck, state: GameState, stats: Map<number, TankStats>): boolean {

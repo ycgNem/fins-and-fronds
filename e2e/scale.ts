@@ -26,7 +26,7 @@ try {
       s.tutorial.done = true;
       s.seen = ['intro', 'town'];
       s.tier = 5;
-      s.rep = 6500;
+      s.rep = 11500;
       s.coins = 50000;
       s.time = 11 * 60;
       const tier = data.TIERS[5];

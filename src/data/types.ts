@@ -399,7 +399,8 @@ export interface UpgradeDef {
   id: string;
   track: UpgradeTrack;
   name: string;
-  levels: { cost: number; tier: number; text: string }[];
+  /** rep: a one-off grant of reputation when bought (conservation projects) */
+  levels: { cost: number; tier: number; text: string; rep?: number }[];
 }
 
 export interface TierDef {

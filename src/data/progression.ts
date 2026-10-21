@@ -6,17 +6,18 @@ import type { CorrespondentDef, RequestDef, SymbiosisDef, TierDef, UpgradeDef } 
 
 export const TIERS: TierDef[] = [
   { level: 0, name: 'Little Fish Shop', rep: 0, bays: 1, racks: 1, unlocks: 'One display bay in the front window, freshwater, the supplier\'s starter list.' },
-  { level: 1, name: 'Neighborhood Fish Shop', rep: 80, bays: 2, racks: 2, unlocks: 'A second display bay, CO2, bigger tanks, paludariums and ripariums, the first expeditions.' },
-  { level: 2, name: 'Aquarium Store', rep: 300, bays: 3, racks: 3, unlocks: 'Brackish water, chillers, mangroves and coldwater specialists.' },
-  { level: 3, name: 'Town Aquarium', rep: 900, bays: 5, racks: 4, unlocks: 'The shop becomes a public aquarium: saltwater and reefs, koi ponds and touch pools.' },
-  { level: 4, name: 'Regional Aquarium', rep: 2400, bays: 7, racks: 6, unlocks: 'Kreisels, kelp towers, SPS reefs and big sharks.' },
-  { level: 5, name: 'Grand Oceanarium', rep: 6000, bays: 10, racks: 8, unlocks: 'The ocean window and the deep chamber.' },
+  { level: 1, name: 'Neighborhood Fish Shop', rep: 130, bays: 2, racks: 2, unlocks: 'A second display bay, CO2, bigger tanks, paludariums and ripariums, the first expeditions.' },
+  { level: 2, name: 'Aquarium Store', rep: 450, bays: 3, racks: 3, unlocks: 'Brackish water, chillers, mangroves and coldwater specialists.' },
+  { level: 3, name: 'Town Aquarium', rep: 1700, bays: 5, racks: 4, unlocks: 'The shop becomes a public aquarium: saltwater and reefs, koi ponds and touch pools.' },
+  { level: 4, name: 'Regional Aquarium', rep: 4500, bays: 7, racks: 6, unlocks: 'Kreisels, kelp towers, SPS reefs and big sharks.' },
+  { level: 5, name: 'Grand Oceanarium', rep: 11000, bays: 10, racks: 8, unlocks: 'The ocean window and the deep chamber.' },
 ];
 
 export const UPGRADES: UpgradeDef[] = [
   // tanks
   { id: 'extra_bays', track: 'tanks', name: 'Extra Bays', levels: [
-    { cost: 300, tier: 1, text: '+1 tank bay.' }, { cost: 1200, tier: 2, text: '+1 more bay.' }, { cost: 4000, tier: 3, text: '+1 more bay.' }] },
+    { cost: 300, tier: 1, text: '+1 tank bay.' }, { cost: 1200, tier: 2, text: '+1 more bay.' }, { cost: 4000, tier: 3, text: '+1 more bay.' },
+    { cost: 9000, tier: 4, text: 'A new wing: +1 more bay.' }, { cost: 20000, tier: 5, text: 'The east hall: +1 more bay.' }] },
   { id: 'quarantine', track: 'tanks', name: 'Quarantine & Plant Dip', levels: [
     { cost: 150, tier: 0, text: 'New plants and rock are dipped: no hitchhiking pest snails or Aiptasia.' }] },
   { id: 'glazier', track: 'tanks', name: 'Glazier\'s Discount', levels: [
@@ -33,7 +34,7 @@ export const UPGRADES: UpgradeDef[] = [
     { cost: 400, tier: 1, text: 'A small automatic water change every day.' }, { cost: 1500, tier: 3, text: 'Larger daily changes and auto top-off everywhere.' }] },
   // visitors
   { id: 'benches', track: 'visitors', name: 'Viewing Benches', levels: [
-    { cost: 100, tier: 0, text: 'Visitors linger longer: +15% income.' }, { cost: 500, tier: 2, text: '+15% more.' }, { cost: 2000, tier: 4, text: '+15% more.' }] },
+    { cost: 100, tier: 0, text: 'Visitors linger longer: +10% income.' }, { cost: 500, tier: 2, text: '+10% more.' }, { cost: 2000, tier: 4, text: '+10% more.' }] },
   { id: 'placards', track: 'visitors', name: 'Codex Placards', levels: [
     { cost: 150, tier: 0, text: 'Recognized tank types earn 25% more reputation.' }] },
   { id: 'donation_box', track: 'visitors', name: 'Donation Box', levels: [
@@ -63,6 +64,11 @@ export const UPGRADES: UpgradeDef[] = [
     { cost: 200, tier: 1, text: 'Surplus fry and frags go to local hobbyists for coins.' }] },
   { id: 'fragging', track: 'husbandry', name: 'Coral Fragging', levels: [
     { cost: 400, tier: 3, text: 'Overgrown corals can be fragged into new colonies.' }] },
+  { id: 'conservation', track: 'husbandry', name: 'Conservation Fund', levels: [
+    { cost: 1500, tier: 2, text: 'Sponsor a stream clean-up on the river: +80 reputation.', rep: 80 },
+    { cost: 4000, tier: 3, text: 'Fund a coral nursery on a damaged reef: +200 reputation.', rep: 200 },
+    { cost: 10000, tier: 4, text: 'Back a seahorse breeding program: +450 reputation.', rep: 450 },
+    { cost: 25000, tier: 5, text: 'Help found a marine reserve: +1000 reputation.', rep: 1000 }] },
 ];
 
 export const CORRESPONDENTS: CorrespondentDef[] = [

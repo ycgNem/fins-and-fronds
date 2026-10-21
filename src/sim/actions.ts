@@ -75,7 +75,8 @@ export function sellHolding(g: Game, uids: number[]): string {
   if (!going.length) return 'Not found.';
   g.state.holding = g.state.holding.filter((a) => !going.includes(a));
   const club = (g.state.upgrades['fry_club'] ?? 0) > 0 ? 1 : 0.6;
-  const coins = going.reduce((sum, a) => sum + Math.round(species(a.sp).price * BAL.sellBack * club * (a.fry ? 0.4 : 1)), 0);
+  // wild-caught animals go to collectors at a premium; the rest are rehomed at a discount
+  const coins = going.reduce((sum, a) => sum + Math.round(species(a.sp).price * (a.wild ? BAL.wildPremium : BAL.sellBack * club) * (a.fry ? 0.4 : 1)), 0);
   g.state.coins += coins;
   g.emit({ t: 'sfx', name: 'coin' });
   g.toast(`Rehomed ${going.length} ${species(going[0].sp).name.toLowerCase()} for ${coins} coins.`, 'info');
@@ -395,6 +396,7 @@ export function buyUpgrade(g: Game, id: string): string {
   if (next.tier > g.state.tier) return `Needs the ${TIERS[next.tier].name} tier.`;
   if (!spend(g, next.cost)) return 'Not enough coins.';
   g.state.upgrades[id] = lvl + 1;
+  if (next.rep) g.state.rep += next.rep;
   g.emit({ t: 'sfx', name: 'chime' });
   g.toast(`${u.name}: ${next.text}`, 'good');
   g.refreshAll();

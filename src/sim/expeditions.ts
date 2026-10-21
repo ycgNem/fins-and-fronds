@@ -45,7 +45,7 @@ export function resolveExpedition(s: GameState, e: Expedition, rng: Rng) {
     const sp = rng.weighted(animals, (x) => 1 / Math.pow(x.rarity, 1.6 - nets * 0.4));
     const n = sp.school > 1 ? Math.min(sp.school, rng.int(3, 8)) : rng.int(1, 2);
     finds.push({ kind: 'species', id: sp.id, n });
-    for (let k = 0; k < n; k++) s.holding.push(newAnimal(s, sp.id));
+    for (let k = 0; k < n; k++) s.holding.push(newAnimal(s, sp.id, { wild: true }));
     if (!s.unlocked.species.includes(sp.id)) s.unlocked.species.push(sp.id);
   }
   for (let i = 0; i < 2 && items.length; i++) {

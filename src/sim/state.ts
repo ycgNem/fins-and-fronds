@@ -34,6 +34,8 @@ export interface Animal {
   /** born in this aquarium and not yet grown */
   fry: boolean;
   bornHere: boolean;
+  /** caught on an expedition: collectors pay a premium */
+  wild?: boolean;
   /** Neocaridina color grade 0 (pale) .. 3 (solid) */
   grade: number;
   name?: string;
@@ -152,9 +154,11 @@ export interface GameState {
   codex: { archetypes: string[]; species: string[]; symbioses: string[] };
   letters: Letter[];
   lettersDone: string[];
+  /** letters put back unanswered, which wait until `until` before they can come again */
+  lettersResting?: { id: string; until: number }[];
   expeditions: Expedition[];
   guestbook: GuestEntry[];
-  stats: { visitors: number; coins: number; fry: number; expeditions: number; sold?: number; salesToday?: number };
+  stats: { visitors: number; coins: number; fry: number; expeditions: number; sold?: number; salesToday?: number; upkeep?: number };
   settings: { gentle: boolean; volume: number; speed: number; textSize?: number; calmColors?: boolean; sellCuttings?: boolean };
   /** Ida's guided first tank: the step the player is on, or done (src/ui/tutorial.ts) */
   tutorial: { step: number; done: boolean };
