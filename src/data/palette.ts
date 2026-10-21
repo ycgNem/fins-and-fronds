@@ -103,7 +103,7 @@ export function rampAt(name: RampName, n: number): number {
  * UI colors (indices), so windows never use raw numbers. The interface is light: sea-glass panels
  * with dark ink, on a sage wall (STYLE.md, Interface). Text colors are chosen to read on `panel`.
  */
-export const UI = {
+export const UI: Record<'ink' | 'panel' | 'panelHi' | 'panelLo' | 'edge' | 'text' | 'strong' | 'textDim' | 'textMute' | 'head' | 'accent' | 'gold' | 'coin' | 'good' | 'warn' | 'bad' | 'pick' | 'pickLo' | 'paper' | 'paperInk' | 'onDark' | 'wallTop' | 'wallBottom' | 'floor', number> = {
   ink: 0,
   /** sea glass: the panel face, its highlight and its shadow */
   panel: 8,
@@ -136,4 +136,12 @@ export const UI = {
   wallTop: 36,
   wallBottom: 35,
   floor: 24,
-} as const;
+};
+
+/** Good and bad as blue and orange (told apart with any common color blindness) instead of green
+ *  and red. Status colors are read at draw time, so flipping this restyles everything at once. */
+export function setCalmColors(on: boolean) {
+  UI.good = on ? 47 : 30;
+  UI.warn = on ? 23 : 21;
+  UI.bad = on ? 16 : 14;
+}

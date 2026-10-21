@@ -3,7 +3,7 @@
 // A window is a sea-glass card with a teal title ribbon; letters and postcards are paper.
 import type { App, WindowId } from '../app/app';
 import { ARCHETYPES, correspondent, item, REGIONS, request, species, SPECIES, SYMBIOSES, TIERS, UPGRADES } from '../data';
-import { RAMP, UI as C } from '../data/palette';
+import { RAMP, setCalmColors, UI as C } from '../data/palette';
 import type { Family, RegionId, RequestCheck, UpgradeTrack, Water } from '../data/types';
 import { creatureFrame, itemFrame } from '../render/art/sprites';
 import * as act from '../sim/actions';
@@ -35,7 +35,7 @@ const RIBBON = 30;
 export function drawWindow(app: App) {
   const u = app.ui;
   const id = app.window!;
-  const w = Math.min(app.W - 32, id === 'menu' ? 340 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, id === 'menu' ? 400 : 500);
+  const w = Math.min(app.W - 32, id === 'menu' ? 600 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, id === 'menu' ? 400 : 500);
   const x = Math.floor((app.W - w) / 2), y = TOP_H + Math.floor((app.H - TOP_H - TOOLBAR_H - h) / 2);
   u.modal();
   u.fill(0, 0, app.W, app.H - TOOLBAR_H, 0, 0.3);
@@ -385,34 +385,33 @@ function guestbook(app: App, x: number, y: number, w: number, h: number) {
 
 // ---------------------------------------------------------------- menu
 
-function menu(app: App, x: number, y: number, w: number, _h: number) {
+function menu(app: App, x: number, y: number, w: number, h: number) {
+  // two columns when there is room (the game on the left, settings on the right), one otherwise;
+  // either way it scrolls on a short screen
+  const two = w >= 520;
+  const cw = two ? Math.floor((w - 28) / 2) : w - 8;
+  column(app.ui, 'menu', x, y, w, h, (x, y) => {
+    const left = menuGame(app, x, y, cw);
+    const right = two ? menuSettings(app, x + cw + 20, y, cw) : menuSettings(app, x, left + 10, cw);
+    return Math.max(left, right);
+  });
+}
+
+function menuGame(app: App, x: number, y: number, w: number): number {
   const u = app.ui;
   const s = app.state;
   if (u.button('resume', x, y, w, M.btn + 4, 'Back to the shop', { style: 'good' })) app.window = null;
   y += M.btn + 10;
-  const hw0 = Math.floor((w - 6) / 2);
-  if (u.button('replaytut', x, y, hw0, M.btn, 'Replay the tour', { tip: 'Ida walks you through every feature again' })) {
+  const hw = Math.floor((w - 6) / 2);
+  if (u.button('replaytut', x, y, hw, M.btn, 'Replay the tour', { tip: 'Ida walks you through every feature again' })) {
     s.tutorial = { step: 0, done: false };
     app.window = null;
   }
-  if (u.button('replayintro', x + hw0 + 6, y, hw0, M.btn, 'Watch the intro', { tip: 'The night you got the keys' })) {
+  if (u.button('replayintro', x + hw + 6, y, hw, M.btn, 'Watch the intro', { tip: 'The night you got the keys' })) {
     app.window = null;
     app.playScene('intro', true);
   }
   y += M.btn + 10;
-  const gentle = u.toggle('gentle', x, y, 'Gentle mode (no deaths)', s.settings.gentle);
-  if (gentle !== s.settings.gentle) {
-    s.settings.gentle = gentle;
-    app.game!.refreshAll(false);
-  }
-  y += M.row + 4;
-  const d = u.stepper('vol', x, y, `Volume ${Math.round(s.settings.volume * 100)}%`, 170);
-  if (d) {
-    s.settings.volume = Math.max(0, Math.min(1, Math.round((s.settings.volume + d * 0.1) * 10) / 10));
-    app.audio.setVolume(s.settings.volume);
-  }
-  y += M.btnS + 12;
-  const hw = Math.floor((w - 6) / 2);
   if (u.button('savenow', x, y, hw, M.btn, 'Save')) {
     app.save();
     app.toast('Saved.', 'good');
@@ -459,7 +458,49 @@ function menu(app: App, x: number, y: number, w: number, _h: number) {
   }
   if (!u.hover(x, y, w, M.btn)) app.panel.confirmNew = 0;
   y += M.btn + 12;
-  u.para('Keys: 1-6 modes, Space pause, F feed, H hall, [ ] tanks, Q W E depth, Esc', x, y, w, C.textDim);
+  y += u.para('Keys: 1-6 modes, Space pause, F feed, H hall, V watch, [ ] tanks, Q W E depth, Esc. On a touchscreen: pinch to zoom, two fingers to pan, hold for help.', x, y, w, C.textDim);
+  return y;
+}
+
+function menuSettings(app: App, x: number, y: number, w: number): number {
+  const u = app.ui;
+  const s = app.state;
+  u.head('Settings', x, y);
+  y += M.row + 6;
+  const gentle = u.toggle('gentle', x, y, 'Gentle mode (no deaths)', s.settings.gentle);
+  if (gentle !== s.settings.gentle) {
+    s.settings.gentle = gentle;
+    app.game!.refreshAll(false);
+  }
+  y += M.row + 6;
+  const d = u.stepper('vol', x, y, `Volume ${Math.round(s.settings.volume * 100)}%`, Math.min(w, 190));
+  if (d) {
+    s.settings.volume = Math.max(0, Math.min(1, Math.round((s.settings.volume + d * 0.1) * 10) / 10));
+    app.audio.setVolume(s.settings.volume);
+  }
+  y += M.btnS + 6;
+  const amb = s.settings.ambience ?? 0.7;
+  const da = u.stepper('amb', x, y, `Ambience ${Math.round(amb * 100)}%`, Math.min(w, 190));
+  if (da) {
+    s.settings.ambience = Math.max(0, Math.min(1, Math.round((amb + da * 0.1) * 10) / 10));
+    app.audio.setAmbience(s.settings.ambience);
+  }
+  y += M.btnS + 10;
+  const big = u.toggle('bigui', x, y, 'Larger interface', (s.settings.textSize ?? 0) > 0);
+  if (big !== (s.settings.textSize ?? 0) > 0) {
+    s.settings.textSize = big ? 1 : 0;
+    app.resize();
+  }
+  y += M.row;
+  y += u.para('Fills the screen at an uneven pixel scale: bigger text, slightly softer pixels.', x + 18, y, w - 18, C.textDim) + 6;
+  const calm = u.toggle('calm', x, y, 'Colorblind-safe colors', !!s.settings.calmColors);
+  if (calm !== !!s.settings.calmColors) {
+    s.settings.calmColors = calm;
+    setCalmColors(calm);
+  }
+  y += M.row;
+  y += u.para('Good and bad show as blue and orange instead of green and red.', x + 18, y, w - 18, C.textDim) + 6;
+  return y;
 }
 
 // ---------------------------------------------------------------- new tank

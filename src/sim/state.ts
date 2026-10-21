@@ -159,7 +159,7 @@ export interface GameState {
   expeditions: Expedition[];
   guestbook: GuestEntry[];
   stats: { visitors: number; coins: number; fry: number; expeditions: number; sold?: number; salesToday?: number; upkeep?: number };
-  settings: { gentle: boolean; volume: number; speed: number; textSize?: number; calmColors?: boolean; sellCuttings?: boolean };
+  settings: { gentle: boolean; volume: number; speed: number; textSize?: number; calmColors?: boolean; sellCuttings?: boolean; ambience?: number };
   /** Ida's guided first tank: the step the player is on, or done (src/ui/tutorial.ts) */
   tutorial: { step: number; done: boolean };
   /** cutscenes already shown, so each plays once (src/ui/cutscene.ts) */

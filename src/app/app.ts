@@ -2,11 +2,11 @@
 // The screen is a low-resolution buffer (800x450 or a little more) scaled up by a whole number; the tank is
 // drawn at a whole-number zoom inside it, so every sprite pixel stays square.
 import { item, species, TIERS } from '../data';
-import { PALETTE, rgba, UI as C } from '../data/palette';
-import { Audio } from '../engine/audio';
+import { PALETTE, rgba, setCalmColors, UI as C } from '../data/palette';
+import { Audio, QUIET, type SoundScene } from '../engine/audio';
 import { Input } from '../engine/input';
 import { creatureFrame } from '../render/art/sprites';
-import { prop, propSize, wallClock } from '../render/shop';
+import { isRainy, prop, propSize, wallClock } from '../render/shop';
 import { MARGIN, TankView, waterLook } from '../render/tankview';
 import * as act from '../sim/actions';
 import { BAL } from '../sim/balance';
@@ -118,7 +118,10 @@ export class App {
     this.canvas.height = vh;
     this.canvas.style.width = `${vw}px`;
     this.canvas.style.height = `${vh}px`;
-    this.scale = Math.max(1, Math.floor(Math.min(vw / 800, vh / 450)));
+    // crisp whole-number pixels by default; "larger interface" fills the screen in quarter steps
+    const fit = Math.min(vw / 800, vh / 450);
+    const big = (this.game?.state.settings.textSize ?? 0) > 0;
+    this.scale = Math.max(1, big ? Math.floor(fit * 4) / 4 : Math.floor(fit));
     this.W = Math.floor(vw / this.scale);
     this.H = Math.floor(vh / this.scale);
     this.input.setScale(this.scale);
@@ -164,6 +167,8 @@ export class App {
 
   private load(g: Game) {
     this.game = g;
+    setCalmColors(!!g.state.settings.calmColors);
+    this.resize();
     this.views.clear();
     this.tankId = g.state.tanks[0]?.id ?? 0;
     this.screen = 'game';
@@ -172,6 +177,7 @@ export class App {
     this.select = null;
     this.titleDemo = null;
     this.audio.setVolume(g.state.settings.volume);
+    this.audio.setAmbience(g.state.settings.ambience ?? 0.7);
   }
 
   save() {
@@ -255,6 +261,8 @@ export class App {
     const opts = { hour: 12, lightsOn: true, open: true };
     view.update(dt, t, game.stats.get(t.id), opts, new Set());
     view.draw(t, game.stats.get(t.id), opts);
+    // the title tank's filter trickling in a quiet shop
+    this.audio.update(dt, { ...QUIET, filter: 'hob', near: 0.7 });
     this.drawRoom();
     const sw = this.canvas.width, sh = this.canvas.height;
     // leave room for the sign above and the buttons below
@@ -264,6 +272,23 @@ export class App {
     this.ctx.drawImage(view.canvas, x, y, view.canvas.width * z, view.canvas.height * z);
     this.uiSpace();
     drawTitle(this);
+  }
+
+  /** what the shop should sound like: the shown tank's gear up close, or every tank from the hall */
+  private soundScene(): SoundScene {
+    const s = this.state;
+    const g = this.game!;
+    const open = isOpen(s, s.time);
+    const tanks = this.view === 'tank' && this.tank ? [this.tank] : s.tanks;
+    const near = this.view === 'tank' ? (this.watch ? 1 : 0.85) : 0.5;
+    const has = (id: string) => tanks.some((t) => t.equip.includes(id));
+    const filter: SoundScene['filter'] = has('sump') || has('life_support') ? 'sump' : has('hob_filter') ? 'hob' : has('sponge_filter') ? 'sponge' : tanks.some((t) => t.equip.length) ? 'canister' : 'none';
+    const air = has('air_pump') ? 0.6 : has('mister') ? 0.2 : 0;
+    const marine = tanks.filter((t) => t.water === 'marine').length / Math.max(1, tanks.length);
+    const hum = Math.min(1, marine * 0.7 + (tanks.some((t) => t.equip.some((e) => e.startsWith('chiller'))) ? 0.3 : 0) + (has('protein_skimmer') ? 0.2 : 0));
+    const surge = has('surge_device') ? 1 : has('wavemaker') ? 0.55 : has('powerhead') ? 0.2 : 0;
+    const vph = open ? (this.view === 'tank' && this.tank ? g.stats.get(this.tank.id)?.visitorsPerHour ?? 0 : [...g.stats.values()].reduce((a, st) => a + st.visitorsPerHour, 0) * 0.5) : 0;
+    return { filter, air, hum, surge, crowd: Math.min(1, vph / 50), rain: isRainy(dayOf(s.time)) ? 1 : 0, night: open !== 'day', near };
   }
 
   private update(dt: number) {
@@ -306,8 +331,7 @@ export class App {
       this.banner.life -= dt;
       if (this.banner.life <= 0) this.banner = null;
     }
-    const cur = this.tank ? g.stats.get(this.tank.id) : undefined;
-    this.audio.setCrowd(open && cur ? Math.min(1, cur.visitorsPerHour / 60) : 0);
+    this.audio.update(dt, this.soundScene());
     this.saveTimer += dt;
     if (this.saveTimer > 30) {
       this.saveTimer = 0;
@@ -345,6 +369,7 @@ export class App {
         break;
       case 'feed': {
         this.tutorialFlags.add('fed');
+        this.audio.play('feed');
         const t = g.tank(e.tank);
         if (t) this.viewFor(t).agents.feed(geom(t), 10 + Math.min(30, t.animals.length));
         break;

@@ -52,9 +52,43 @@ try {
   });
   await page.waitForTimeout(400);
   await page.screenshot({ path: 'e2e/out/win-trips-region.png' });
-  await page.evaluate(() => ((window as any).app.window = null));
+  await page.evaluate(() => ((window as any).app.window = 'menu'));
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'e2e/out/win-menu.png' });
+  // the larger interface and colorblind-safe colors, on the report card
+  await page.evaluate(async () => {
+    const imp = new Function('p', 'return import(p)') as (p: string) => Promise<any>;
+    const pal = await imp('/src/data/palette.ts');
+    const app = (window as any).app;
+    app.window = null;
+    app.state.settings.textSize = 1;
+    app.state.settings.calmColors = true;
+    pal.setCalmColors(true);
+    app.resize();
+    app.view = 'tank';
+  });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'e2e/out/win-large-calm.png' });
+  await page.evaluate(async () => {
+    const imp = new Function('p', 'return import(p)') as (p: string) => Promise<any>;
+    const pal = await imp('/src/data/palette.ts');
+    const app = (window as any).app;
+    app.state.settings.textSize = 0;
+    app.state.settings.calmColors = false;
+    pal.setCalmColors(false);
+    app.resize();
+  });
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'e2e/out/win-none.png' });
+  // a small screen: the menu must fit (it scrolls)
+  await page.setViewportSize({ width: 800, height: 450 });
+  await page.evaluate(() => {
+    const app = (window as any).app;
+    app.resize();
+    app.window = 'menu';
+  });
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'e2e/out/win-menu-small.png' });
 } finally {
   await browser.close();
   await server.close();

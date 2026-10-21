@@ -99,6 +99,12 @@ function topChips(app: App) {
   } else u.text(String(Math.floor(s.rep)), rx + 24, CHIP_Y + 6, C.accent);
   if (!drawIcon(u.ctx, 'ui:coin', rx + rw - 12 - coinW - 18, CHIP_Y + 5, 16)) u.text(ICON.coin, rx + rw - 12 - coinW - 14, CHIP_Y + 6, C.coin);
   u.head(coins, rx + rw - 12, CHIP_Y + 6, C.strong, { align: 'right' });
+  const cx0 = rx + rw - 12 - coinW - 20;
+  if (u.hover(cx0, CHIP_Y, coinW + 22, CHIP_H) && app.game) {
+    const st = [...app.game.stats.values()];
+    const perHour = st.reduce((a, q) => a + q.coinsPerHour, 0), upkeep = st.reduce((a, q) => a + q.upkeep, 0);
+    u.tip([{ text: `Coins: ${coins}` }, { text: `About ${Math.round(perHour)} an hour from visitors while open`, color: C.textDim }, { text: `Upkeep for every tank: ${Math.round(upkeep)} a day`, color: C.textDim }]);
+  }
 }
 
 /** the icon art for each window (ui:<name>, icons sheet) */

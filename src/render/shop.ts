@@ -5,6 +5,11 @@
 import { PALETTE, rgba } from '../data/palette';
 import { importedFrame, type Frame } from './art/sprites';
 
+/** the town's weather: about one day in five it rains (the street window and the sound agree) */
+export function isRainy(day: number): boolean {
+  return (day * 7919) % 5 === 2;
+}
+
 /** draw a prop with its bottom-left corner at (x, y); returns its size, or null if there is no art */
 export function prop(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, opts: { dim?: number; flip?: boolean } = {}): { w: number; h: number } | null {
   const fr = importedFrame(name);
@@ -85,7 +90,7 @@ function sky(hour: number): [string, string] {
 export function streetWindow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, hour: number, day: number, time: number) {
   x = Math.round(x);
   y = Math.round(y);
-  const rainy = (day * 7919) % 5 === 2;
+  const rainy = isRainy(day);
   const [top, low] = sky(hour);
   const g = ctx.createLinearGradient(0, y, 0, y + h);
   g.addColorStop(0, rainy ? mix(top.startsWith('rgb') ? '#7f708a' : top, '#7f708a', 0.6) : top);
