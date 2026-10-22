@@ -23,7 +23,8 @@ import { partnerPresent, type SpeciesMood, speciesMoods, updateAnimals } from '.
 
 export type GameEvent =
   | { t: 'toast'; text: string; tone?: 'good' | 'bad' | 'info' }
-  | { t: 'sfx'; name: Sfx }
+  /** a sound; one tied to a tank only plays while that tank is on screen */
+  | { t: 'sfx'; name: Sfx; tank?: number }
   | { t: 'coins'; tank: number; amount: number }
   | { t: 'guest'; entry: GuestEntry }
   | { t: 'letter'; id: string }
@@ -173,7 +174,7 @@ export class Game {
         for (const b of stepBreeding(s, t, st.facts, st.moods, this.rng)) {
           this.emit({ t: 'fry', tank: t.id, sp: b.sp, n: b.n });
           this.toast(`${b.n} baby ${species(b.sp).name.toLowerCase()} in ${t.name}!`, 'good');
-          this.emit({ t: 'sfx', name: 'chime' });
+          this.emit({ t: 'sfx', name: 'fry', tank: t.id });
         }
       }
     }

@@ -2,6 +2,31 @@
 
 Short records of choices that shape the code. Newest first.
 
+## 2026-10-21 (owner's play-test feedback)
+
+- **The tank is yours, the backdrop is a hint.** The far backdrops stay but sit low (at most half
+  the water depth) and faint, a change of look crossfades, and shrimp and snails only nudge which
+  look is chosen, so a bag of cherry shrimp no longer swaps the whole background.
+- **Ida's tour cannot be skipped, and neither can the cutscenes.** Instead the note has Back, to
+  reread earlier steps (the current step keeps its place). The note lives in a band at the top of
+  the tank view and the hall that both leave free, so it never covers a tank; over a window it
+  moves to the wall beside it. Pointer targets remember their UI layer, so the pulsing outline
+  never shows through a window.
+- **A tank is heard only while you watch it.** The hall plays the room, the visitors and the rain;
+  a tank's filter, air and pumps, its new fry and its sales play only on its own view. New fry get
+  a soft bubble instead of the three-note chime (a breeding bristlenose pair chimed constantly).
+- **Named animals are pets.** Any animal can be named from the Look panel (arrows step through the
+  others of its kind); a named animal is never sold from a stock tank.
+- **Slopes behave.** Pieces settle until their downhill side touches the sand; swimmers keep clear
+  of the sand of the plane they are drawn in; bottom dwellers walk between rows instead of jumping
+  and come to the front row for sunk food. Sculpting can heap sand to 1.45x the old limit.
+- **Small art at 24 px.** The 16 px packs read as blobs beside the detailed art, so the 16 smallest
+  animals and the 47 small plants and corals were redone at 24 px. They draw a little larger
+  (an ember tetra is about 20 px, like a neon); readability wins over strict scale here.
+- **Shop props at 1.25x**, the one fractional scale in the game (STYLE.md, Interface).
+- **Pest snails hitchhike on 12% of plants** (was 30%). The scripted player climbs about 3% faster
+  for it; the tier-time test bounds moved down slightly to match.
+
 ## 2026-10-21 (story, balance, sound, release)
 
 - **GitHub Pages only.** The owner asked for no itch.io page until further notice; `master` deploys

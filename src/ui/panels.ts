@@ -11,7 +11,7 @@ import * as act from '../sim/actions';
 import { equipForSale, itemsForSale, speciesForSale, substratesForSale } from '../sim/catalog';
 import { facts, FLOW_NAMES, litersOf } from '../sim/facts';
 import { PART_NAMES, type RatingParts } from '../sim/rating';
-import { hourOf, type Tank, type WaterSource } from '../sim/state';
+import { type Animal, hourOf, type Tank, type WaterSource } from '../sim/state';
 import { cycleProgress, SOURCES } from '../sim/water';
 import { BAL } from '../sim/balance';
 import { isStock, offers } from '../sim/sales';
@@ -138,7 +138,10 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     const sel = app.select;
     if (sel?.kind === 'agent') {
       const a = t.animals.find((q) => q.uid === sel.uid);
-      if (a) y = speciesCard(app, species(a.sp), st.moods.get(a.sp), x, y, w, a.fry ? 'young, born here' : a.bornHere ? 'born here' : undefined);
+      if (a) {
+        y = nameRow(app, t, a, x, y, w);
+        y = speciesCard(app, species(a.sp), st.moods.get(a.sp), x, y, w, a.fry ? 'young, born here' : a.bornHere ? 'born here' : undefined);
+      }
     } else if (sel?.kind === 'item') {
       const p = t.items.find((q) => q.uid === sel.uid);
       if (p) y = itemCard(app, item(p.id), x, y, w, p.size, p.health);
@@ -210,6 +213,32 @@ function salesCard(app: App, t: Tank, x: number, y: number, w: number): number {
   y += 4;
   u.divider(x, y, w);
   return y + 8;
+}
+
+/**
+ * The selected animal's own name, a button to name it, and arrows to step through the others of
+ * its kind in this tank (small fish are hard to click as they swim past).
+ */
+function nameRow(app: App, t: Tank, a: Animal, x: number, y: number, w: number): number {
+  const u = app.ui;
+  const s = species(a.sp);
+  const kin = t.animals.filter((q) => q.sp === a.sp);
+  const i = kin.indexOf(a);
+  const aw = M.btnS + 2;
+  let nx = x;
+  if (kin.length > 1) {
+    if (u.button('pet:prev', x, y, aw, aw, ICON.left, { style: 'flat', tip: `Previous ${s.name.toLowerCase()}` })) app.select = { kind: 'agent', uid: kin[(i - 1 + kin.length) % kin.length].uid };
+    nx += aw + 4;
+  }
+  const bw = u.buttonW(a.name ? 'Rename' : 'Name');
+  const right = x + w - bw - (kin.length > 1 ? aw + 4 : 0);
+  u.head(a.name ?? `${s.name} ${kin.length > 1 ? `${i + 1} of ${kin.length}` : ''}`.trim(), nx + 2, y + 2, a.name ? C.head : C.textDim, { maxW: right - nx - 8 });
+  if (u.button('pet:name', right, y, bw, aw, a.name ? 'Rename' : 'Name', { style: 'flat', tip: 'Give this one a name of its own. Named animals are pets: they are never sold.' })) {
+    const name = window.prompt(`Name this ${s.name.toLowerCase()} (leave empty to clear)`, a.name ?? '');
+    if (name !== null) act.nameAnimal(app.game!, t, a.uid, name);
+  }
+  if (kin.length > 1 && u.button('pet:next', x + w - aw, y, aw, aw, ICON.right, { style: 'flat', tip: `Next ${s.name.toLowerCase()}` })) app.select = { kind: 'agent', uid: kin[(i + 1) % kin.length].uid };
+  return y + aw + 8;
 }
 
 function speciesCard(app: App, s: SpeciesDef, m: SpeciesMood | undefined, x: number, y: number, w: number, note?: string): number {

@@ -80,6 +80,16 @@ export const ROCKS: ItemDef[] = [
     blurb: 'Light, porous rock like the iron-stained shores of the Malili Lakes, home of cardinal shrimp.',
   },
   {
+    id: 'ryuoh_stone', name: 'Ryuoh Stone', cat: 'rock', water: freshBrack, price: 18, tier: 0, w: 40, h: 32, place: 'ground', shape: 'veined',
+    colors: ['slate', 'black'], fx: { ph: 0.1, gh: 0.5, kh: 0.5 }, tags: ['stone'],
+    blurb: 'Elephant-skin stone: dark grey, furrowed with deep wrinkles that hold shadow. A little calcareous, so it nudges the hardness up a touch.',
+  },
+  {
+    id: 'yamaya_stone', name: 'Yamaya Stone', cat: 'rock', water: fresh, price: 20, tier: 1, w: 32, h: 40, place: 'ground', shape: 'jagged',
+    colors: ['sage', 'slate'], tags: ['stone'],
+    blurb: 'Sharp green-grey Japanese stone that looks like a mountain already furred with moss. Inert, and made for a tall Iwagumi peak.',
+  },
+  {
     id: 'live_rock', name: 'Live Rock', cat: 'rock', water: marine, price: 30, tier: 3, w: 40, h: 30, place: 'ground', shape: 'porous',
     colors: ['lilac', 'pink'], fx: { bio: 120, pests: 0.3 }, tags: ['stone', 'cave', 'live', 'coralline'],
     blurb: 'Ocean rock already alive with bacteria, coralline algae and critters. It cycles a tank fast but can carry hitchhikers like Aiptasia.',
@@ -166,6 +176,16 @@ export const WOODS: ItemDef[] = [
     id: 'bogwood', name: 'Bog Oak', cat: 'wood', water: freshBrack, price: 22, tier: 1, w: 46, h: 30, place: 'ground', shape: 'gnarl',
     colors: ['black'], regions: ['temperate_eu'], fx: { tannin: 0.4, ph: -0.2 }, tags: ['tannin', 'cave'],
     blurb: 'Ancient wood preserved for centuries in peat bogs, black as coal and heavy with tannins.',
+  },
+  {
+    id: 'hornwood', name: 'Hornwood (Talawa)', cat: 'wood', water: freshBrack, price: 18, tier: 0, w: 30, h: 50, place: 'ground', shape: 'branchy',
+    colors: ['wood', 'brown'], fx: { tannin: 0.3, ph: -0.1 }, tags: ['tannin', 'epiphyte_mount'],
+    blurb: 'Talawa root from Southeast Asia: slender red-brown spires that curve up like horns. Dense, sinks at once and tints the water a little.',
+  },
+  {
+    id: 'hollow_log', name: 'Hollow Log', cat: 'wood', water: freshBrack, price: 16, tier: 0, w: 48, h: 30, place: 'ground', shape: 'tube',
+    colors: ['taupe', 'brown'], fx: { tannin: 0.15 }, tags: ['cave', 'epiphyte_mount'],
+    blurb: 'A weathered hollow branch laid on its side. Plecos, loaches and shy cichlids move straight into the tunnel.',
   },
 ];
 

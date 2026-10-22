@@ -108,6 +108,11 @@ function modeFor(s: SpeciesDef, g: Geom): Mode {
   }
 }
 
+/** the scape plane a swimmer at this depth passes through (the tank view draws it in that band) */
+function planeOf(z: number): 0 | 1 | 2 {
+  return z < 0.34 ? 0 : z < 0.67 ? 1 : 2;
+}
+
 function band(s: SpeciesDef, g: Geom): [number, number] {
   const top = g.surface + 3, bot = g.h - g.maxDepth * 0.8 - 4;
   const span = Math.max(8, bot - top);
@@ -318,7 +323,9 @@ export class Agents {
           chasing = true;
           a.tx = best.x;
           a.ty = best.y;
-          if (bd < 9) best.life = 0;
+          // sunk food lies on the front of the sand: bottom feeders come forward for it
+          if (a.mode === 'bottom' && best.sunk) a.layer = 2;
+          if (bd < 9 || (a.mode === 'bottom' && a.layer === 2 && Math.abs(best.x - a.x) < 3)) best.life = 0;
         }
       }
 
@@ -340,6 +347,8 @@ export class Agents {
               a.tx = r.range(8, waterR - 8);
               a.ty = r.range(y0, y1);
             }
+            // never aim into a bank of sand (sloped or sculpted ground rises into the band)
+            if (a.mode === 'swim') a.ty = Math.min(a.ty, groundY(t, g, a.tx, planeOf(a.tz)) - Math.max(3, a.len * 0.5));
           }
           let ax = (a.tx - a.x) * 0.6, ay = (a.ty - a.y) * 0.6;
           const ce = centers.get(a.sp);
@@ -384,7 +393,9 @@ export class Agents {
           const crawl = s.kind === 'snail' ? 1.5 : s.kind === 'fish' ? speed * 0.8 : speed * 0.45;
           a.vx = Math.abs(dx) > 1 ? Math.sign(dx) * Math.min(crawl, Math.abs(dx) * 2) : 0;
           a.vy = 0;
-          a.y = groundY(t, g, a.x, a.layer) - Math.max(1, a.len * 0.12);
+          // follow the sand; moving to another row of a sloped bed it walks up or down, never jumps
+          const gy = groundY(t, g, a.x, a.layer) - Math.max(1, a.len * 0.12);
+          a.y = Math.abs(gy - a.y) < 2 ? gy : a.y + (gy - a.y) * Math.min(1, dt * 4);
           a.z += (a.layer / 2 - a.z) * Math.min(1, dt * 2);
           if (a.vx === 0 && s.kind === 'fish' && (s.body === 'cory' || s.tags.includes('scavenger')) && r.chance(dt * 3)) {
             const mx = a.x + a.face * a.len * 0.45, my = a.y + Math.max(1, a.len * 0.12);
@@ -439,6 +450,7 @@ export class Agents {
         case 'burrow': {
           a.vx = 0;
           a.vy = 0;
+          a.y = groundY(t, g, a.x, a.layer) - 2;
           a.hidden = c.lightsOn && a.scared <= 0 ? 0.2 : 0.85;
           break;
         }
@@ -448,11 +460,19 @@ export class Agents {
 
       a.x += a.vx * dt;
       a.y += a.vy * dt;
-      // stay in the water
+      // stay in the water and out of the sand: swimmers keep clear of the ground of the plane they
+      // are drawn in (on a slope the back rows sit higher), easing up rather than popping
       const minY = a.mode === 'land' ? g.surface - 4 : g.surface + 2;
-      const floor = groundY(t, g, a.x, a.layer) - 1;
       a.x = Math.max(3, Math.min((a.mode === 'land' ? g.w : waterR) - 3, a.x));
-      a.y = Math.max(minY, Math.min(floor, a.y));
+      if (a.mode === 'swim' || a.mode === 'perch' || a.mode === 'drift') {
+        const floor = groundY(t, g, a.x, planeOf(a.z)) - (a.mode === 'perch' ? 1 : Math.max(2, a.len * 0.25));
+        if (a.y > floor) {
+          a.y += (floor - a.y) * Math.min(1, dt * 8);
+          a.vy = Math.min(a.vy, 0);
+        }
+        a.y = Math.max(minY, Math.min(groundY(t, g, a.x, 2) - 1, a.y));
+      } else if (a.mode !== 'bottom') a.y = Math.max(minY, Math.min(groundY(t, g, a.x, a.mode === 'glass' ? 2 : a.layer) - 1, a.y));
+      else a.y = Math.max(minY, a.y);
       if (Math.abs(a.vx) > 0.6) a.face = a.vx > 0 ? 1 : -1;
       a.phase += dt * (a.mode === 'swim' ? 3 + Math.hypot(a.vx, a.vy) * 0.25 : a.mode === 'drift' ? 1.2 : Math.abs(a.vx) > 0.2 ? 3 : 0.8);
     }

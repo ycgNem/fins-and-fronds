@@ -32,11 +32,17 @@ const TITLES: Record<WindowId, string> = {
 
 const RIBBON = 30;
 
+/** where the open window sits, in UI pixels */
+export function windowRect(app: App): { x: number; y: number; w: number; h: number } {
+  const menu = app.window === 'menu';
+  const w = Math.min(app.W - 32, menu ? 600 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, menu ? 400 : 500);
+  return { x: Math.floor((app.W - w) / 2), y: TOP_H + Math.floor((app.H - TOP_H - TOOLBAR_H - h) / 2), w, h };
+}
+
 export function drawWindow(app: App) {
   const u = app.ui;
   const id = app.window!;
-  const w = Math.min(app.W - 32, id === 'menu' ? 600 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, id === 'menu' ? 400 : 500);
-  const x = Math.floor((app.W - w) / 2), y = TOP_H + Math.floor((app.H - TOP_H - TOOLBAR_H - h) / 2);
+  const { x, y, w, h } = windowRect(app);
   u.modal();
   u.fill(0, 0, app.W, app.H - TOOLBAR_H, 0, 0.3);
   u.block(0, 0, app.W, app.H);
@@ -405,6 +411,7 @@ function menuGame(app: App, x: number, y: number, w: number): number {
   const hw = Math.floor((w - 6) / 2);
   if (u.button('replaytut', x, y, hw, M.btn, 'Replay the tour', { tip: 'Ida walks you through every feature again' })) {
     s.tutorial = { step: 0, done: false };
+    app.tutorialPeek = null;
     app.window = null;
   }
   if (u.button('replayintro', x + hw + 6, y, hw, M.btn, 'Watch the intro', { tip: 'The night you got the keys' })) {

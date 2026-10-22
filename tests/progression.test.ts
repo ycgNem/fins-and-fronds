@@ -17,7 +17,8 @@ describe('time to tier (estimated real minutes of play)', () => {
     for (const r of runs) {
       const m = at(r, 1)!;
       expect(m, r.log.slice(-5).join('\n')).toBeDefined();
-      expect(m.realMin).toBeGreaterThanOrEqual(28);
+      // (rarer hitchhiking pest snails, 2026-10-21, made the bot about 3% quicker)
+      expect(m.realMin).toBeGreaterThanOrEqual(26);
       expect(m.realMin).toBeLessThanOrEqual(50);
     }
   });
@@ -26,7 +27,7 @@ describe('time to tier (estimated real minutes of play)', () => {
     for (const r of runs) {
       const m = at(r, 3)!;
       expect(m).toBeDefined();
-      expect(m.realMin).toBeGreaterThanOrEqual(165);
+      expect(m.realMin).toBeGreaterThanOrEqual(160);
       expect(m.realMin).toBeLessThanOrEqual(250);
     }
   });

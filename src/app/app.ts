@@ -20,7 +20,7 @@ import { drawHud, TOOLBAR_H, TOP_H } from '../ui/hud';
 import { drawPanel, panelW } from '../ui/panels';
 import { Cutscene, SCENES } from '../ui/cutscene';
 import { drawTitle } from '../ui/title';
-import { drawTutorial, PAUSED_UNTIL } from '../ui/tutorial';
+import { drawTutorial, noteReserve, PAUSED_UNTIL } from '../ui/tutorial';
 import { M, textWidth, UI } from '../ui/ui';
 import { drawWindow } from '../ui/windows';
 
@@ -85,6 +85,8 @@ export class App {
   cutscene: Cutscene | null = null;
   /** things the tutorial watches for that are not in the state (fed, sculpted, windows opened) */
   tutorialFlags = new Set<string>();
+  /** an earlier tutorial step the player went back to reread (null: the current step) */
+  tutorialPeek: number | null = null;
   private saveTimer = 0;
   private lastX = 0;
   private lastY = 0;
@@ -142,6 +144,7 @@ export class App {
     this.load(new Game(newGame()));
     this.view = 'hall';
     this.tutorialFlags.clear();
+    this.tutorialPeek = null;
     this.playScene('intro');
   }
 
@@ -274,12 +277,13 @@ export class App {
     drawTitle(this);
   }
 
-  /** what the shop should sound like: the shown tank's gear up close, or every tank from the hall */
+  /** what the shop should sound like: the shown tank's gear up close; from the hall only the room,
+   *  the visitors and the rain (a tank is heard only while you are watching it) */
   private soundScene(): SoundScene {
     const s = this.state;
     const g = this.game!;
     const open = isOpen(s, s.time);
-    const tanks = this.view === 'tank' && this.tank ? [this.tank] : s.tanks;
+    const tanks = this.view === 'tank' && this.tank ? [this.tank] : [];
     const near = this.view === 'tank' ? (this.watch ? 1 : 0.85) : 0.5;
     const has = (id: string) => tanks.some((t) => t.equip.includes(id));
     const filter: SoundScene['filter'] = has('sump') || has('life_support') ? 'sump' : has('hob_filter') ? 'hob' : has('sponge_filter') ? 'sponge' : tanks.some((t) => t.equip.length) ? 'canister' : 'none';
@@ -346,7 +350,8 @@ export class App {
         this.toast(e.text, e.tone ?? 'info');
         break;
       case 'sfx':
-        this.audio.play(e.name);
+        // a tank's own sounds (fry, a sale from it) only when you are looking at that tank
+        if (e.tank === undefined || (this.view === 'tank' && e.tank === this.tankId)) this.audio.play(e.name);
         break;
       case 'coins': {
         if (this.view === 'tank' && e.tank === this.tankId && this.tank) {
@@ -552,11 +557,12 @@ export class App {
     }
   }
 
-  /** area the tank may use, between the bars and left of the side panel */
+  /** area the tank may use, between the bars and left of the side panel (and below Ida's note) */
   viewport() {
     if (this.watch) return { x: 0, y: 0, w: this.W, h: this.H };
-    const x = 4, y = TOP_H + 4;
-    return { x, y, w: this.W - panelW(this) - 16, h: this.H - TOP_H - TOOLBAR_H - 30 };
+    const note = noteReserve(this);
+    const x = 4, y = TOP_H + 4 + note;
+    return { x, y, w: this.W - panelW(this) - 16, h: this.H - TOP_H - TOOLBAR_H - 30 - note };
   }
 
   private drawTank(t: Tank, _dt: number) {
@@ -779,7 +785,8 @@ export class App {
         const a = t.animals.find((x) => x.uid === agent.uid);
         const s = species(agent.sp);
         const m = g.stats.get(t.id)?.moods.get(agent.sp);
-        this.ui.tip([{ text: s.name + (a?.fry ? ' (young)' : '') }, { text: s.sci, color: C.textDim }, ...(m ? [{ text: `Mood ${Math.round(m.mood * 100)}%`, color: m.mood > 0.7 ? C.good : m.mood > 0.4 ? C.warn : C.bad }] : [])]);
+        const title = a?.name ? `${a.name}, ${s.name.toLowerCase()}` : s.name;
+        this.ui.tip([{ text: title + (a?.fry ? ' (young)' : '') }, { text: a?.name ? 'Click to see or rename' : 'Click to name it', color: C.textDim }, ...(m ? [{ text: `Mood ${Math.round(m.mood * 100)}%`, color: m.mood > 0.7 ? C.good : m.mood > 0.4 ? C.warn : C.bad }] : [])]);
       } else if (itemUid !== undefined) {
         this.hover = { kind: 'item', uid: itemUid };
         const p = t.items.find((q) => q.uid === itemUid);

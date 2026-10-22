@@ -5,13 +5,14 @@
 import { species, TIERS, upgrade } from '../data';
 import { rgba, UI as C } from '../data/palette';
 import { drawIcon, hasArt } from '../render/icons';
-import { prop, propSize, streetWindow, wallClock } from '../render/shop';
+import { prop, PROP_SCALE, propSize, streetWindow, wallClock } from '../render/shop';
 import { type App, SPEEDS } from '../app/app';
 import { baysUnlocked } from '../sim/catalog';
 import { clockText, dayOf } from '../sim/state';
 import { isOpen } from '../sim/visitors';
 import { BAL } from '../sim/balance';
 import { isStock, offers } from '../sim/sales';
+import { noteBox, noteReserve } from './tutorial';
 import { ICON, M, textWidth } from './ui';
 
 /** the band the top chips sit in, and the band the window pills sit in */
@@ -146,7 +147,9 @@ function windowPills(app: App) {
 
 function toasts(app: App) {
   const u = app.ui;
-  let y = TOP_H + 6;
+  // below Ida's note when it reaches over to the left
+  const note = noteBox(app);
+  let y = note && note.x < 400 && note.y < TOP_H + 20 ? note.y + note.h + 8 : TOP_H + 6;
   const x = 8;
   for (const t of app.toasts) {
     const w = Math.min(380, textWidth(t.text) + 26);
@@ -173,6 +176,13 @@ function guestLine(app: App) {
   u.ctx.globalAlpha = 1;
 }
 
+/** the hall's floor plan in UI pixels: the street window's width on the left, the counter's on the
+ *  right, and the bays in between */
+export function hallArea(app: App) {
+  const left = app.W >= 900 ? (app.W >= 1100 ? 168 : 136) : 0, right = app.W >= 820 ? (app.W >= 1100 ? 200 : 180) : 0;
+  return { left, right, gx: 8 + left, gw: app.W - 16 - left - right };
+}
+
 function hall(app: App) {
   const u = app.ui;
   const s = app.state;
@@ -186,18 +196,19 @@ function hall(app: App) {
   const nDisplay = Math.max(bays + (moreBays ? 1 : 0), display), nRacks = Math.max(racks + (moreRacks ? 1 : 0), stock);
   const top = TOP_H + 8, bottom = app.H - TOOLBAR_H - 8;
   // the shop floor: the street window on the left, the counter on the right, bays in between
-  const left = app.W >= 900 ? (app.W >= 1100 ? 168 : 136) : 0, right = app.W >= 820 ? 180 : 0;
+  const { left, right, gx, gw } = hallArea(app);
   shopCorners(app, left, right, top, bottom);
-  const gx = 8 + left, gw = app.W - 16 - left - right;
+  // the bays start below Ida's note while the tour runs
+  const btop = top + noteReserve(app);
   const gap = 10, label = 18;
   // display bays get most of the wall; the stock room is a lower, shorter row of racks
-  const avail = bottom - top - label * 2 - gap;
+  const avail = bottom - btop - label * 2 - gap;
   const dCols = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(nDisplay * 1.6)))), dRows = Math.ceil(nDisplay / dCols);
   const rCols = Math.min(nRacks, Math.max(3, Math.floor(gw / 150))), rRows = Math.ceil(nRacks / rCols);
   const rH = Math.min(130, Math.floor((avail * 0.34 - (rRows - 1) * gap) / rRows));
   const dH = Math.min(200, Math.floor((avail - rRows * rH - (rRows - 1) * gap - (dRows - 1) * gap) / dRows));
   const used = label + dRows * dH + (dRows - 1) * gap + gap + label + rRows * rH + (rRows - 1) * gap;
-  let y = top + Math.max(0, Math.floor((bottom - top - used) / 2));
+  let y = btop + Math.max(0, Math.floor((bottom - btop - used) / 2));
   u.text('Display bays', gx + 2, y + 2, C.onDark, { face: 'display', shadow: 0 });
   y += label;
   grid(app, gx, gw, y, dCols, dH, nDisplay, (i) => i, bays, false);
@@ -248,8 +259,8 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
       prop(ctx, 'sh:chalkboard', bx, y + cb.h);
       const fish = s.tanks.flatMap((t) => offers(t, app.game!.stats.get(t.id)?.moods));
       const lines = fish.length ? fish.slice(0, 4).map((o) => `${species(o.sp).name} ${o.each}`) : s.tanks.some(isStock) ? ['Sold out!', 'More soon'] : ['Nothing yet'];
-      u.text('Today', bx + cb.w / 2, y + 9, 9, { align: 'center' });
-      lines.forEach((l, i) => u.text(l, bx + 10, y + 23 + i * 11, 8, { maxW: cb.w - 20 }));
+      u.text('Today', bx + cb.w / 2, y + Math.round(9 * PROP_SCALE), 9, { align: 'center' });
+      lines.forEach((l, i) => u.text(l, bx + Math.round(10 * PROP_SCALE), y + Math.round((23 + i * 11) * PROP_SCALE), 8, { maxW: cb.w - Math.round(20 * PROP_SCALE) }));
       if (u.hover(bx, y, cb.w, cb.h)) u.tip([{ text: 'The chalkboard' }, { text: 'What shoppers can buy from your stock tanks today, and the price each.', color: C.textDim }]);
       y += cb.h + 8;
     }
@@ -286,7 +297,7 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
       if (cat) {
         const breathe = Math.sin(u.time * 1.6) > 0.6 ? 1 : 0;
         // (the counter top is about a third of the way down the art, under the register)
-        prop(ctx, 'sh:cat', cx + 62, floorY + 4 - counter.h + 40 + breathe);
+        prop(ctx, 'sh:cat', cx + Math.round(62 * PROP_SCALE), floorY + 4 - counter.h + Math.round(40 * PROP_SCALE) + breathe);
       }
       prop(ctx, 'sh:supplies', cx - (propSize('sh:supplies')?.w ?? 80) - 4, floorY + 3);
     }

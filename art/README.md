@@ -51,12 +51,12 @@ Ids come from `src/data` (for example `sp:cherry_shrimp:2`, `it:spider_wood`).
 
 | Sheet | What | Count |
 |---|---|---|
-| creatures-1 | species up to 24 px (16 and 24 px packs, shrimp redone at 24) | 64 |
+| creatures-1 | species up to 24 px (24 px packs; shrimp and the 16 smallest animals redone at 24) | 64 |
 | creatures-2 | 25-37 px species (36 px pack) | 41 |
 | creatures-3 | 41-61 px species (56 px packs, cleaned) | 33 |
 | creatures-4 | the largest species (Pixen, one each) | 51 |
-| scape-1 | hero hardscape and Amazon sword (48 px pack) | 11 |
-| scape-2, scape-3, scape-4 | scape up to 16, 24 and 40 px (64-slot packs) | 47, 37, 37 |
+| scape-1 | hero hardscape and Amazon sword (48 px pack); Ryuoh and Yamaya stone, hornwood and the hollow log (Pixen) | 15 |
+| scape-2, scape-3, scape-4 | small scape (scape-2 redone at 24 px, fittonia and three Euphyllia corals by Pixen), 24 and 40 px (64-slot packs) | 47, 37, 37 |
 | scape-5 | stems, ribbons, kelp, lotus, banks, galleon (Pixen) | 21 |
 | backdrops | far strips for 13 water looks | 13 |
 | equipment | in-tank gear | 12 |
@@ -67,7 +67,8 @@ Ids come from `src/data` (for example `sp:cherry_shrimp:2`, `it:spider_wood`).
 | postcards | one picture per collecting region (pc:<region>), cropped inside the drawn border | 27 |
 
 The kuhli loach in creatures-4 is hand-painted (the PixelLab candidates were noisy pink worms;
-the first version read as a ladder). The old one is kept in `art/raw/old/`.
+the first version read as a ladder). The old one is kept in `art/raw/old/`, as are the 16 px
+creatures-1 and scape-2 sprites that the detail pass replaced.
 
 All 189 species and all 153 scape items have imported art.
 
@@ -83,7 +84,8 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the red
 | M7 | 13 backdrops, 12 pieces of equipment, stand tries | 100 | 29 | done |
 | M8 | Icons and stamps, 63 codex plates, 27 postcards, logo emblem | 150 | 77 (plates 40, icons 10, postcards 27) | done |
 | Redesign | Intro and town cutscenes, shop props, a kuhli retry | (reserve) | 250 (cutscenes 120, shop 120, kuhli 10) | done |
-| | **Total** | **1000** | **about 600** | |
+| Feedback | 16 small animals and 47 small plants and corals at 24 px, 4 new stones and woods | (reserve) | 32 | done |
+| | **Total** | **1000** | **about 632** | |
 
 ## Batch log
 
@@ -102,3 +104,6 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the red
 | 2026-10-21 | Codex plates: four 64 px 16-packs (63 plates + the emblem) | 40 | every candidate used, in archetype order |
 | 2026-10-21 | Icons: one 32 px pack of 26 | 10 | 15 icons, 9 stamps, postmark, scroll; 16 px copies made at runtime (majority 2x2) |
 | 2026-10-21 | Postcards: 27 Pixen at 160x96 | 27 | 2 resubmitted after the 10-job limit; cropped 6 px for the drawn borders |
+| 2026-10-21 | Detail pass: 24 px creature pack for the 16 smallest animals (ember tetra, chili rasbora, CPD, endler, dwarf seahorse, comb jelly, Thai micro crab, nerites and other snails, tuxedo urchin) | 10 | the 16 px pack read as blobs next to the 24-36 px art; drawn about 20 px now. Trumpet snail rotated to crawl |
+| 2026-10-21 | Detail pass: 24 px scape pack for all 47 scape-2 plants, corals and decor | 10 | fittonia, hammer, torch and frogspawn came back as noise: 4 Pixen redos at 24x24, black outline softened (plants: darkest green) |
+| 2026-10-21 | New hardscape: Ryuoh stone, Yamaya stone, hornwood (Talawa), hollow log; 2 Pixen takes each | 8 | the log snapped to olive like other PixelLab wood: repainted onto the taupe ramp by luminance |

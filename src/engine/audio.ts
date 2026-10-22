@@ -9,7 +9,7 @@
 //   rain     on the street window on rainy days
 // plus scheduled one-shots: airstone and sponge-filter bubbles, rain drips and the shop's door bell.
 
-export type Sfx = 'click' | 'coin' | 'place' | 'splash' | 'bubble' | 'letter' | 'chime' | 'error' | 'scrape' | 'feed' | 'door';
+export type Sfx = 'click' | 'coin' | 'place' | 'splash' | 'bubble' | 'letter' | 'chime' | 'error' | 'scrape' | 'feed' | 'door' | 'fry';
 
 /** What the ambience should sound like right now (the app fills this in from the shown tank). */
 export interface SoundScene {
@@ -98,7 +98,8 @@ export class Audio {
     this.fade('rain', 0.05 * scene.rain);
     // one-shots
     const rate = {
-      bubble: (scene.air * 5 + (scene.filter === 'sponge' ? 3 : 0) + 0.25) * n,
+      // the odd stray bubble only from a running tank, never from an empty room
+      bubble: scene.filter === 'none' && scene.air === 0 ? 0 : (scene.air * 5 + (scene.filter === 'sponge' ? 3 : 0) + 0.25) * n,
       drip: scene.rain * 5,
       door: scene.night ? 0 : scene.crowd / 35,
     };
@@ -288,6 +289,12 @@ export class Audio {
         // flakes landing on the surface
         for (let i = 0; i < 7; i++) this.burst(0.012, 'bandpass', 4200 + Math.random() * 2500, 4, 0.12 * gain, t + Math.random() * 0.35, out);
         this.bloop(t + 0.3, 0.02 * gain, out);
+        break;
+      case 'fry':
+        // new fry: a couple of small bubbles and a faint bell, nothing that cuts across the shop
+        this.bloop(t, 0.025 * gain, out);
+        this.bloop(t + 0.09, 0.018 * gain, out);
+        this.bell(2093, 0.01 * gain, 0.5, t + 0.14, out);
         break;
       case 'door':
         // the shop bell over the door: two notes, a little uneven

@@ -17,7 +17,7 @@ import type { TankStats } from '../sim/Game';
 import type { Tank } from '../sim/state';
 import { type Agent, Agents, BURIED, type Cave, type SceneCtx } from './agents';
 import { bayer, ctx2d, makeCanvas, Pix, shadeOf } from './art/pix';
-import { creatureFrame, drawFrame, type Frame, importedFrame, itemFrame } from './art/sprites';
+import { creatureFrame, creatureLength, drawFrame, type Frame, importedFrame, itemFrame } from './art/sprites';
 
 export const MARGIN = { l: 8, r: 8, t: 14, b: 18 };
 
@@ -64,8 +64,13 @@ export function waterLook(t: Tank, st?: TankStats): WaterLook {
   if (sh.tags.includes('kreisel')) return 'pelagic';
   if (sh.tags.includes('pond')) return 'pond';
   if (t.chem.algae > 0.75 && t.water === 'fresh') return 'green';
+  // the fish set the scene; a colony of shrimp or snails only nudges it
   const regions = new Map<string, number>();
-  for (const a of t.animals) for (const r of species(a.sp).regions) regions.set(r, (regions.get(r) ?? 0) + 1);
+  for (const a of t.animals) {
+    const s = species(a.sp);
+    const vote = s.kind === 'fish' || s.kind === 'amphibian' || s.kind === 'cephalopod' ? 1 : 0.25;
+    for (const r of s.regions) regions.set(r, (regions.get(r) ?? 0) + vote);
+  }
   let top = '', n = 0;
   for (const [r, c] of regions) if (c > n) {
     top = r;
@@ -138,6 +143,10 @@ export class TankView {
   private rng = new Rng(11);
   private bg: HTMLCanvasElement | null = null;
   private bgKey = '';
+  /** the backdrop before the water look last changed, fading out over the new one */
+  private bgPrev: HTMLCanvasElement | null = null;
+  private bgFade = 0;
+  private bgLook: WaterLook | null = null;
   private stand: HTMLCanvasElement | null = null;
   private standKey = '';
   private ground: HTMLCanvasElement[] = [];
@@ -273,6 +282,12 @@ export class TankView {
     const far = importedFrame(`bg:${this.look}`);
     const key = `${t.shell}|${this.look}|${t.water}|${far ? `${t.profile.join(',')}|${t.slope}` : '-'}`;
     if (this.bg && this.bgKey === key) return this.bg;
+    // a new look (new residents, tannins, green water) fades in instead of cutting
+    if (this.bg && this.bgLook && this.bgLook !== this.look) {
+      this.bgPrev = this.bg;
+      this.bgFade = 1;
+    }
+    this.bgLook = this.look;
     const { w, h, surface } = this.g;
     const L = LOOKS[this.look];
     const px = new Pix(w, h);
@@ -307,13 +322,16 @@ export class TankView {
 
   /**
    * The look's far scenery along the back, its foot tucked under the back ground band, tiled
-   * with every other tile mirrored, and washed with the haze tone so it sits far away.
+   * with every other tile mirrored, and washed with the haze tone so it sits far away. It stays
+   * low and faint: a hint of the habitat behind the glass, never competing with the scape.
    */
   private drawFar(t: Tank, bg: HTMLCanvasElement, far: Frame, haze: number) {
     const { w, h, surface } = this.g;
     let foot = 0;
     for (let x = 0; x < w; x += 4) foot = Math.max(foot, groundY(t, this.g, x, 0));
-    const y = Math.max(surface + 4, Math.min(h, foot + 3) - far.h);
+    // at most about half the water's depth shows above the back of the substrate
+    const shown = Math.min(far.h, Math.round((h - surface) * 0.5));
+    const y = Math.max(surface + 4, Math.min(h, foot + 3) - shown);
     const layer = makeCanvas(w, h);
     const c = ctx2d(layer);
     const x0 = -Math.floor(((far.w * 2 - (w % (far.w * 2))) % (far.w * 2)) / 2); // centered
@@ -325,9 +343,12 @@ export class TankView {
       c.restore();
     }
     c.globalCompositeOperation = 'source-atop';
-    c.fillStyle = rgba(haze, 0.55);
+    c.fillStyle = rgba(haze, 0.62);
     c.fillRect(0, 0, w, h);
-    ctx2d(bg).drawImage(layer, 0, 0);
+    const out = ctx2d(bg);
+    out.globalAlpha = 0.78;
+    out.drawImage(layer, 0, 0);
+    out.globalAlpha = 1;
   }
 
   private groundLayers(t: Tank): HTMLCanvasElement[] {
@@ -398,6 +419,10 @@ export class TankView {
 
   update(dt: number, t: Tank, st: TankStats | undefined, opts: DrawOpts, released: Set<string>) {
     this.time += dt;
+    if (this.bgFade > 0) {
+      this.bgFade = Math.max(0, this.bgFade - dt / 2.5);
+      if (this.bgFade === 0) this.bgPrev = null;
+    }
     this.g = geom(t);
     this.look = waterLook(t, st);
     this.agents.sync(t, this.g, released);
@@ -465,6 +490,11 @@ export class TankView {
     c.translate(MARGIN.l, MARGIN.t);
     this.clipInterior(c);
     c.drawImage(this.backdrop(t), 0, 0);
+    if (this.bgPrev && this.bgFade > 0) {
+      c.globalAlpha = this.bgFade * this.bgFade * (3 - 2 * this.bgFade);
+      c.drawImage(this.bgPrev, 0, 0);
+      c.globalAlpha = 1;
+    }
     const frame = Math.floor(this.time * 2.2);
     if (o.lightsOn) this.drawShafts(c);
     this.drawGear(c, t);
@@ -887,22 +917,52 @@ export class TankView {
     }
   }
 
+  /**
+   * Bags of new fish floating at the surface while they acclimate: a clear plastic balloon with a
+   * bright rim, a knotted neck above the water and the fish themselves inside, big enough to spot.
+   */
   private drawBags(c: CanvasRenderingContext2D, t: Tank) {
     const { surface } = this.g;
     const wx = Math.min(this.g.w, this.g.landX);
+    const rx = 12, ry = 10;
     t.bags.forEach((b, i) => {
-      const x = Math.round(wx * (0.3 + 0.18 * i) % (wx - 20)) + 10;
-      const y = surface + Math.round(Math.sin(this.time * 1.5 + i) * 1);
-      c.fillStyle = rgba(8, 0.35);
-      c.beginPath();
-      c.ellipse(x, y + 5, 8, 6, 0, 0, Math.PI * 2);
-      c.fill();
+      const x = Math.round((wx * (0.3 + 0.2 * i)) % Math.max(1, wx - rx * 2 - 8)) + rx + 4;
+      const cy = surface + 7 + Math.round(Math.sin(this.time * 1.5 + i * 1.7) * 1.5);
+      // the balloon, row by row so its edge stays crisp
+      for (let dy = -ry; dy <= ry; dy++) {
+        const half = Math.round(rx * Math.sqrt(1 - (dy / ry) ** 2));
+        const y = cy + dy;
+        const inWater = y > surface + 1;
+        c.fillStyle = rgba(inWater ? 47 : 8, inWater ? 0.22 : 0.18);
+        c.fillRect(x - half, y, half * 2 + 1, 1);
+        c.fillStyle = rgba(9, 0.75);
+        c.fillRect(x - half, y, 1, 1);
+        c.fillRect(x + half, y, 1, 1);
+      }
+      c.fillStyle = rgba(9, 0.75);
+      c.fillRect(x - Math.round(rx * 0.45), cy - ry, Math.round(rx * 0.9) + 1, 1);
+      c.fillRect(x - Math.round(rx * 0.45), cy + ry, Math.round(rx * 0.9) + 1, 1);
+      // the gathered neck and its knot above the water
+      c.fillStyle = rgba(8, 0.8);
+      c.fillRect(x - 2, cy - ry - 3, 5, 3);
+      c.fillRect(x - 1, cy - ry - 6, 3, 3);
+      c.fillStyle = rgba(9, 0.9);
+      c.fillRect(x - 3, cy - ry - 7, 2, 2);
+      c.fillRect(x + 2, cy - ry - 7, 2, 2);
+      // a highlight on the plastic
       c.fillStyle = rgba(9, 0.6);
-      c.fillRect(x - 1, y - 3, 2, 3);
-      c.fillRect(x - 6, y + 1, 1, 6);
-      const col = RAMP[species(b.sp).look.body];
-      c.fillStyle = rgba(col[Math.floor(col.length / 2)], 1);
-      for (let k = 0; k < Math.min(6, b.n); k++) c.fillRect(x - 4 + ((k * 3) % 8) + Math.round(Math.sin(this.time * 3 + k)), y + 3 + Math.floor(k / 3) * 3, 2, 1);
+      c.fillRect(x - rx + 3, cy - 5, 1, 4);
+      c.fillRect(x - rx + 4, cy - 6, 1, 1);
+      // the fish, small and milling about
+      const n = Math.min(5, b.n);
+      const len = Math.max(5, Math.min(9, Math.round(creatureLength(b.sp) * 0.45)));
+      for (let k = 0; k < n; k++) {
+        const ph = this.time * (0.6 + k * 0.13) + k * 2.1;
+        const fx = x + Math.round(Math.sin(ph) * (rx - len * 0.5 - 2));
+        const fy = cy + 1 + Math.round(((k % 3) - 1) * 3 + Math.sin(ph * 1.7) * 1);
+        const fr = creatureFrame(b.sp, Math.floor(this.time * 4 + k) % 4, len);
+        drawFrame(c, fr, fx, fy, Math.cos(ph) < 0, 0.9);
+      }
     });
   }
 

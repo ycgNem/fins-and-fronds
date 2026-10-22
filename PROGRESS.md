@@ -1,5 +1,21 @@
 # Progress log
 
+## 2026-10-21: play-test feedback pass
+
+- Backdrops toned down (low, hazy, crossfading) and steadier: shrimp and snails barely change the look.
+- Ida's tour: no Skip, a Back button, a note that keeps to a band above the tank (or beside a
+  window), and no tutorial outline showing through a window. Cutscenes have no Skip either.
+- Acclimation bags are bigger, crisp and show the actual fish inside. Shop props draw 1.25x.
+- Sound only from the tank on screen; new fry are a soft bubble, not a chime.
+- Sloped and sculpted substrate: items settle onto the sand, swimmers stay out of it, bottom
+  dwellers walk between rows and reach sunk food; sand can be heaped higher.
+- Name any animal (Look panel, with arrows through its kind); named animals are never sold.
+- Pest snails hitchhike less often (12% of plants).
+- Art (32 gens): 16 small animals and 47 small plants and corals redone at 24 px; new Ryuoh and
+  Yamaya stones, hornwood and a hollow log (a cave for plecos and loaches).
+- Checks: typecheck clean, 29/29 tests, smoke test passing; looked at in the browser at 1280x720
+  (hall, tank view, tutorial note with Back, the stock tank window, a sloped scape at 6x, naming).
+
 ## 2026-10-21: the shop story, many tanks, M8-M12 and release
 
 - The redesign the owner asked for: an empty shop and an intro cutscene where you get the keys,

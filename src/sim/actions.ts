@@ -5,7 +5,7 @@ import type { RegionId, Water } from '../data/types';
 import { BAL } from './balance';
 import { shellPrice, speciesForSale } from './catalog';
 import { canExpedition, startExpedition } from './expeditions';
-import { geom, groundY, litersOf } from './facts';
+import { geom, groundY, litersOf, PROFILE_MAX } from './facts';
 import type { Game } from './Game';
 import { applyUnlock } from './letters';
 import { newAnimal } from './life';
@@ -207,7 +207,7 @@ export function setSubstrate(g: Game, t: Tank, id: string): string {
 
 export function setProfile(g: Game, t: Tank, i: number, v: number) {
   if (i < 0 || i >= t.profile.length) return;
-  t.profile[i] = Math.max(0, Math.min(1, v));
+  t.profile[i] = Math.max(0, Math.min(PROFILE_MAX, v));
 }
 
 export function setSlope(g: Game, t: Tank, v: number) {
@@ -382,6 +382,15 @@ export function setKeep(g: Game, t: Tank, n: number) {
   t.keep = Math.max(0, Math.min(20, Math.round(n)));
 }
 
+/** Give one animal a name of its own (an empty name clears it). Named animals are pets: never sold. */
+export function nameAnimal(g: Game, t: Tank, uid: number, name: string) {
+  const a = t.animals.find((q) => q.uid === uid);
+  if (!a) return;
+  const n = name.trim().slice(0, 20);
+  if (n) a.name = n;
+  else delete a.name;
+}
+
 export function rename(g: Game, t: Tank, name: string) {
   t.name = name.slice(0, 24) || t.name;
 }
@@ -438,7 +447,15 @@ export function itemBase(t: Tank, p: Placed): { x: number; y: number } {
   if (it.place === 'surface') return { x: p.x, y: g.surface + 2 };
   if (it.place === 'hang') return { x: p.x, y: g.surface + 4 };
   if (it.place === 'land') return { x: p.x, y: g.surface - 2 };
-  return { x: p.x, y: groundY(t, g, p.x, p.layer) - p.y };
+  // riding on a stone or a log: keep to the host, wherever it settled
+  const host = p.on !== undefined ? t.items.find((q) => q.uid === p.on) : undefined;
+  if (host && host !== p) return { x: p.x, y: itemBase(t, host).y - (p.y - host.y) };
+  // on a slope a piece settles until its downhill side touches the sand (the uphill side digs in),
+  // so nothing hangs in the water over the low side
+  const half = Math.max(1, Math.round(it.w * p.size * 0.32));
+  let y = groundY(t, g, p.x, p.layer);
+  for (const dx of [-half, half]) y = Math.max(y, groundY(t, g, Math.max(0, Math.min(g.w - 1, p.x + dx)), p.layer));
+  return { x: p.x, y: y - p.y };
 }
 
 export { newAnimal };

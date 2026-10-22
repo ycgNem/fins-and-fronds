@@ -30,7 +30,8 @@ export function offers(t: Tank, moods?: Map<string, { mood: number }>): Offer[] 
   if (!isStock(t)) return [];
   const keep = t.keep ?? BAL.keepDefault;
   const by = new Map<string, number>();
-  for (const a of t.animals) if (!a.fry && a.health > 0.5) by.set(a.sp, (by.get(a.sp) ?? 0) + 1);
+  // named animals are pets: they stay
+  for (const a of t.animals) if (!a.fry && a.health > 0.5 && !a.name) by.set(a.sp, (by.get(a.sp) ?? 0) + 1);
   const out: Offer[] = [];
   for (const [sp, n] of by) {
     const free = n - keep;
@@ -82,7 +83,7 @@ export function stepSales(g: Game, dtH: number, rng: Rng) {
     const want = def.school > 1 ? Math.max(2, Math.round(def.school * (0.6 + rng.next() * 0.6))) : rng.next() < 0.7 ? 1 : 2;
     const n = Math.min(o.n, want);
     // take the healthiest adults
-    const picks = o.t.animals.filter((a) => a.sp === o.sp && !a.fry).sort((a, b) => b.health - a.health).slice(0, n);
+    const picks = o.t.animals.filter((a) => a.sp === o.sp && !a.fry && !a.name).sort((a, b) => b.health - a.health).slice(0, n);
     o.t.animals = o.t.animals.filter((a) => !picks.includes(a));
     const coins = n * o.each;
     s.coins += coins;
@@ -91,7 +92,7 @@ export function stepSales(g: Game, dtH: number, rng: Rng) {
     s.stats.salesToday = (s.stats.salesToday ?? 0) + coins;
     o.t.today += coins;
     g.emit({ t: 'coins', tank: o.t.id, amount: coins });
-    g.emit({ t: 'sfx', name: 'coin' });
+    g.emit({ t: 'sfx', name: 'coin', tank: o.t.id });
     g.toast(`A customer bought ${n} ${n === 1 ? def.name : plural(def.name)} (+${coins}).`, 'good');
     g.refresh(o.t);
   } else {

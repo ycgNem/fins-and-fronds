@@ -12,6 +12,10 @@
     "it:mangrove_root": "art/raw/scape-1/mangrove_root.png",
     "it:bogwood": "art/raw/scape-1/bogwood.png",
     "it:malawi_rock": "art/raw/scape-1/malawi_rock.png",
-    "it:granite_boulder": "art/raw/scape-1/granite_boulder.png"
+    "it:granite_boulder": "art/raw/scape-1/granite_boulder.png",
+    "it:ryuoh_stone": "art/raw/scape-1/ryuoh_stone.png",
+    "it:yamaya_stone": "art/raw/scape-1/yamaya_stone.png",
+    "it:hornwood": "art/raw/scape-1/hornwood.png",
+    "it:hollow_log": "art/raw/scape-1/hollow_log.png"
   }
 }

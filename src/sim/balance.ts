@@ -46,7 +46,7 @@ export const BAL = {
   /** fry take this many days to grow up */
   growDays: 4,
   /** chance per plant bought (without quarantine) of hitchhiking pest snails */
-  hitchhikeChance: 0.3,
+  hitchhikeChance: 0.12,
 
   /** running costs per game day: power and water for a 20 gallon long (scaled by sizeFactor ^ 1.3),
    *  gear wear as a share of its price, and food per animal (src/sim/upkeep.ts) */

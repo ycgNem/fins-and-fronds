@@ -1,6 +1,6 @@
 // Cutscenes: illustrated shots (PixelLab scenes, sprite names cs:<shot>) hung like a framed
 // picture on the shop wall, with a paper caption that types itself out underneath. Click or Space
-// shows the next line, Skip ends it, and each scene plays once per save (state.seen). Light
+// shows the next line; there is no skipping, and each scene plays once per save (state.seen). Light
 // effects (rain, dust in a lamp beam, a glint on the keys, the painted shop sign) are drawn over
 // the picture in its own pixels, so they stay crisp at any zoom.
 import type { App } from '../app/app';
@@ -236,14 +236,12 @@ export class Cutscene {
     if (this.chars >= this.text.length && Math.floor(this.time * 2) % 2 === 0) u.text(ICON.right, cx + cw - 18, cy + chh - 20, 19);
     const dots = this.scene.shots.map((_, i) => (i === this.shot ? 'o' : '.')).join(' ');
     u.text(dots, cx + cw / 2, cy + chh - 18, 3, { align: 'center' });
-    if (u.button('csskip', app.W - 86, 8, 78, M.btn, `Skip ${ICON.right}${ICON.right}`, { style: 'flat', tip: 'Skip the scene (Esc)' })) this.end();
     if (u.clicked) {
       u.eat();
       this.next();
     }
     const keys = app.input.keysPressed;
     if (keys.has(' ') || keys.has('Enter')) this.next();
-    if (keys.has('Escape')) this.end();
   }
 
   private drawFx(ctx: CanvasRenderingContext2D, shot: Shot, px: number, py: number, z: number, missing: boolean) {

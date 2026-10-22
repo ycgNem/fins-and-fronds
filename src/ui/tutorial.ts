@@ -4,16 +4,20 @@
 // report card, the open sign, letters, the codex, upgrades, trips and the hall.
 //
 // Steps never block: each one finishes the moment its condition is true, so a player who runs
-// ahead is never held back, and the note always shows the next thing to do. A pulsing outline
-// and a bobbing arrow point at the button or tab to press (UI.rects, recorded as they are drawn).
+// ahead is never held back, and the note always shows the next thing to do. The tour cannot be
+// skipped, but Back rereads earlier steps. A pulsing outline and a bobbing arrow point at the
+// button or tab to press (UI.rects, recorded as they are drawn). The note keeps to a band at the
+// top of the screen that the tank view and the hall leave free, so it never covers a tank.
 import type { App, Mode } from '../app/app';
 import { equip, item } from '../data';
 import { UI as C } from '../data/palette';
 import { BAL } from '../sim/balance';
 import { isStock } from '../sim/sales';
 import { cycleProgress } from '../sim/water';
-import { TOOLBAR_H, TOP_H } from './hud';
+import { hallArea, TOOLBAR_H, TOP_H } from './hud';
+import { panelW } from './panels';
 import { ICON, M, type Rect, textWidth } from './ui';
+import { windowRect } from './windows';
 
 interface Step {
   id: string;
@@ -159,7 +163,7 @@ export const STEPS: Step[] = [
   {
     id: 'stockroom', title: 'The stock room', ack: true,
     text: 'The back room has a rack for stock tanks. Shoppers buy fish from them over the counter: breed a pair of guppies or a colony of cherry shrimp there and keep a few back as breeders. Overgrown plants are cut and sold too. A 10 gallon with a sponge filter is a fine start.',
-    target: (app) => (app.view === 'hall' ? [`build${BAL.rackBay}`] : ['hall']),
+    target: (app) => (app.window === 'newtank' ? ['build', 'shells'] : app.view === 'hall' ? [`build${BAL.rackBay}`] : ['hall']),
     done: (app) => app.state.tanks.some(isStock),
   },
   {
@@ -170,6 +174,61 @@ export const STEPS: Step[] = [
 
 /** steps before this one keep the clock paused (nothing is alive yet) */
 export const PAUSED_UNTIL = STEPS.findIndex((s) => s.id === 'acclimate');
+
+const NOTE_W = 440;
+
+/** The step the note shows: the current one, or an earlier one the player went back to reread. */
+function shownStep(app: App): number {
+  const cur = app.state.tutorial.step;
+  return app.tutorialPeek !== null && app.tutorialPeek < cur ? app.tutorialPeek : cur;
+}
+
+function active(app: App): boolean {
+  return !!app.game && app.screen === 'game' && !app.state.tutorial.done && !app.watch && !app.cutscene && app.state.tutorial.step < STEPS.length;
+}
+
+/** where the note sits when no window is open: a band along the top of the tank view or the hall */
+function band(app: App): { x: number; y: number; w: number } {
+  const [x0, x1] = app.view === 'tank' && app.tank ? [4, app.W - panelW(app) - 12] : (() => {
+    const a = hallArea(app);
+    return [a.gx, a.gx + a.gw];
+  })();
+  const w = Math.min(NOTE_W, x1 - x0);
+  return { x: x1 - w, y: TOP_H + 4, w };
+}
+
+function noteH(app: App, step: Step, w: number): number {
+  return 28 + app.ui.paraHeight(step.text, w - 24) + 8 + M.btn + 8;
+}
+
+/** UI pixels the tank view and the hall leave free at the top for the note, so it never covers a tank. */
+export function noteReserve(app: App): number {
+  if (!active(app)) return 0;
+  const b = band(app);
+  // sized for the longest step so the tank does not hop as the steps change
+  return Math.max(...STEPS.map((st) => noteH(app, st, b.w))) + 6;
+}
+
+/** Ida's note for this frame, in UI pixels (null when there is none). */
+export function noteBox(app: App): Rect | null {
+  if (!active(app)) return null;
+  const step = STEPS[shownStep(app)];
+  let { x, y, w } = band(app);
+  if (app.window) {
+    // over a window: the wall beside it, or its bottom-left corner on a narrow screen
+    const win = windowRect(app);
+    if (win.x - 12 >= 220) {
+      w = Math.min(300, win.x - 12);
+      x = 6;
+      y = win.y;
+    } else {
+      w = Math.min(300, app.W - 12);
+      x = 6;
+      y = app.H - TOOLBAR_H - noteH(app, step, w) - 4;
+    }
+  }
+  return { x, y, w, h: noteH(app, step, w) };
+}
 
 /** Advance past finished steps, then draw the note and the pointer. */
 export function drawTutorial(app: App) {
@@ -186,20 +245,29 @@ export function drawTutorial(app: App) {
   }
   if (s.tutorial.step >= STEPS.length) {
     s.tutorial.done = true;
+    app.tutorialPeek = null;
     return;
   }
-  const step = STEPS[s.tutorial.step];
+  const box = noteBox(app);
+  if (!box) return;
+  const i = shownStep(app);
+  const peeking = i < s.tutorial.step;
+  const step = STEPS[i];
   const u = app.ui;
 
-  // the pointer: the first target drawn this frame
+  // the pointer: the first target drawn this frame, and never one a window covers
   let target: Rect | undefined;
   for (const id of step.target?.(app) ?? []) {
-    target = u.rects.get(id);
-    if (target) break;
+    const r = u.rects.get(id);
+    if (r && (!app.window || r.layer > 0)) {
+      target = r;
+      break;
+    }
   }
-  if (target) {
+  // drawn last, over the note, so the arrow is never hidden under it
+  const pointer = (r: Rect | undefined) => {
+    if (!r) return;
     const p = 0.5 + 0.5 * Math.sin(u.time * 5);
-    const r = target;
     u.ctx.globalAlpha = 0.55 + 0.45 * p;
     for (const [d, c] of [[3, C.pick], [2, 9]] as const) {
       u.fill(r.x - d, r.y - d, r.w + d * 2, 1, c);
@@ -212,45 +280,47 @@ export function drawTutorial(app: App) {
     const bob = Math.round(Math.sin(u.time * 6) * 3);
     const below = r.y < app.H / 2;
     const ax = Math.round(r.x + r.w / 2), ay = below ? r.y + r.h + 6 + bob : r.y - 6 - bob;
-    for (let i = 0; i < 6; i++) {
-      const yy = below ? ay + i : ay - i;
-      u.fill(ax - i - 1, yy, i * 2 + 2, 1, 0);
-      if (i > 0) u.fill(ax - i, yy, i * 2, 1, C.pick);
+    for (let k = 0; k < 6; k++) {
+      const yy = below ? ay + k : ay - k;
+      u.fill(ax - k - 1, yy, k * 2 + 2, 1, 0);
+      if (k > 0) u.fill(ax - k, yy, k * 2, 1, C.pick);
     }
-  }
+  };
 
-  // the note: bottom left above the window pills, or top left if the target is down there
-  const w = 300;
-  const text = step.text;
-  const bodyH = u.paraHeight(text, w - 24);
-  const h = 30 + bodyH + 10 + M.btn + 8;
-  let x = 8, y = app.H - TOOLBAR_H - h - 8;
-  if (target && target.x < x + w + 6 && target.y + target.h > y - 6) y = TOP_H + 8;
-  if (app.window) {
-    // over a window: keep to the bottom-left corner, it may overlap the window's edge
-    x = 6;
-    y = app.H - TOOLBAR_H - h - 4;
-  }
+  // the note, pinned to the wall
+  const { x, y, w, h } = box;
   u.panel(x, y, w, h, 'paper');
-  // a pin
   u.rr(x + w / 2 - 3, y - 3, 7, 7, 3, C.bad);
   u.fill(x + w / 2 - 1, y - 2, 2, 2, 61);
-  u.head(step.title, x + 12, y + 9, 19, { maxW: w - 90 });
-  u.text(`${s.tutorial.step + 1}/${STEPS.length}`, x + w - 12, y + 9, 3, { align: 'right' });
-  u.para(text, x + 12, y + 28, w - 24, C.paperInk);
+  const count = `${i + 1}/${STEPS.length}`;
+  u.head(step.title, x + 12, y + 9, 19, { maxW: w - 40 - textWidth(count) });
+  u.text(count, x + w - 12, y + 9, peeking ? C.good : 3, { align: 'right' });
+  u.para(step.text, x + 12, y + 28, w - 24, C.paperInk);
   const by = y + h - M.btn - 8;
   let bx = x + 12;
+  if (i > 0) {
+    const bw = textWidth(`${ICON.left} Back`) + 20;
+    if (u.button('tut:back', bx, by, bw, M.btn, `${ICON.left} Back`, { style: 'paper', tip: 'Read the step before this one again' })) app.tutorialPeek = i - 1;
+    bx += bw + 6;
+  }
+  if (peeking) {
+    const label = i + 1 === s.tutorial.step ? `Back to step ${s.tutorial.step + 1} ${ICON.right}` : `Next ${ICON.right}`;
+    const bw = textWidth(label) + 20;
+    if (u.button('tut:next', x + w - bw - 12, by, bw, M.btn, label, { style: 'good' })) app.tutorialPeek = i + 1 >= s.tutorial.step ? null : i + 1;
+    pointer(target);
+    return;
+  }
   if (step.action && !step.action.hidden?.(app)) {
     const bw = textWidth(step.action.label) + 20;
     if (u.button('tut:act', bx, by, bw, M.btn, step.action.label, { style: 'good' })) step.action.run(app);
-    bx += bw + 6;
   }
-  if (step.ack && u.button('tut:ok', bx, by, 76, M.btn, s.tutorial.step === STEPS.length - 1 ? 'Thanks!' : `Got it ${ICON.right}`, { style: 'good' })) {
-    s.tutorial.step++;
-    if (s.tutorial.step >= STEPS.length) s.tutorial.done = true;
+  if (step.ack) {
+    const label = s.tutorial.step === STEPS.length - 1 ? 'Thanks!' : `Got it ${ICON.right}`;
+    const bw = Math.max(76, textWidth(label) + 20);
+    if (u.button('tut:ok', x + w - bw - 12, by, bw, M.btn, label, { style: 'good' })) {
+      s.tutorial.step++;
+      if (s.tutorial.step >= STEPS.length) s.tutorial.done = true;
+    }
   }
-  if (u.button('tut:skip', x + w - 84, by, 72, M.btn, 'Skip all', { style: 'paper', tip: 'Skip the guided tour (you can replay it from the menu)' })) {
-    s.tutorial.done = true;
-    if (s.settings.speed === 0) s.settings.speed = 1;
-  }
+  pointer(target);
 }

@@ -61,8 +61,9 @@ export class UI {
   tipWidth = 220;
   scroll = new Map<string, number>();
   sfx: (id: string) => void = () => {};
-  /** where each button, tab and marked area was drawn this frame, by id (the tutorial points at them) */
-  rects = new Map<string, Rect>();
+  /** where each button, tab and marked area was drawn this frame, by id, and on which layer (the
+   *  tutorial points at them, but not at one buried under a window) */
+  rects = new Map<string, Rect & { layer: number }>();
   private blocks: Rect[] = [];
   private prevBlocks: Rect[] = [];
   /** visible areas of scrolling lists: what is clipped away cannot be hovered or clicked */
@@ -127,7 +128,7 @@ export class UI {
 
   /** remember an area by id without drawing anything (for the tutorial's pointer) */
   mark(id: string, x: number, y: number, w: number, h: number) {
-    this.rects.set(id, { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) });
+    this.rects.set(id, { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h), layer: this.layer });
   }
 
   fill(x: number, y: number, w: number, h: number, c: number, a = 1) {
@@ -217,7 +218,7 @@ export class UI {
   button(id: string, x: number, y: number, w: number, h: number, label: string, opts: { disabled?: boolean; active?: boolean; tip?: TipLine[] | string; style?: ButtonStyle; badge?: number; icon?: string } = {}): boolean {
     x = Math.round(x);
     y = Math.round(y);
-    this.rects.set(id, { x, y, w, h });
+    this.rects.set(id, { x, y, w, h, layer: this.layer });
     const hov = this.hover(x, y, w, h) && !opts.disabled;
     const down = hov && this.input.down;
     const st = opts.style ?? 'normal';
@@ -300,7 +301,7 @@ export class UI {
       const tw = natural[i] + Math.floor(spare / n) + (i < spare % n ? 1 : 0), sel = i === current;
       const th = sel ? 22 : 19, ty = y + (sel ? 0 : 3);
       const hov = this.hover(tx, ty, tw, th);
-      this.rects.set(`${id}:${i}`, { x: tx, y: ty, w: tw, h: th });
+      this.rects.set(`${id}:${i}`, { x: tx, y: ty, w: tw, h: th, layer: this.layer });
       this.rr(tx, ty, tw, th + 4, 3, C.edge);
       this.rr(tx + 1, ty + 1, tw - 2, th + 3, 2, sel ? C.panel : hov ? 8 : C.panelLo);
       if (sel) this.fill(tx + 3, ty + 1, tw - 6, 1, C.panelHi);

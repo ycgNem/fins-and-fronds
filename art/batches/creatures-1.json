@@ -1,69 +1,248 @@
 {
   "sheet": "creatures-1",
   "sprites": {
-    "sp:african_dwarf_frog": { "src": "art/raw/creatures-1/african_dwarf_frog.png" },
-    "sp:blueband_hermit": { "src": "art/raw/creatures-1/blueband_hermit.png" },
-    "sp:bumblebee_goby": { "src": "art/raw/creatures-1/bumblebee_goby.png", "flip": true },
-    "sp:cardinal_tetra": { "src": "art/raw/creatures-1/cardinal_tetra.png" },
-    "sp:neon_tetra": { "src": "art/raw/creatures-1/neon_tetra.png", "flip": true },
-    "sp:scarlet_hermit": { "src": "art/raw/creatures-1/scarlet_hermit.png" },
-    "sp:trochus_snail": { "src": "art/raw/creatures-1/trochus_snail.png" },
-    "sp:marbled_hatchetfish": { "src": "art/raw/creatures-1/marbled_hatchetfish.png" },
-    "sp:astraea_snail": { "src": "art/raw/creatures-1/astraea_snail.png" },
-    "sp:cpo_crayfish": { "src": "art/raw/creatures-1/cpo_crayfish.png", "flip": true },
-    "sp:emerald_crab": { "src": "art/raw/creatures-1/emerald_crab.png" },
-    "sp:ghost_shrimp": { "src": "art/raw/creatures-1/ghost_shrimp.png", "flip": true, "alpha": 0.8 },
-    "sp:guppy": { "src": "art/raw/creatures-1/guppy.png", "flip": true },
-    "sp:japanese_trapdoor_snail": { "src": "art/raw/creatures-1/japanese_trapdoor_snail.png" },
-    "sp:medaka": { "src": "art/raw/creatures-1/medaka.png", "flip": true },
-    "sp:multies": { "src": "art/raw/creatures-1/multies.png", "flip": true },
-    "sp:otocinclus": { "src": "art/raw/creatures-1/otocinclus.png", "flip": true },
-    "sp:pistol_shrimp": { "src": "art/raw/creatures-1/pistol_shrimp.png", "flip": true },
-    "sp:sparkling_gourami": { "src": "art/raw/creatures-1/sparkling_gourami.png", "flip": true },
-    "sp:white_cloud_minnow": { "src": "art/raw/creatures-1/white_cloud_minnow.png", "flip": true },
-    "sp:golden_pencilfish": { "src": "art/raw/creatures-1/golden_pencilfish.png", "flip": true },
-    "sp:harlequin_rasbora": { "src": "art/raw/creatures-1/harlequin_rasbora.png", "flip": true },
-    "sp:rummynose_tetra": { "src": "art/raw/creatures-1/rummynose_tetra.png", "flip": true },
-    "sp:amano_shrimp": { "src": "art/raw/creatures-1/amano_shrimp.png", "flip": true, "alpha": 0.8 },
-    "sp:cherry_barb": { "src": "art/raw/creatures-1/cherry_barb.png", "flip": true },
-    "sp:chocolate_gourami": { "src": "art/raw/creatures-1/chocolate_gourami.png", "flip": true },
-    "sp:fiddler_crab": { "src": "art/raw/creatures-1/fiddler_crab.png" },
-    "sp:fire_shrimp": { "src": "art/raw/creatures-1/fire_shrimp.png", "flip": true },
-    "sp:forktail_blue_eye": { "src": "art/raw/creatures-1/forktail_blue_eye.png", "flip": true },
-    "sp:harlequin_shrimp": { "src": "art/raw/creatures-1/harlequin_shrimp.png" },
-    "sp:lettuce_sea_slug": { "src": "art/raw/creatures-1/lettuce_sea_slug.png" },
-    "sp:mystery_snail": { "src": "art/raw/creatures-1/mystery_snail.png", "flip": true },
-    "sp:neon_goby": { "src": "art/raw/creatures-1/neon_goby.png", "flip": true },
-    "sp:panda_cory": { "src": "art/raw/creatures-1/panda_cory.png" },
-    "sp:peppermint_shrimp": { "src": "art/raw/creatures-1/peppermint_shrimp.png", "flip": true },
-    "sp:platy": { "src": "art/raw/creatures-1/platy.png", "flip": true },
-    "sp:red_claw_crab": { "src": "art/raw/creatures-1/red_claw_crab.png" },
-    "sp:threadfin_rainbow": { "src": "art/raw/creatures-1/threadfin_rainbow.png", "flip": true },
-    "sp:tuxedo_urchin": { "src": "art/raw/creatures-1/tuxedo_urchin.png" },
-    "sp:zebra_danio": { "src": "art/raw/creatures-1/zebra_danio.png", "flip": true },
-    "sp:bladder_snail": { "src": "art/raw/creatures-1/bladder_snail.png" },
-    "sp:thai_micro_crab": { "src": "art/raw/creatures-1/thai_micro_crab.png", "alpha": 0.8 },
-    "sp:horned_nerite": { "src": "art/raw/creatures-1/horned_nerite.png" },
-    "sp:nassarius_snail": { "src": "art/raw/creatures-1/nassarius_snail.png" },
-    "sp:malaysian_trumpet_snail": { "src": "art/raw/creatures-1/malaysian_trumpet_snail.png" },
-    "sp:red_ramshorn": { "src": "art/raw/creatures-1/red_ramshorn.png", "flip": true },
-    "sp:assassin_snail": { "src": "art/raw/creatures-1/assassin_snail.png" },
-    "sp:zebra_nerite": { "src": "art/raw/creatures-1/zebra_nerite.png" },
-    "sp:chili_rasbora": { "src": "art/raw/creatures-1/chili_rasbora.png", "flip": true },
-    "sp:ember_tetra": { "src": "art/raw/creatures-1/ember_tetra.png", "flip": true },
-    "sp:comb_jelly": { "src": "art/raw/creatures-1/comb_jelly.png", "alpha": 0.8 },
-    "sp:celestial_pearl_danio": { "src": "art/raw/creatures-1/celestial_pearl_danio.png", "flip": true },
-    "sp:dwarf_seahorse": { "src": "art/raw/creatures-1/dwarf_seahorse.png", "flip": true },
-    "sp:endler": { "src": "art/raw/creatures-1/endler.png", "flip": true },
-    "sp:cherry_shrimp": { "src": "art/raw/creatures-1/cherry_shrimp.png" },
-    "sp:black_rose_shrimp": { "src": "art/raw/creatures-1/black_rose_shrimp.png" },
-    "sp:blue_bolt_shrimp": { "src": "art/raw/creatures-1/blue_bolt_shrimp.png" },
-    "sp:blue_dream_shrimp": { "src": "art/raw/creatures-1/blue_dream_shrimp.png" },
-    "sp:crystal_red_shrimp": { "src": "art/raw/creatures-1/crystal_red_shrimp.png" },
-    "sp:green_jade_shrimp": { "src": "art/raw/creatures-1/green_jade_shrimp.png" },
-    "sp:wild_neocaridina": { "src": "art/raw/creatures-1/wild_neocaridina.png" },
-    "sp:yellow_shrimp": { "src": "art/raw/creatures-1/yellow_shrimp.png" },
-    "sp:cardinal_shrimp": { "src": "art/raw/creatures-1/cardinal_shrimp.png" },
-    "sp:sexy_shrimp": { "src": "art/raw/creatures-1/sexy_shrimp.png" }
+    "sp:african_dwarf_frog": {
+      "src": "art/raw/creatures-1/african_dwarf_frog.png"
+    },
+    "sp:blueband_hermit": {
+      "src": "art/raw/creatures-1/blueband_hermit.png"
+    },
+    "sp:bumblebee_goby": {
+      "src": "art/raw/creatures-1/bumblebee_goby.png",
+      "flip": true
+    },
+    "sp:cardinal_tetra": {
+      "src": "art/raw/creatures-1/cardinal_tetra.png"
+    },
+    "sp:neon_tetra": {
+      "src": "art/raw/creatures-1/neon_tetra.png",
+      "flip": true
+    },
+    "sp:scarlet_hermit": {
+      "src": "art/raw/creatures-1/scarlet_hermit.png"
+    },
+    "sp:trochus_snail": {
+      "src": "art/raw/creatures-1/trochus_snail.png",
+      "clean": true
+    },
+    "sp:marbled_hatchetfish": {
+      "src": "art/raw/creatures-1/marbled_hatchetfish.png"
+    },
+    "sp:astraea_snail": {
+      "src": "art/raw/creatures-1/astraea_snail.png",
+      "clean": true
+    },
+    "sp:cpo_crayfish": {
+      "src": "art/raw/creatures-1/cpo_crayfish.png",
+      "flip": true
+    },
+    "sp:emerald_crab": {
+      "src": "art/raw/creatures-1/emerald_crab.png"
+    },
+    "sp:ghost_shrimp": {
+      "src": "art/raw/creatures-1/ghost_shrimp.png",
+      "flip": true,
+      "alpha": 0.8
+    },
+    "sp:guppy": {
+      "src": "art/raw/creatures-1/guppy.png",
+      "flip": true
+    },
+    "sp:japanese_trapdoor_snail": {
+      "src": "art/raw/creatures-1/japanese_trapdoor_snail.png"
+    },
+    "sp:medaka": {
+      "src": "art/raw/creatures-1/medaka.png",
+      "flip": true
+    },
+    "sp:multies": {
+      "src": "art/raw/creatures-1/multies.png",
+      "flip": true
+    },
+    "sp:otocinclus": {
+      "src": "art/raw/creatures-1/otocinclus.png",
+      "flip": true
+    },
+    "sp:pistol_shrimp": {
+      "src": "art/raw/creatures-1/pistol_shrimp.png",
+      "flip": true
+    },
+    "sp:sparkling_gourami": {
+      "src": "art/raw/creatures-1/sparkling_gourami.png",
+      "flip": true
+    },
+    "sp:white_cloud_minnow": {
+      "src": "art/raw/creatures-1/white_cloud_minnow.png",
+      "flip": true
+    },
+    "sp:golden_pencilfish": {
+      "src": "art/raw/creatures-1/golden_pencilfish.png",
+      "flip": true
+    },
+    "sp:harlequin_rasbora": {
+      "src": "art/raw/creatures-1/harlequin_rasbora.png",
+      "flip": true
+    },
+    "sp:rummynose_tetra": {
+      "src": "art/raw/creatures-1/rummynose_tetra.png",
+      "flip": true
+    },
+    "sp:amano_shrimp": {
+      "src": "art/raw/creatures-1/amano_shrimp.png",
+      "flip": true,
+      "alpha": 0.8
+    },
+    "sp:cherry_barb": {
+      "src": "art/raw/creatures-1/cherry_barb.png",
+      "flip": true
+    },
+    "sp:chocolate_gourami": {
+      "src": "art/raw/creatures-1/chocolate_gourami.png",
+      "flip": true
+    },
+    "sp:fiddler_crab": {
+      "src": "art/raw/creatures-1/fiddler_crab.png"
+    },
+    "sp:fire_shrimp": {
+      "src": "art/raw/creatures-1/fire_shrimp.png",
+      "flip": true
+    },
+    "sp:forktail_blue_eye": {
+      "src": "art/raw/creatures-1/forktail_blue_eye.png",
+      "flip": true
+    },
+    "sp:harlequin_shrimp": {
+      "src": "art/raw/creatures-1/harlequin_shrimp.png"
+    },
+    "sp:lettuce_sea_slug": {
+      "src": "art/raw/creatures-1/lettuce_sea_slug.png"
+    },
+    "sp:mystery_snail": {
+      "src": "art/raw/creatures-1/mystery_snail.png",
+      "flip": true
+    },
+    "sp:neon_goby": {
+      "src": "art/raw/creatures-1/neon_goby.png",
+      "flip": true
+    },
+    "sp:panda_cory": {
+      "src": "art/raw/creatures-1/panda_cory.png"
+    },
+    "sp:peppermint_shrimp": {
+      "src": "art/raw/creatures-1/peppermint_shrimp.png",
+      "flip": true
+    },
+    "sp:platy": {
+      "src": "art/raw/creatures-1/platy.png",
+      "flip": true
+    },
+    "sp:red_claw_crab": {
+      "src": "art/raw/creatures-1/red_claw_crab.png"
+    },
+    "sp:threadfin_rainbow": {
+      "src": "art/raw/creatures-1/threadfin_rainbow.png",
+      "flip": true
+    },
+    "sp:tuxedo_urchin": {
+      "src": "art/raw/creatures-1/tuxedo_urchin.png",
+      "clean": true
+    },
+    "sp:zebra_danio": {
+      "src": "art/raw/creatures-1/zebra_danio.png",
+      "flip": true
+    },
+    "sp:bladder_snail": {
+      "src": "art/raw/creatures-1/bladder_snail.png",
+      "clean": true
+    },
+    "sp:thai_micro_crab": {
+      "src": "art/raw/creatures-1/thai_micro_crab.png",
+      "alpha": 0.8,
+      "clean": true
+    },
+    "sp:horned_nerite": {
+      "src": "art/raw/creatures-1/horned_nerite.png",
+      "clean": true
+    },
+    "sp:nassarius_snail": {
+      "src": "art/raw/creatures-1/nassarius_snail.png",
+      "clean": true
+    },
+    "sp:malaysian_trumpet_snail": {
+      "src": "art/raw/creatures-1/malaysian_trumpet_snail.png",
+      "clean": true
+    },
+    "sp:red_ramshorn": {
+      "src": "art/raw/creatures-1/red_ramshorn.png",
+      "clean": true
+    },
+    "sp:assassin_snail": {
+      "src": "art/raw/creatures-1/assassin_snail.png",
+      "clean": true
+    },
+    "sp:zebra_nerite": {
+      "src": "art/raw/creatures-1/zebra_nerite.png",
+      "flip": true,
+      "clean": true
+    },
+    "sp:chili_rasbora": {
+      "src": "art/raw/creatures-1/chili_rasbora.png",
+      "flip": true,
+      "clean": true
+    },
+    "sp:ember_tetra": {
+      "src": "art/raw/creatures-1/ember_tetra.png",
+      "flip": true,
+      "clean": true
+    },
+    "sp:comb_jelly": {
+      "src": "art/raw/creatures-1/comb_jelly.png",
+      "alpha": 0.8,
+      "clean": true
+    },
+    "sp:celestial_pearl_danio": {
+      "src": "art/raw/creatures-1/celestial_pearl_danio.png",
+      "flip": true,
+      "clean": true
+    },
+    "sp:dwarf_seahorse": {
+      "src": "art/raw/creatures-1/dwarf_seahorse.png",
+      "clean": true
+    },
+    "sp:endler": {
+      "src": "art/raw/creatures-1/endler.png",
+      "flip": true,
+      "clean": true
+    },
+    "sp:cherry_shrimp": {
+      "src": "art/raw/creatures-1/cherry_shrimp.png"
+    },
+    "sp:black_rose_shrimp": {
+      "src": "art/raw/creatures-1/black_rose_shrimp.png"
+    },
+    "sp:blue_bolt_shrimp": {
+      "src": "art/raw/creatures-1/blue_bolt_shrimp.png"
+    },
+    "sp:blue_dream_shrimp": {
+      "src": "art/raw/creatures-1/blue_dream_shrimp.png"
+    },
+    "sp:crystal_red_shrimp": {
+      "src": "art/raw/creatures-1/crystal_red_shrimp.png"
+    },
+    "sp:green_jade_shrimp": {
+      "src": "art/raw/creatures-1/green_jade_shrimp.png"
+    },
+    "sp:wild_neocaridina": {
+      "src": "art/raw/creatures-1/wild_neocaridina.png"
+    },
+    "sp:yellow_shrimp": {
+      "src": "art/raw/creatures-1/yellow_shrimp.png"
+    },
+    "sp:cardinal_shrimp": {
+      "src": "art/raw/creatures-1/cardinal_shrimp.png"
+    },
+    "sp:sexy_shrimp": {
+      "src": "art/raw/creatures-1/sexy_shrimp.png"
+    }
   }
 }

@@ -26,6 +26,9 @@ export function geom(t: Tank): Geom {
   return { shell: s, w: s.w, h: s.h, surface, landX, maxDepth: Math.round(s.h * 0.26) };
 }
 
+/** how high a sculpted substrate may rise, as a share of maxDepth (above 1: heaped up past the usual bed) */
+export const PROFILE_MAX = 1.45;
+
 /** y of the substrate surface at x for a depth layer (back sits a little higher: the slope). */
 export function groundY(t: Tank, g: Geom, x: number, layer = 2): number {
   const p = t.profile;

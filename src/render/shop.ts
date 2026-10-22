@@ -10,25 +10,33 @@ export function isRainy(day: number): boolean {
   return (day * 7919) % 5 === 2;
 }
 
+/** the props are drawn a little larger than their art, so the shop around the tanks reads at a glance */
+export const PROP_SCALE = 1.25;
+
 /** draw a prop with its bottom-left corner at (x, y); returns its size, or null if there is no art */
 export function prop(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, opts: { dim?: number; flip?: boolean } = {}): { w: number; h: number } | null {
   const fr = importedFrame(name);
   if (!fr) return null;
   const img = opts.dim ? dimmed(fr, name, opts.dim) : fr;
-  const dx = Math.round(x), dy = Math.round(y - fr.h);
+  const { w, h } = propSize(name)!;
+  const dx = Math.round(x), dy = Math.round(y - h);
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = false;
   if (opts.flip) {
     ctx.save();
-    ctx.translate(dx + fr.w, dy);
+    ctx.translate(dx + w, dy);
     ctx.scale(-1, 1);
-    ctx.drawImage(img.img, img.sx, img.sy, fr.w, fr.h, 0, 0, fr.w, fr.h);
+    ctx.drawImage(img.img, img.sx, img.sy, fr.w, fr.h, 0, 0, w, h);
     ctx.restore();
-  } else ctx.drawImage(img.img, img.sx, img.sy, fr.w, fr.h, dx, dy, fr.w, fr.h);
-  return { w: fr.w, h: fr.h };
+  } else ctx.drawImage(img.img, img.sx, img.sy, fr.w, fr.h, dx, dy, w, h);
+  ctx.imageSmoothingEnabled = smooth;
+  return { w, h };
 }
 
+/** a prop's drawn size in UI pixels */
 export function propSize(name: string): { w: number; h: number } | null {
   const fr = importedFrame(name);
-  return fr ? { w: fr.w, h: fr.h } : null;
+  return fr ? { w: Math.round(fr.w * PROP_SCALE), h: Math.round(fr.h * PROP_SCALE) } : null;
 }
 
 const dimCache = new Map<string, Frame>();

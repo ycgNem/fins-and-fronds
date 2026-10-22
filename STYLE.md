@@ -68,7 +68,9 @@ Last Watt: put it on sea glass or paper instead.
 Fourteen backdrops (`LOOKS` in `src/render/tankview.ts`): clear, green, blackwater, amber, rift,
 brackish, reef, lagoon, kelp, cold, pelagic, deep, pond, cave. Each is a 5-step palette gradient
 from surface to floor plus a far silhouette tone and a haze tone. The look is chosen from the
-water type, the shell, the residents' home region and the tank's state (tannins, green water).
+water type, the shell, the residents' home region (fish count fully, a colony of shrimp or snails
+a quarter each) and the tank's state (tannins, green water). A change of look crossfades over a
+couple of seconds instead of cutting.
 
 ## Interface
 
@@ -92,6 +94,9 @@ Everything is drawn by `src/ui/ui.ts` from the tokens in `UI` (`src/data/palette
   Reputation: teal (`accent`). Moods and readings: green / orange / red (`good`, `warn`, `bad`).
   The colorblind-safe setting swaps these for blue / amber / orange (`setCalmColors`), so never
   hard-code a status color: read it from `UI` at draw time.
+- **Shop props.** The PixelLab props around the tanks and in the hall (`sh:`) draw at 1.25x their
+  art (`PROP_SCALE` in `src/render/shop.ts`), the one place art is scaled by a fraction: they are
+  painterly enough that the uneven pixels do not show, and at 1x they read as too small.
 - **Icons.** PixelLab 32 px icons (`ui:`), stamps (`st:`), codex plates (`pl:`) and postcards
   (`pc:`), drawn through `src/render/icons.ts`. Buttons take a 16 px icon at the left; the half
   size is made by a 2x2 majority downscale, never by the browser. Plates and postcards draw at a
@@ -107,11 +112,11 @@ Pass the Resurrect 64 hex list as `palette` wherever a tool takes one, and `view
 
 | Asset | Tool | Size | Notes |
 |---|---|---|---|
-| Creatures up to about 40 px | `create_1_direction_object` with `item_descriptions`, one species per slot | 16, 24 or 36 (64 candidates per call, 10-15 gens) | The model ignores "facing right": check every sprite on the review sheet and set `flip` in the batch |
+| Creatures up to about 40 px | `create_1_direction_object` with `item_descriptions`, one species per slot | 24 or 36 (64 candidates per call, 10-15 gens); never 16, which reads as a blob next to everything else | The model ignores "facing right": check every sprite on the review sheet and set `flip` in the batch |
 | Creatures over 40 px | `create_image_pixen`, `no_background`, `direction: east`, single black outline | the species length by its body height, multiples of 4 | 1 gen each. Wide canvases sometimes come back with two animals (`crop` one) or a painted ground shadow (regenerate with "no shadow, no ground") |
-| Small scape (to 40 px) | `create_1_direction_object` as above | 16, 24 or 40 | Fill the spare slots with second takes of the hard items (carpets, floaters, polyps) |
+| Small scape (to 40 px) | `create_1_direction_object` as above | 24 or 40 (not 16) | Fill the spare slots with second takes of the hard items (carpets, floaters, polyps). Items that come back as noise (Euphyllia corals, fittonia) do better as one 24x24 Pixen each |
 | Large scape | `create_image_pixen`, selective outline | the footprint rounded up to multiples of 4, at least 32 | Say "growing from gravel, no pot" for plants and "filling the frame" for rocks |
-| Far backdrops (`bg:<look>`) | `create_image_pixen`, `no_background`, lineless, low detail | 320x96 | Say "fully underwater, no water surface, no sky". Tiled with every other tile mirrored and washed with the look's haze tone in game. Open ocean (`pelagic`) keeps the plain procedural horizon |
+| Far backdrops (`bg:<look>`) | `create_image_pixen`, `no_background`, lineless, low detail | 320x96 | Say "fully underwater, no water surface, no sky". Tiled with every other tile mirrored, kept low (at most half the water's depth shows) and faint (washed 62% with the look's haze tone, drawn at 78%) so the player's own scape always leads. Open ocean (`pelagic`) keeps the plain procedural horizon |
 | Equipment (`eq:<name>`) | `create_1_direction_object` | 24 | Glass parts import at 0.7-0.85 alpha |
 | Fonts | `create_font` | atlas of 8 columns by 10 rows | Built into `src/ui/fonts/*.ts` by `scripts/font-build.ts` |
 | Stands and frames | procedural, not PixelLab | | Resurrect 64 has few mid browns, so PixelLab wood snaps to olive and pink. The cabinet is drawn from `RAMP.wood` |
