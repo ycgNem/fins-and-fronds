@@ -3,7 +3,7 @@
 //   scape (composition), authenticity (how true it is to its archetype) and spectacle (appeal).
 import { item, species, SYMBIOSES } from '../data';
 import type { Classification } from './archetype';
-import { type Facts, itemArea, parAt } from './facts';
+import { type Facts, itemArea, parAt, turnedH } from './facts';
 import type { Tank } from './state';
 import { partnerPresent, type SpeciesMood } from './wellbeing';
 
@@ -152,11 +152,12 @@ export function scapeScore(t: Tank, f: Facts): { score: number; note?: string } 
     const a = itemArea(it, p);
     area += a;
     layers[p.layer]++;
-    heights[p.layer] = Math.max(heights[p.layer], it.h * p.size + p.y);
+    const ih = turnedH(it.w, it.h, p.rot) * p.size;
+    heights[p.layer] = Math.max(heights[p.layer], ih + p.y);
     ids.add(p.id);
     if (it.tags?.includes('whimsy')) whimsy++;
     if (p.size > 1.35 && it.plant) overgrown++;
-    if (it.h * p.size + p.y > (g.h - g.surface) * 0.75 && it.plant?.kind !== 'ribbon' && it.plant?.kind !== 'kelp') midOpen++;
+    if (ih + p.y > (g.h - g.surface) * 0.75 && it.plant?.kind !== 'ribbon' && it.plant?.kind !== 'kelp') midOpen++;
   }
   let score = 0;
   let note: string | undefined;

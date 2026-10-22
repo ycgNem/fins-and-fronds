@@ -3,8 +3,11 @@
 export const BAL = {
   /** the hall's air temperature; tanks drift toward it without a heater or chiller */
   roomTemp: 22,
-  /** degrees a heater can lift the water per watt per liter */
-  heatPerWattPerL: 6,
+  /** degrees above the room a heater holds a tank of its rated size (more in a smaller tank, less
+   *  in a bigger one): at 22 C in the hall, a heater on the right size of tank reaches 27 C */
+  heatLift: 5,
+  /** liters in a US gallon (heaters are rated in gallons) */
+  galL: 3.785,
   chillPerWattPerL: 8,
   /** fraction of the way temperature moves toward its target per hour */
   tempRate: 0.35,

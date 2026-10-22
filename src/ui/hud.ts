@@ -147,12 +147,14 @@ function windowPills(app: App) {
 
 function toasts(app: App) {
   const u = app.ui;
-  // below Ida's note when it reaches over to the left
+  // beside Ida's note when there is room on its left, else below it
   const note = noteBox(app);
-  let y = note && note.x < 400 && note.y < TOP_H + 20 ? note.y + note.h + 8 : TOP_H + 6;
-  const x = 8;
-  for (const t of app.toasts) {
-    const w = Math.min(380, textWidth(t.text) + 26);
+  const beside = note && note.y < TOP_H + 20 ? note.x - 16 : 380;
+  let y = note && note.y < TOP_H + 20 && beside < 200 ? note.y + note.h + 8 : TOP_H + 6;
+  const x = 8, maxW = Math.max(200, Math.min(380, beside));
+  // only the newest two: a pile of notices would bury the tank (the audit skips them: they pass)
+  for (const t of app.toasts.slice(-2)) u.own('toast', () => {
+    const w = Math.min(maxW, textWidth(t.text) + 26);
     const h = u.paraHeight(t.text, w - 26) + 10;
     u.ctx.globalAlpha = Math.min(1, t.life);
     u.panel(x, y, w, h, 'chip', false);
@@ -160,7 +162,7 @@ function toasts(app: App) {
     u.para(t.text, x + 16, y + 4, w - 24, C.strong);
     u.ctx.globalAlpha = 1;
     y += h + 5;
-  }
+  });
 }
 
 function guestLine(app: App) {
@@ -232,21 +234,24 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
     const wx = 22, ww = left - 40, wh = Math.min(150, Math.floor((floorY - top) * 0.36));
     const wy = Math.max(top + 26, Math.floor(app.H * 0.26));
     streetWindow(ctx, wx, wy, ww, wh, hour, dayOf(s.time), u.time);
-    const sign = propSize('sh:open');
+    // the OPEN sign at full size when the window is wide enough for it, else at its art's size
+    const sk = (propSize('sh:open')?.w ?? 0) <= ww - 10 ? PROP_SCALE : 1;
+    const sign = propSize('sh:open', sk);
     if (sign) {
       const sx = wx + Math.floor((ww - sign.w) / 2), sy = wy + 8 + sign.h;
-      prop(ctx, 'sh:open', sx, sy, { dim: open ? 0 : 0.55 });
+      prop(ctx, 'sh:open', sx, sy, { dim: open ? 0 : 0.55, scale: sk });
       if (open) {
         // the glow of the tubes on the glass
         ctx.fillStyle = rgba(60, 0.12 + 0.03 * Math.sin(u.time * 3));
         ctx.fillRect(sx - 4, sy - sign.h - 4, sign.w + 8, sign.h + 8);
       }
     }
+    // the pothos hangs from the ceiling line under the chips, in front of the window frame
     const pot = propSize('sh:pothos');
-    if (pot && wy - top > pot.h * 0.6) prop(ctx, 'sh:pothos', wx + ww - pot.w + 6, Math.min(wy - 6, top + pot.h));
+    if (pot) prop(ctx, 'sh:pothos', wx + ww - pot.w + 6, top + pot.h);
     prop(ctx, 'sh:monstera', 10, floorY + 4);
-    const mon = propSize('sh:monstera');
-    prop(ctx, 'sh:buckets', 14 + (mon?.w ?? 60), floorY + 3);
+    const mon = propSize('sh:monstera'), bk = propSize('sh:buckets');
+    if (bk && 14 + (mon?.w ?? 60) + bk.w <= left + 2) prop(ctx, 'sh:buckets', 14 + (mon?.w ?? 60), floorY + 3);
   }
   if (right) {
     const rx = app.W - right;
@@ -259,8 +264,11 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
       prop(ctx, 'sh:chalkboard', bx, y + cb.h);
       const fish = s.tanks.flatMap((t) => offers(t, app.game!.stats.get(t.id)?.moods));
       const lines = fish.length ? fish.slice(0, 4).map((o) => `${species(o.sp).name} ${o.each}`) : s.tanks.some(isStock) ? ['Sold out!', 'More soon'] : ['Nothing yet'];
-      u.text('Today', bx + cb.w / 2, y + Math.round(9 * PROP_SCALE), 9, { align: 'center' });
-      lines.forEach((l, i) => u.text(l, bx + Math.round(10 * PROP_SCALE), y + Math.round((23 + i * 11) * PROP_SCALE), 8, { maxW: cb.w - Math.round(20 * PROP_SCALE) }));
+      // chalk on the board (its own writing, not an overlap)
+      u.own('sh:chalkboard', () => {
+        u.text('Today', bx + cb.w / 2, y + Math.round(9 * PROP_SCALE), 9, { align: 'center' });
+        lines.forEach((l, i) => u.text(l, bx + Math.round(10 * PROP_SCALE), y + Math.round((23 + i * 11) * PROP_SCALE), 8, { maxW: cb.w - Math.round(20 * PROP_SCALE) }));
+      });
       if (u.hover(bx, y, cb.w, cb.h)) u.tip([{ text: 'The chalkboard' }, { text: 'What shoppers can buy from your stock tanks today, and the price each.', color: C.textDim }]);
       y += cb.h + 8;
     }
@@ -279,11 +287,11 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
           for (const l of s.letters) l.read = true;
         }
       }
-      if (unread) {
+      if (unread) u.own('sh:corkboard', () => {
         u.rr(bx + nb.w - 10, y - 4, 14, 14, 4, 0);
         u.rr(bx + nb.w - 9, y - 3, 12, 12, 3, C.bad);
         u.text(String(unread), bx + nb.w - 3, y - 4, 9, { align: 'center' });
-      }
+      });
     }
     // a poster in the gap above the shelf
     const pos = propSize('sh:poster');
@@ -299,7 +307,9 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
         // (the counter top is about a third of the way down the art, under the register)
         prop(ctx, 'sh:cat', cx + Math.round(62 * PROP_SCALE), floorY + 4 - counter.h + Math.round(40 * PROP_SCALE) + breathe);
       }
-      prop(ctx, 'sh:supplies', cx - (propSize('sh:supplies')?.w ?? 80) - 4, floorY + 3);
+      // the crate of supplies beside the counter, when the counter's corner has room for it
+      const sup = propSize('sh:supplies');
+      if (sup && cx - sup.w - 4 >= app.W - right) prop(ctx, 'sh:supplies', cx - sup.w - 4, floorY + 3);
     }
   }
 }
@@ -337,14 +347,16 @@ function grid(app: App, gx: number, gw: number, y0: number, cols: number, ch: nu
       u.panel(lx, ly, lw, foot - 6, 'paper', false);
       if (rack) {
         const forSale = offers(t, st?.moods).reduce((a, o) => a + o.n, 0);
-        u.text(t.name, lx + 7, ly + 4, C.paperInk, { maxW: lw - 80 });
-        u.text(forSale ? `${forSale} for sale` : t.animals.length ? 'breeding' : 'empty', lx + lw - 7, ly + 4, forSale ? 30 : 3, { align: 'right' });
+        const note = forSale ? `${forSale} for sale` : t.animals.length ? 'breeding' : 'empty';
+        u.text(t.name, lx + 7, ly + 4, C.paperInk, { maxW: lw - 22 - textWidth(note) });
+        u.text(note, lx + lw - 7, ly + 4, forSale ? 30 : 3, { align: 'right' });
       } else {
-        u.head(t.name, lx + 7, ly + 4, C.paperInk, { maxW: lw - 80 });
+        u.head(t.name, lx + 7, ly + 4, C.paperInk, { maxW: lw - 82 });
         if (st) {
           u.stars(lx + lw - 66, ly + 5, st.rating.stars, C.coin, 62);
-          u.text(st.cls.best ? st.cls.best.def.name : 'Unrecognized', lx + 7, ly + 18, 3, { maxW: lw - 70 });
-          u.text(`${ICON.coin} ${Math.round(st.coinsPerHour)}/h`, lx + lw - 7, ly + 18, 20, { align: 'right' });
+          const rate = `${ICON.coin} ${Math.round(st.coinsPerHour)}/h`;
+          u.text(st.cls.best ? st.cls.best.def.name : 'Unrecognized', lx + 7, ly + 18, 3, { maxW: lw - 22 - textWidth(rate) });
+          u.text(rate, lx + lw - 7, ly + 18, 20, { align: 'right' });
         }
       }
       if (u.hover(x, y, cw, ch)) {
@@ -366,22 +378,30 @@ function grid(app: App, gx: number, gw: number, y0: number, cols: number, ch: nu
         u.fill(sx + Math.floor(sw / 2), sy + 3, 1, sh - 6, 19);
         u.fill(sx + 3, sy + 2, sw - 6, 1, 21);
       }
-      const gh = Math.min(ch - sh - 50, Math.round(sw * 0.55));
+      // the dashed outline of a tank, as tall as the cell allows once the label has its line
+      const room = sy - y;
+      const gh = Math.max(0, Math.min(room - 20, Math.round(sw * 0.55)));
       const oy = sy - gh;
-      for (let d = 0; d < sw - 8; d += 6) {
-        u.fill(sx + 4 + d, oy, 3, 1, 9, 0.35);
-        u.fill(sx + 4 + d, sy - 1, 3, 1, 9, 0.35);
+      const outline = gh >= M.btn + 8;
+      if (outline) {
+        for (let d = 0; d < sw - 8; d += 6) {
+          u.fill(sx + 4 + d, oy, 3, 1, 9, 0.35);
+          u.fill(sx + 4 + d, sy - 1, 3, 1, 9, 0.35);
+        }
+        for (let d = 0; d < gh; d += 6) {
+          u.fill(sx + 4, oy + d, 1, 3, 9, 0.35);
+          u.fill(sx + sw - 5, oy + d, 1, 3, 9, 0.35);
+        }
       }
-      for (let d = 0; d < gh; d += 6) {
-        u.fill(sx + 4, oy + d, 1, 3, 9, 0.35);
-        u.fill(sx + sw - 5, oy + d, 1, 3, 9, 0.35);
-      }
+      // the button inside the outline, or just above the stand when the row is short
       const bw = Math.min(124, cw - 12);
-      if (u.button(`build${bay}`, x + Math.floor((cw - bw) / 2), oy + Math.floor(gh / 2) - 10, bw, M.btn, rack ? 'Set up' : 'Build a tank', { style: 'good', tip: rack ? 'A stock tank: breed and grow fish and plants to sell' : 'A display tank for the shop floor' })) {
+      const by = outline ? oy + Math.floor(gh / 2) - 10 : Math.max(y, sy - M.btn - 3);
+      if (u.button(`build${bay}`, x + Math.floor((cw - bw) / 2), by, bw, M.btn, rack ? 'Set up' : 'Build a tank', { style: 'good', tip: rack ? 'A stock tank: breed and grow fish and plants to sell' : 'A display tank for the shop floor' })) {
         app.newTankBay = bay;
         app.window = 'newtank';
       }
-      u.text(rack ? 'Empty rack' : 'Empty bay', x + cw / 2, oy - 16, C.onDark, { align: 'center', shadow: 0, maxW: cw - 10 });
+      const ly = (outline ? oy : by) - 16;
+      if (ly >= y - 2) u.text(rack ? 'Empty rack' : 'Empty bay', x + cw / 2, ly, C.onDark, { align: 'center', shadow: 0, maxW: cw - 10 });
     } else {
       // closed off: a stand under a dust sheet
       const nextTier = rack ? TIERS.find((tr) => tr.racks > i) : TIERS.find((tr) => tr.bays + (s.upgrades['extra_bays'] ?? 0) > i);

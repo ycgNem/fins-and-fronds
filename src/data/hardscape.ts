@@ -25,7 +25,7 @@ export const ROCKS: ItemDef[] = [
     blurb: 'Porous volcanic rock: a home for filter bacteria and an anchor for roots and epiphytes.',
   },
   {
-    id: 'river_pebbles', name: 'River Pebbles', cat: 'rock', water: all, price: 6, tier: 0, w: 30, h: 10, place: 'ground', shape: 'pebbles',
+    id: 'river_pebbles', name: 'River Pebbles', cat: 'rock', water: all, price: 6, tier: 0, w: 44, h: 14, place: 'ground', shape: 'pebbles',
     colors: ['taupe', 'sand'], tags: ['stone'],
     blurb: 'A scatter of smooth water-worn pebbles; the floor of every stream.',
   },
@@ -128,7 +128,7 @@ export const WOODS: ItemDef[] = [
     blurb: 'Dense, smooth red-brown branches from the American Southwest; low in tannins, but it needs weighing down at first.',
   },
   {
-    id: 'mopani', name: 'Mopani Wood', cat: 'wood', water: freshBrack, price: 16, tier: 0, w: 34, h: 26, place: 'ground', shape: 'chunk',
+    id: 'mopani', name: 'Mopani Wood', cat: 'wood', water: freshBrack, price: 16, tier: 0, w: 36, h: 28, place: 'ground', shape: 'chunk',
     colors: ['brown', 'gold_sand'], fx: { tannin: 0.6, ph: -0.2 }, tags: ['tannin', 'cave'],
     blurb: 'Heavy two-toned African hardwood that sinks at once and leaches tannins for weeks: boil it first, or embrace the tea.',
   },

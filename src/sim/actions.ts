@@ -5,7 +5,7 @@ import type { RegionId, Water } from '../data/types';
 import { BAL } from './balance';
 import { shellPrice, speciesForSale } from './catalog';
 import { canExpedition, startExpedition } from './expeditions';
-import { geom, groundY, litersOf, PROFILE_MAX } from './facts';
+import { geom, groundY, litersOf, PROFILE_MAX, turnedH } from './facts';
 import type { Game } from './Game';
 import { applyUnlock } from './letters';
 import { newAnimal } from './life';
@@ -105,13 +105,13 @@ export function dropSpot(t: Tank, id: string, x: number, layer: 0 | 1 | 2, hostU
     const host = t.items.find((p) => p.uid === hostUid);
     if (host) {
       const hi = item(host.id);
-      return { x: cx, y: Math.round(host.y + hi.h * host.size * 0.7), on: host.uid };
+      return { x: cx, y: Math.round(host.y + turnedH(hi.w, hi.h, host.rot) * host.size * 0.7), on: host.uid };
     }
   }
   return { x: cx, y: 0 };
 }
 
-export function buyItem(g: Game, t: Tank, id: string, x: number, layer: 0 | 1 | 2, hostUid?: number, fromInventory = false): string {
+export function buyItem(g: Game, t: Tank, id: string, x: number, layer: 0 | 1 | 2, hostUid?: number, fromInventory = false, rot = 0): string {
   const why = canPlace(t, id);
   if (why) return why;
   const it = item(id);
@@ -122,6 +122,7 @@ export function buyItem(g: Game, t: Tank, id: string, x: number, layer: 0 | 1 | 
   } else if (!spend(g, it.price)) return 'Not enough coins.';
   const spot = dropSpot(t, id, x, layer, hostUid);
   const p = place(g.state, t, id, spot.x, layer, { y: spot.y, on: spot.on, flip: g.rng.chance(0.5), size: it.plant ? 0.7 : 1 });
+  if (rot && canTurn(id)) p.rot = turnAngle(rot);
   // hitchhikers: pest snail eggs on plants, Aiptasia on live rock
   const dipped = (g.state.upgrades['quarantine'] ?? 0) > 0;
   if (!dipped && !fromInventory) {
@@ -155,6 +156,34 @@ export function moveItem(g: Game, t: Tank, uid: number, x: number, layer: 0 | 1 
   }
   // moving a crypt makes it melt (it grows back)
   if (moved && item(p.id).plant?.kind === 'crypt') p.health = Math.min(p.health, 0.4);
+  g.refresh(t);
+  return '';
+}
+
+/** Rocks and wood can be tilted (other items keep growing upright). */
+export function canTurn(id: string): boolean {
+  const c = item(id).cat;
+  return c === 'rock' || c === 'wood';
+}
+
+/** an angle in 15 degree steps, -165 to 180 */
+export function turnAngle(deg: number): number {
+  const a = ((Math.round(deg / 15) * 15) % 360 + 360) % 360;
+  return a > 180 ? a - 360 : a;
+}
+
+/** Turn a rock or a piece of wood by steps of 15 degrees; what grows on it rides along. */
+export function turnItem(g: Game, t: Tank, uid: number, steps: number): string {
+  const p = t.items.find((q) => q.uid === uid);
+  if (!p) return 'Not found.';
+  if (!canTurn(p.id)) return 'Only rocks and wood can be turned.';
+  const it = item(p.id);
+  const before = turnedH(it.w, it.h, p.rot) * p.size;
+  const rot = turnAngle((p.rot ?? 0) + steps * 15);
+  if (rot) p.rot = rot;
+  else delete p.rot;
+  const dh = turnedH(it.w, it.h, p.rot) * p.size - before;
+  for (const q of t.items) if (q.on === uid) q.y = Math.max(0, Math.round(q.y + dh * 0.7));
   g.refresh(t);
   return '';
 }

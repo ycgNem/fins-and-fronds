@@ -305,6 +305,8 @@ export interface EquipDef {
   lph?: number;
   /** heating / cooling power in watts */
   watts?: number;
+  /** heaters: the biggest tank (US gallons) it keeps tropical on its own, as printed on the box */
+  maxGal?: number;
   /** light intensity at 40 cm depth (PAR-like) */
   par?: number;
   /** light colour tint for the scene */

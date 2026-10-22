@@ -1,5 +1,20 @@
 # Progress log
 
+## 2026-10-21: second play-test pass
+
+- Overlapping text cleaned up everywhere the new UI audit found it: the empty rack and its button,
+  the "start over?" confirmation on the title, the "Little Fish Shop" chip and the pothos, rack
+  and display labels, the toasts over the tank, the Expeditions note, the tour note over windows,
+  toggles and the shop props in the tank view. The sweep is clean at 800x450, 960x484, 1280x720,
+  1366x657 and 1536x730.
+- The backdrop shows whole again, fading upward instead of being cut off at the sand.
+- Heaters carry gallon ratings, and a 200 W heater for tanks up to 50 gallons is new. The Heat tab
+  warns about a heater too small for the tank and the thermostat shows how warm it can get.
+- The filter trickle is quieter and no longer repeats; fewer sponge-filter and airstone bubbles.
+- River pebbles are now a low row of stones and mopani a twisted two-toned root with an arch
+  (6 gens).
+- Rocks and wood can be tilted in steps of 15 degrees (R, Shift+R, or the stepper on the card).
+
 ## 2026-10-21: play-test feedback pass
 
 - Backdrops toned down (low, hazy, crossfading) and steadier: shrimp and snails barely change the look.

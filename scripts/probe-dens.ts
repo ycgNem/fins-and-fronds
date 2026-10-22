@@ -23,7 +23,7 @@ try {
     s.time = hour * 60;
     const t = ng.emptyTank(s, 0, 'std_29', 'fresh');
     s.tanks.push(t);
-    t.equip = ['hob_filter', 'heater_50', 'led_planted'];
+    t.equip = ['hob_filter', 'heater_150', 'led_planted'];
     t.chem.bacA = t.chem.bacB = 1;
     ng.place(s, t, 'malaysian_driftwood', 90, 1, { size: 1.2 });
     ng.place(s, t, 'coconut_cave', 220, 2);

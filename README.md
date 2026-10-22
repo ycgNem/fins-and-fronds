@@ -16,7 +16,7 @@ TypeScript (strict) + Vite, one Canvas 2D, no engine.
 
 Controls: mouse for everything. Keys: `1`-`6` tank modes, `Space` pause, `F` feed, `H` hall,
 `V` watch a tank full screen, `[` `]` switch tanks, `Q` `W` `E` depth layer while placing,
-right-drag to pan a zoomed tank, mouse wheel to zoom, `Esc` cancel / menu. Touch: tap, pinch to
+`R` / `Shift+R` tilt a rock or wood (while placing it, or once it is selected), right-drag to pan a zoomed tank, mouse wheel to zoom, `Esc` cancel / menu. Touch: tap, pinch to
 zoom, two fingers to pan, hold for help. The menu has a larger interface and colorblind-safe
 colors.
 

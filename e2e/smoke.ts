@@ -38,7 +38,7 @@ try {
     act.buildTank(g, 0, 'std_20l', 'fresh');
     const t = g.state.tanks[0];
     app.setTank(t.id);
-    for (const e of ['hob_filter', 'heater_50', 'led_basic']) act.buyEquip(g, t, e);
+    for (const e of ['hob_filter', 'heater_150', 'led_basic']) act.buyEquip(g, t, e);
     act.buyItem(g, t, 'malaysian_driftwood', 110, 1, undefined, false);
     act.buyItem(g, t, 'crypt_wendtii', 220, 2, undefined, false);
     t.chem.bacA = t.chem.bacB = 0.96;

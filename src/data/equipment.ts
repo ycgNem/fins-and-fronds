@@ -21,10 +21,13 @@ export const EQUIPMENT: EquipDef[] = [
   { id: 'life_support', name: 'Exhibit Life Support', slot: 'filter', bio: 300000, lph: 200000, needsShell: 'exhibit', export: 0.04, price: 6000, tier: 4,
     blurb: 'Sand filters, ozone, foam fractionators and pumps the size of a room: what public aquariums run on.' },
   // ---------------------------------------------------------------- temperature
-  { id: 'heater_50', name: 'Heater 50 W', slot: 'heater', watts: 50, price: 12, tier: 0, blurb: 'Enough for a nano or a small community tank.' },
-  { id: 'heater_150', name: 'Heater 150 W', slot: 'heater', watts: 150, price: 24, tier: 0, blurb: 'The everyday heater for mid-sized tanks.' },
-  { id: 'heater_300', name: 'Heater 300 W', slot: 'heater', watts: 300, price: 40, tier: 1, blurb: 'For big tanks and warm-water fish like discus.' },
-  { id: 'titanium_heater', name: 'Titanium Heater 1000 W', slot: 'heater', watts: 1000, price: 120, tier: 3, blurb: 'Unbreakable titanium for sumps, ponds and exhibits.' },
+  // rated like the boxes in a real shop (RESEARCH.md, section 10): about 3 to 5 W per gallon. A
+  // heater holds its rated tank a few degrees above the room; two heaters' ratings add up.
+  { id: 'heater_50', name: 'Heater 50 W', slot: 'heater', watts: 50, maxGal: 10, price: 12, tier: 0, blurb: 'For nanos and tanks up to 10 gallons.' },
+  { id: 'heater_150', name: 'Heater 150 W', slot: 'heater', watts: 150, maxGal: 30, price: 24, tier: 0, blurb: 'The everyday heater for 20 and 29 gallon tanks.' },
+  { id: 'heater_200', name: 'Heater 200 W', slot: 'heater', watts: 200, maxGal: 50, price: 32, tier: 0, blurb: 'For 40 gallon breeders and anything up to 50 gallons.' },
+  { id: 'heater_300', name: 'Heater 300 W', slot: 'heater', watts: 300, maxGal: 75, price: 40, tier: 1, blurb: 'For 55 and 75 gallon tanks, or warm-water fish like discus in a smaller one.' },
+  { id: 'titanium_heater', name: 'Titanium Heater 1000 W', slot: 'heater', watts: 1000, maxGal: 250, price: 120, tier: 3, blurb: 'Unbreakable titanium for sumps, show tanks and ponds, up to 250 gallons.' },
   { id: 'chiller_small', name: 'Chiller 1/10 HP', slot: 'chiller', watts: 150, price: 220, tier: 2,
     blurb: 'Keeps goldfish, axolotls, shrimp and temperate fish cool in a warm hall.' },
   { id: 'chiller_large', name: 'Chiller 1 HP', slot: 'chiller', watts: 1200, price: 900, tier: 4,

@@ -62,7 +62,7 @@ export const STEPS: Step[] = [
   },
   {
     id: 'heat', title: 'Heat and light',
-    text: 'Tropical fish want about 24-26 C, so add a heater (Heat tab). Plants need light: a Basic LED will do, a Planted LED grows them faster (Light tab).',
+    text: 'Tropical fish want about 24-26 C, so add a heater rated for your tank: each says how many gallons it can heat (Heat tab). Plants need light: a Basic LED will do, a Planted LED grows them faster (Light tab).',
     target: (app) => inMode(app, 'gear', slots(app).has('heater') ? ['geartab:2', 'gearlist'] : ['geartab:1', 'gearlist']),
     done: (app) => slots(app).has('heater') && slots(app).has('light'),
   },
@@ -186,6 +186,9 @@ function shownStep(app: App): number {
 function active(app: App): boolean {
   return !!app.game && app.screen === 'game' && !app.state.tutorial.done && !app.watch && !app.cutscene && app.state.tutorial.step < STEPS.length;
 }
+
+/** whether Ida's note is on screen this frame (windows make room for it) */
+export const tourShowing = active;
 
 /** where the note sits when no window is open: a band along the top of the tank view or the hall */
 function band(app: App): { x: number; y: number; w: number } {

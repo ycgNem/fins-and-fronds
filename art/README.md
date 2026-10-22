@@ -84,8 +84,8 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the red
 | M7 | 13 backdrops, 12 pieces of equipment, stand tries | 100 | 29 | done |
 | M8 | Icons and stamps, 63 codex plates, 27 postcards, logo emblem | 150 | 77 (plates 40, icons 10, postcards 27) | done |
 | Redesign | Intro and town cutscenes, shop props, a kuhli retry | (reserve) | 250 (cutscenes 120, shop 120, kuhli 10) | done |
-| Feedback | 16 small animals and 47 small plants and corals at 24 px, 4 new stones and woods | (reserve) | 32 | done |
-| | **Total** | **1000** | **about 632** | |
+| Feedback | 16 small animals and 47 small plants and corals at 24 px, 4 new stones and woods; pebbles and mopani redone | (reserve) | 38 | done |
+| | **Total** | **1000** | **about 638** | |
 
 ## Batch log
 
@@ -107,3 +107,4 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the red
 | 2026-10-21 | Detail pass: 24 px creature pack for the 16 smallest animals (ember tetra, chili rasbora, CPD, endler, dwarf seahorse, comb jelly, Thai micro crab, nerites and other snails, tuxedo urchin) | 10 | the 16 px pack read as blobs next to the 24-36 px art; drawn about 20 px now. Trumpet snail rotated to crawl |
 | 2026-10-21 | Detail pass: 24 px scape pack for all 47 scape-2 plants, corals and decor | 10 | fittonia, hammer, torch and frogspawn came back as noise: 4 Pixen redos at 24x24, black outline softened (plants: darkest green) |
 | 2026-10-21 | New hardscape: Ryuoh stone, Yamaya stone, hornwood (Talawa), hollow log; 2 Pixen takes each | 8 | the log snapped to olive like other PixelLab wood: repainted onto the taupe ramp by luminance |
+| 2026-10-21 | Redos: river pebbles (2 Pixen) and mopani (4 Pixen) | 6 | the old pebbles were a tall heap with loose stones and the old mopani crossed firewood. Pebbles: the low row, loose stones dropped. Mopani: a twisted root with an arch, its painted shadow removed and repainted by luminance onto 49-19-20-3-4-63 (it snapped pink) |

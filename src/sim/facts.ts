@@ -42,6 +42,13 @@ export function groundY(t: Tank, g: Geom, x: number, layer = 2): number {
   return Math.round(base - lift);
 }
 
+/** The height of an item's box once turned (rocks and wood can be tilted). */
+export function turnedH(w: number, h: number, deg = 0): number {
+  if (!deg) return h;
+  const r = (deg * Math.PI) / 180;
+  return Math.abs(w * Math.sin(r)) + Math.abs(h * Math.cos(r));
+}
+
 export function litersOf(t: Tank): number {
   const s = shell(t.shell);
   let l = s.liters * (s.fill ?? 1);
@@ -58,7 +65,8 @@ export function itemArea(it: ItemDef, p: Placed): number {
 export interface Gear {
   bio: number;
   lph: number;
-  heatW: number;
+  /** liters of tank the heaters are rated for, together */
+  heatL: number;
   chillW: number;
   par: number;
   tint: string;
@@ -73,7 +81,7 @@ export interface Gear {
 }
 
 export function gear(t: Tank): Gear {
-  const g: Gear = { bio: 0, lph: 0, heatW: 0, chillW: 0, par: 0, tint: 'neutral', lightHeat: 0, co2: 0, co2Steady: 1, air: 0, export: 0, slots: new Map(), ids: new Set(), gentle: true };
+  const g: Gear = { bio: 0, lph: 0, heatL: 0, chillW: 0, par: 0, tint: 'neutral', lightHeat: 0, co2: 0, co2Steady: 1, air: 0, export: 0, slots: new Map(), ids: new Set(), gentle: true };
   for (const id of t.equip) {
     const e = equip(id);
     g.ids.add(id);
@@ -83,7 +91,7 @@ export function gear(t: Tank): Gear {
       if (!e.gentle) g.gentle = false;
     }
     g.lph += e.lph ?? 0;
-    if (e.slot === 'heater') g.heatW += e.watts ?? 0;
+    if (e.slot === 'heater') g.heatL += (e.maxGal ?? 0) * BAL.galL;
     if (e.slot === 'chiller') g.chillW += e.watts ?? 0;
     if (e.slot === 'light' && (e.par ?? 0) > g.par) {
       g.par = e.par ?? 0;

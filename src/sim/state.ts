@@ -21,6 +21,8 @@ export interface Placed {
   size: number;
   health: number;
   flip: boolean;
+  /** rocks and wood: degrees turned clockwise as seen, in steps of 15 (absent when upright) */
+  rot?: number;
   seed: number;
 }
 

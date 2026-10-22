@@ -6,7 +6,7 @@ import { PALETTE, rgba, setCalmColors, UI as C } from '../data/palette';
 import { Audio, QUIET, type SoundScene } from '../engine/audio';
 import { Input } from '../engine/input';
 import { creatureFrame } from '../render/art/sprites';
-import { isRainy, prop, propSize, wallClock } from '../render/shop';
+import { isRainy, prop, propsDrawn, propSize, wallClock } from '../render/shop';
 import { MARGIN, TankView, waterLook } from '../render/tankview';
 import * as act from '../sim/actions';
 import { BAL } from '../sim/balance';
@@ -63,7 +63,8 @@ export class App {
   newTankBay = 0;
   select: { kind: 'item' | 'agent'; uid: number } | null = null;
   hover: { kind: 'item' | 'agent'; uid: number } | null = null;
-  placing: { id: string; fromInventory: boolean } | null = null;
+  /** the item being placed, and how far a rock or wood is turned before it goes in (R) */
+  placing: { id: string; fromInventory: boolean; rot?: number } | null = null;
   layer: 0 | 1 | 2 = 1;
   tool: 'scrape' | 'wipe' | 'sculpt' | null = null;
   drag: { uid: number; dx: number; x0: number; layer0: number } | null = null;
@@ -226,6 +227,7 @@ export class App {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.imageSmoothingEnabled = false;
     this.ui.begin(ctx, this.input, dt, this.W, this.H);
+    propsDrawn.length = 0;
     // (a scene that ends during its update has already cleared itself)
     if (this.cutscene) this.cutscene.update(dt);
     if (this.cutscene) {
@@ -421,6 +423,10 @@ export class App {
       if (k.has('2') || k.has('w')) this.layer = 1;
       if (k.has('3') || k.has('e')) this.layer = 2;
     }
+    // R turns a rock or wood clockwise, Shift+R back: the one being placed, else the selected one
+    const turn = k.has('r') ? 1 : k.has('R') ? -1 : 0;
+    if (turn && this.placing && act.canTurn(this.placing.id)) this.placing.rot = act.turnAngle((this.placing.rot ?? 0) + turn * 15);
+    else if (turn && this.tank && this.select?.kind === 'item') this.run(act.turnItem(this.game!, this.tank, this.select.uid, turn));
     if (k.has('f') && this.tank) this.run(act.feed(this.game!, this.tank));
     if (k.has('h')) this.view = this.view === 'hall' ? 'tank' : 'hall';
     if (k.has('v') || k.has('V')) this.toggleWatch();
@@ -598,7 +604,7 @@ export class App {
     if (this.placing && inTank) {
       const host = this.hostUnder(t, v, tx, ty);
       const spot = act.dropSpot(t, this.placing.id, tx, this.layer, host);
-      ghost = { id: this.placing.id, x: spot.x, layer: this.layer, ok: act.canPlace(t, this.placing.id) === '', on: spot.on, y: spot.y };
+      ghost = { id: this.placing.id, x: spot.x, layer: this.layer, ok: act.canPlace(t, this.placing.id) === '', on: spot.on, y: spot.y, rot: this.placing.rot };
     }
     v.draw(t, st, {
       hour, lightsOn, open: !!isOpen(s, s.time),
@@ -626,16 +632,16 @@ export class App {
     const l = ox / k, r = (ox + dw) / k, top = oy / k;
     const room = (name: string) => propSize(name) ?? { w: 0, h: 0 };
     if (l - vp.x > room('sh:monstera').w + 12) prop(ctx, 'sh:monstera', l - room('sh:monstera').w - 8, floorY + 4);
-    if (l - vp.x > room('sh:poster').w + 16 && top - TOP_H > 20) prop(ctx, 'sh:poster', l - room('sh:poster').w - 14, Math.min(floorY - 140, top + room('sh:poster').h + 10));
+    if (l - vp.x > room('sh:poster').w + 16 && top - vp.y > 20) prop(ctx, 'sh:poster', l - room('sh:poster').w - 14, Math.min(floorY - 140, top + room('sh:poster').h + 10));
     // a shelf of supplies and the clock on the wall above the tank
     const shelf = room('sh:shelf');
-    if (top - TOP_H > shelf.h + 30) {
+    if (top - vp.y > shelf.h + 30) {
       prop(ctx, 'sh:shelf', l + 10, top - 18);
-      wallClock(ctx, r - 30, TOP_H + Math.min(40, (top - TOP_H) / 2), 11, this.state.time);
+      wallClock(ctx, r - 30, vp.y + Math.min(40, (top - vp.y) / 2), 11, this.state.time);
     }
     const rightRoom = vp.x + vp.w - r;
     if (rightRoom > room('sh:buckets').w + 10) prop(ctx, 'sh:buckets', r + 8, floorY + 3);
-    if (rightRoom > room('sh:pothos').w + 10) prop(ctx, 'sh:pothos', r + Math.floor((rightRoom - room('sh:pothos').w) / 2), TOP_H + room('sh:pothos').h + 2);
+    if (rightRoom > room('sh:pothos').w + 10) prop(ctx, 'sh:pothos', r + Math.floor((rightRoom - room('sh:pothos').w) / 2), vp.y + Math.max(18, M.btn) + 6 + room('sh:pothos').h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
@@ -762,7 +768,7 @@ export class App {
     if (this.placing) {
       if (inp.clicked) {
         const host = this.hostUnder(t, v, tx, ty);
-        const msg = act.buyItem(g, t, this.placing.id, tx, this.layer, host, this.placing.fromInventory);
+        const msg = act.buyItem(g, t, this.placing.id, tx, this.layer, host, this.placing.fromInventory, this.placing.rot);
         if (msg) this.toast(msg, 'bad');
         // one piece per click; hold Shift to keep placing the same thing
         if (!msg && !inp.keys.has('Shift')) this.placing = null;

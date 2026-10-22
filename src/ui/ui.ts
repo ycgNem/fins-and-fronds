@@ -18,6 +18,20 @@ export interface Rect {
   h: number;
 }
 
+interface Drawn extends Rect {
+  kind: 'text' | 'button' | 'panel';
+  s: string;
+  layer: number;
+  /** the button being drawn (its own label belongs to it) */
+  owner: string;
+}
+
+function intersect(a: Rect, b: Rect): Rect | null {
+  const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+  return x2 > x && y2 > y ? { x, y, w: x2 - x, h: y2 - y } : null;
+}
+
 export interface TipLine {
   text: string;
   color?: number;
@@ -73,6 +87,12 @@ export class UI {
   private modalNow = false;
   /** 0 for the shop floor, 1 for windows and what is drawn over them */
   layer = 0;
+  /** debugging aid: set true (window.app.ui.audit) to record what each frame draws, then read
+   *  overlaps() for text that collides with other text, a button or a panel drawn over it */
+  audit = false;
+  private drawn: Drawn[] = [];
+  private owner = '';
+  private inTip = false;
 
   /** w and h are the UI size in UI pixels (the canvas may be larger and scaled) */
   begin(ctx: CanvasRenderingContext2D, input: Input, dt: number, w: number, h: number) {
@@ -86,6 +106,7 @@ export class UI {
     this.time += dt;
     this.tooltip = null;
     this.rects.clear();
+    this.drawn = [];
     this.prevBlocks = this.blocks;
     this.blocks = [];
     this.captured = this.prevBlocks.some((b) => this.inside(b));
@@ -155,6 +176,7 @@ export class UI {
     x = Math.round(x);
     y = Math.round(y);
     if (blocking) this.block(x, y, w, h);
+    if (this.audit && !this.inTip) this.drawn.push({ kind: 'panel', x, y, w, h, s: style, layer: this.layer, owner: this.owner });
     switch (style) {
       case 'card':
       case 'window':
@@ -190,6 +212,12 @@ export class UI {
     let tx = x;
     if (opts.align === 'center') tx = x - Math.floor(textWidth(s, face) / 2);
     else if (opts.align === 'right') tx = x - textWidth(s, face);
+    if (this.audit && !this.inTip && s.trim()) {
+      // the ink: caps on rows 1-10 of the cell, cut to the scroll list it is drawn in
+      let r: Rect | null = { x: Math.round(tx), y: Math.round(y) + 1, w: textWidth(s, face), h: 10 };
+      for (const c of this.clips) r = r && intersect(r, c);
+      if (r && r.w > 0 && r.h > 0) this.drawn.push({ kind: 'text', ...r, s, layer: this.layer, owner: this.owner });
+    }
     return drawText(this.ctx, s, Math.round(tx), Math.round(y), PALETTE[c], 1, opts.shadow !== undefined ? PALETTE[opts.shadow] : null, face);
   }
 
@@ -219,6 +247,9 @@ export class UI {
     x = Math.round(x);
     y = Math.round(y);
     this.rects.set(id, { x, y, w, h, layer: this.layer });
+    if (this.audit) this.drawn.push({ kind: 'button', x, y, w, h, s: id, layer: this.layer, owner: id });
+    const outer = this.owner;
+    this.owner = id;
     const hov = this.hover(x, y, w, h) && !opts.disabled;
     const down = hov && this.input.down;
     const st = opts.style ?? 'normal';
@@ -248,6 +279,7 @@ export class UI {
       this.rr(x + w - bw + 5, y - 5, bw - 2, 12, 3, C.bad);
       this.text(s, x + w - bw / 2 + 4, y - 6, 9, { align: 'center' });
     }
+    this.owner = outer;
     if (hov) {
       if (opts.tip) this.tip(typeof opts.tip === 'string' ? [{ text: opts.tip }] : opts.tip);
       if (this.clicked) {
@@ -357,8 +389,8 @@ export class UI {
     return d;
   }
 
-  toggle(id: string, x: number, y: number, label: string, on: boolean): boolean {
-    const hov = this.hover(x, y, 18 + textWidth(label), 14);
+  toggle(_id: string, x: number, y: number, label: string, on: boolean, maxW = Infinity): boolean {
+    const hov = this.hover(x, y, Math.min(maxW, 18 + textWidth(label)), 14);
     this.rr(x, y, 13, 13, 2, C.edge);
     this.rr(x + 1, y + 1, 11, 11, 1, on ? C.good : C.panelHi);
     if (on) {
@@ -367,7 +399,7 @@ export class UI {
       this.fill(x + 5, y + 7, 2, 2, 9);
       this.fill(x + 7, y + 4, 2, 3, 9);
     }
-    this.text(label, x + 18, y - 1, hov ? C.strong : C.text);
+    this.text(label, x + 18, y - 1, hov ? C.strong : C.text, { maxW: maxW - 18 });
     if (hov && this.clicked) {
       this.eat();
       this.sfx('click');
@@ -421,7 +453,66 @@ export class UI {
   }
 
   end() {
+    this.inTip = true;
     if (this.tooltip && this.tooltip.length) this.drawTip(this.tooltip);
+    this.inTip = false;
+  }
+
+  /** draw under an owner's name, so the audit knows the writing belongs to it (a prop's own
+   *  lettering, or a passing toast, which is allowed to cover things for a moment) */
+  own<T>(owner: string, fn: () => T): T {
+    const outer = this.owner;
+    this.owner = owner;
+    try {
+      return fn();
+    } finally {
+      this.owner = outer;
+    }
+  }
+
+  /**
+   * What collided in the last audited frame: text over other text, text over a button that is not
+   * its own, text partly hidden under a panel drawn after it, and text running off the screen.
+   */
+  overlaps(props: { name: string; x: number; y: number; w: number; h: number }[] = []): string[] {
+    const out: string[] = [];
+    // toasts come and go over anything
+    const d = this.drawn.filter((q) => q.owner !== 'toast');
+    // decorations must stay clear of the interface: no prop under a chip, card, button or text
+    const hud = d.filter((q) => q.layer === 0 && (q.kind !== 'panel' || q.s !== 'inset'));
+    for (const p of props) {
+      // a little transparent margin around the art is fine, and so is the prop's own lettering
+      const core = { x: p.x + 3, y: p.y + 3, w: p.w - 6, h: p.h - 6 };
+      for (const q of hud) if (q.owner !== p.name && intersect(core, q)) out.push(`prop ${p.name} at ${p.x},${p.y} ${p.w}x${p.h} under ${q.kind} "${q.s}" at ${q.x},${q.y}`);
+    }
+    const area = (a: Rect, b: Rect) => {
+      const r = intersect(a, b);
+      return r && r.w > 0 && r.h > 0 ? r.w * r.h : 0;
+    };
+    const say = (a: Drawn) => `"${a.s}" at ${a.x},${a.y} (${a.w}x${a.h})`;
+    const modal = d.some((q) => q.kind === 'panel' && q.s === 'window');
+    for (let i = 0; i < d.length; i++) {
+      const a = d[i];
+      if (a.kind !== 'text' || (modal && a.layer === 0)) continue;
+      if (a.x < 0 || a.y < 0 || a.x + a.w > this.w || a.y + a.h > this.h) out.push(`off screen: ${say(a)}`);
+      // sitting on a card or chip but running past its edge
+      const under = d.slice(0, i).filter((q) => q.kind === 'panel' && q.s !== 'inset' && q.layer === a.layer && area(a, q) > 0);
+      const inside = (q: Rect) => a.x >= q.x && a.y >= q.y && a.x + a.w <= q.x + q.w && a.y + a.h <= q.y + q.h;
+      if (under.length && !under.some(inside)) out.push(`spills out of a ${under[under.length - 1].s} panel at ${under[under.length - 1].x},${under[under.length - 1].y} ${under[under.length - 1].w}x${under[under.length - 1].h}: ${say(a)}`);
+      for (let j = 0; j < d.length; j++) {
+        if (i === j) continue;
+        const b = d[j];
+        if (modal && b.layer === 0) continue;
+        if (b.kind === 'text' && j > i && area(a, b) >= 4 && !(b.s === a.s && b.x === a.x && b.y === a.y + 0)) out.push(`text on text: ${say(a)} / ${say(b)}`);
+        if (b.kind === 'button' && b.owner !== a.owner && area(a, b) >= 4) out.push(`text on button ${b.s}: ${say(a)}`);
+        if (b.kind === 'panel' && j > i && b.owner !== a.owner) {
+          const hit = area(a, b);
+          if (hit >= 4 && hit < a.w * a.h) out.push(`half under a ${b.s} panel at ${b.x},${b.y}: ${say(a)}`);
+          else if (hit >= 4 && b.layer === a.layer && b.s !== 'window') out.push(`under a ${b.s} panel at ${b.x},${b.y}: ${say(a)}`);
+        }
+      }
+    }
+    return out;
   }
 
   private drawTip(lines: TipLine[]) {

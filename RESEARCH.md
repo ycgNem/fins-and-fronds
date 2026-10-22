@@ -167,6 +167,17 @@ letters ("A cherry shrimp colony", "The snail situation").
 
 Encoded in the exhibit shells and the Public Exhibit archetypes.
 
+## 10. Heaters
+
+- Heaters are sold by the tank size they suit. Manufacturers' charts and the usual rule of
+  thumb come to about 3 to 5 watts per US gallon: 50 W up to 10 gallons, 150 W up to about 30,
+  200 W up to about 50, 300 W up to about 75.
+- A heater at the edge of its rating struggles in a cold room. For big tanks the common advice
+  is two smaller heaters at opposite ends: their ratings add up, and if one fails or sticks on,
+  the other limits the damage.
+- In the game a heater holds a tank of its rated size about 5 C above the hall (22 C to 27 C),
+  more in a smaller tank and less in a bigger one. Ratings add up, so two heaters work too.
+
 ## Sources
 
 Aquarium types and systems

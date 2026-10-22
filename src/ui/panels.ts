@@ -6,18 +6,18 @@ import type { App, Mode } from '../app/app';
 import { equip, item, species, substrate } from '../data';
 import { UI as C } from '../data/palette';
 import type { EquipDef, ItemCat, ItemDef, Slot, SpeciesDef } from '../data/types';
-import { creatureFrame, itemFrame } from '../render/art/sprites';
+import { creatureFrame, itemFrame, placedFrame } from '../render/art/sprites';
 import * as act from '../sim/actions';
 import { equipForSale, itemsForSale, speciesForSale, substratesForSale } from '../sim/catalog';
 import { facts, FLOW_NAMES, litersOf } from '../sim/facts';
 import { PART_NAMES, type RatingParts } from '../sim/rating';
 import { type Animal, hourOf, type Tank, type WaterSource } from '../sim/state';
-import { cycleProgress, SOURCES } from '../sim/water';
+import { cycleProgress, maxHeatLift, SOURCES } from '../sim/water';
 import { BAL } from '../sim/balance';
 import { isStock, offers } from '../sim/sales';
 import { type SpeciesMood, speciesMoods } from '../sim/wellbeing';
 import { TOOLBAR_H, TOP_H } from './hud';
-import { ICON, M, type TipLine, type UI } from './ui';
+import { ICON, M, textWidth, type TipLine, type UI } from './ui';
 
 /** the side panel's width for this screen */
 export function panelW(app: App) {
@@ -333,16 +333,24 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     const it = item(sel.id);
     const ch = 74;
     u.panel(x, y, w, ch, 'inset', false);
-    u.sprite(itemFrame(sel.id, sel.size, sel.seed, Math.floor(u.time * 2), sel.health), x + 4, y + 4, 44, 44);
+    u.sprite(placedFrame(sel, Math.floor(u.time * 2)), x + 4, y + 4, 44, 44);
     u.text(it.name, x + 54, y + 4, C.strong, { maxW: w - 58 });
     u.text(it.plant || it.coral ? `size ${Math.round(sel.size * 100)}%  health ${Math.round(sel.health * 100)}%` : 'drag it to move', x + 54, y + 19, C.textDim, { maxW: w - 58 });
     let bx = x + 54;
+    // the three layers share the row with a 50 px Flip
+    const lw = Math.max(44, Math.floor((w - 54 - 4 - 50 - 6) / 3));
     ['Back', 'Mid', 'Front'].forEach((l, i) => {
-      if (u.button(`lay${i}`, bx, y + 35, 44, M.btnS, l, { active: sel.layer === i, style: 'flat' })) app.run(act.moveItem(g, t, sel.uid, sel.x, i as 0 | 1 | 2));
-      bx += 46;
+      if (u.button(`lay${i}`, bx, y + 35, lw, M.btnS, l, { active: sel.layer === i, style: 'flat' })) app.run(act.moveItem(g, t, sel.uid, sel.x, i as 0 | 1 | 2));
+      bx += lw + 2;
     });
     if (u.button('flip', bx, y + 35, w - (bx - x) - 4, M.btnS, 'Flip', { style: 'flat' })) sel.flip = !sel.flip;
     let by = x + 4;
+    // rocks and wood tilt in steps of 15 degrees (R / Shift+R)
+    if (act.canTurn(sel.id)) {
+      const rot = sel.rot ?? 0;
+      const d = u.stepper('turn', by, y + 54, rot ? `tilt ${Math.abs(rot)} ${rot > 0 ? 'right' : 'left'}` : 'upright', Math.min(140, w - 90));
+      if (d) app.run(act.turnItem(g, t, sel.uid, d));
+    }
     if (it.plant && u.button('trim', by, y + 54, 56, M.btnS, 'Trim', { tip: 'Cut it back; cuttings go to storage' })) app.run(act.trimPlant(g, t, sel.uid));
     if (it.plant) by += 60;
     if (it.coral && u.button('frag', by, y + 54, 56, M.btnS, 'Frag', { tip: 'Cut a frag to grow on (needs Coral Fragging)' })) app.run(act.fragCoral(g, t, sel.uid));
@@ -356,7 +364,9 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   if (app.placing) {
     const ph = 44;
     u.rr(x, y, w, ph, 3, C.pick, 0.45);
-    u.text(`Placing ${item(app.placing.id).name}`, x + 6, y + 3, C.strong, { maxW: w - 12 });
+    const hint = !act.canTurn(app.placing.id) ? '' : app.placing.rot ? `tilt ${app.placing.rot} (R)` : 'R tilts';
+    u.text(`Placing ${item(app.placing.id).name}`, x + 6, y + 3, C.strong, { maxW: w - 12 - (hint ? textWidth(hint) + 8 : 0) });
+    if (hint) u.text(hint, x + w - 6, y + 3, C.textDim, { align: 'right' });
     let bx = x + 6;
     ['Back', 'Mid', 'Front'].forEach((l, i) => {
       if (u.button(`play${i}`, bx, y + 21, 48, M.btnS + 2, l, { active: app.layer === i, style: 'flat', tip: `Depth layer (${'QWE'[i]})` })) app.layer = i as 0 | 1 | 2;
@@ -369,7 +379,7 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   const cur = SCAPE_TABS[app.panel.scapeTab];
   if (cur.label === 'Sand') return ground(app, t, x, y, w, h);
   if (cur.label === 'Kept') {
-    const on = u.toggle('sellcut', x, y, 'Sell cuttings and frags to customers', !!s.settings.sellCuttings);
+    const on = u.toggle('sellcut', x, y, 'Sell spare cuttings and frags', !!s.settings.sellCuttings, w);
     if (on !== !!s.settings.sellCuttings) s.settings.sellCuttings = on;
     y += M.row + 4;
     h -= M.row + 4;
@@ -564,7 +574,8 @@ const GEAR_TABS: { label: string; slots: Slot[] }[] = [
 
 function equipStat(e: EquipDef): string {
   if (e.slot === 'filter') return `bio ${e.bio ?? 0} L, ${e.lph ?? 0} L/h`;
-  if (e.slot === 'heater' || e.slot === 'chiller') return `${e.watts} W`;
+  if (e.slot === 'heater') return `${e.watts} W, up to ${e.maxGal} gal`;
+  if (e.slot === 'chiller') return `${e.watts} W`;
   if (e.slot === 'light') return `PAR ${e.par}${e.tint ? `, ${e.tint}` : ''}`;
   if (e.slot === 'flow') return `${e.lph} L/h`;
   if (e.slot === 'co2') return `+${e.co2} ppm`;
@@ -578,6 +589,7 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   const s = app.state;
   const st = g.stats.get(t.id);
   const f = st?.facts;
+  const liters = f?.liters ?? litersOf(t), gal = Math.round(liters / BAL.galL);
   // installed
   u.text('Installed', x, y, C.head);
   if (f) u.text(`bioload ${Math.round(f.bioload)}/${Math.round(f.bioCap)}, ${FLOW_NAMES[f.flow]}`, x + w, y, f.bioload > f.bioCap ? C.bad : C.textDim, { align: 'right' });
@@ -598,7 +610,10 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   if (hasHeat) {
     const d = u.stepper('heat', x, y, `${t.set.heater}C`, 80);
     if (d) act.setHeater(g, t, t.set.heater + d);
-    u.text('thermostat', x + 88, y + 1, C.textDim);
+    // heaters too small for the tank top out below the thermostat (at night, with the lights off)
+    const top = f && f.gear.heatL > 0 ? BAL.roomTemp + maxHeatLift(f.gear.heatL, liters) : Infinity;
+    if (t.set.heater > top + 0.05) u.text(`too small, max ${top.toFixed(1)}C`, x + 88, y + 1, C.warn, { maxW: w - 88 });
+    else u.text('thermostat', x + 88, y + 1, C.textDim);
     y += M.btnS + 4;
   }
   const half = Math.floor((w - 6) / 2);
@@ -607,7 +622,7 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   if (dOn || dOff) act.setLights(g, t, t.set.lightOn + dOn, t.set.lightOff + dOff);
   y += M.btnS + 4;
   if (t.equip.some((e) => equip(e).slot === 'co2')) {
-    const on = u.toggle('co2', x, y + 1, 'CO2 on with the lights', t.set.co2);
+    const on = u.toggle('co2', x, y + 1, 'CO2 on with the lights', t.set.co2, w);
     if (on !== t.set.co2) act.toggleCo2(g, t);
     y += M.row;
   }
@@ -622,9 +637,14 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     for (const e of list) {
       const has = t.equip.includes(e.id);
       const rh = M.line * 2 + 4;
-      if (u.row(x - 3, y - 2, w + 6, rh, has, [{ text: e.name }, { text: e.blurb, color: C.textDim }, { text: equipStat(e), color: C.accent }, ...(e.needsShell ? [{ text: `Needs a ${e.needsShell} tank`, color: C.warn }] : []), ...(has ? [{ text: 'Installed. Remove it with the x in the list above.', color: C.good }] : [])]) && !has) app.run(act.buyEquip(g, t, e.id));
+      // a heater says whether it is big enough for this tank on its own
+      const small = e.slot === 'heater' && (e.maxGal ?? 0) < gal;
+      const fit: TipLine[] = e.slot !== 'heater' ? [] : small
+        ? [{ text: `Too small on its own for this ${gal} gal tank: add a second heater, or pick a bigger one.`, color: C.warn }]
+        : [{ text: `Big enough for this ${gal} gal tank.`, color: C.good }];
+      if (u.row(x - 3, y - 2, w + 6, rh, has, [{ text: e.name }, { text: e.blurb, color: C.textDim }, { text: equipStat(e), color: C.accent }, ...fit, ...(e.needsShell ? [{ text: `Needs a ${e.needsShell} tank`, color: C.warn }] : []), ...(has ? [{ text: 'Installed. Remove it with the x in the list above.', color: C.good }] : [])]) && !has) app.run(act.buyEquip(g, t, e.id));
       u.text(e.name, x, y, C.strong, { maxW: w - 60 });
-      u.text(equipStat(e), x, y + M.line, C.textDim, { maxW: w - 60 });
+      u.text(equipStat(e), x, y + M.line, small ? C.warn : C.textDim, { maxW: w - 60 });
       u.text(has ? 'installed' : `${ICON.coin} ${e.price}`, x + w, y, has ? C.good : C.gold, { align: 'right' });
       y += rh;
     }

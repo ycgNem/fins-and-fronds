@@ -27,14 +27,15 @@ export function drawTitle(app: App) {
   drawText(u.ctx, title, tx, ty, PALETTE[C.head], sc, null, 'display');
   u.text(sub, mid, sy + sh - 22, C.textDim, { align: 'center' });
 
-  const bw = 180, bx = Math.floor((app.W - bw) / 2);
+  const ask = 'Start over? Your shop will be lost.';
   const save = app.hasSave();
+  const bw = save && confirming ? Math.max(180, textWidth(ask)) : 180, bx = Math.floor((app.W - bw) / 2);
   const ch = save ? (confirming ? 92 : 70) : 42;
   const cy = app.H - ch - 16;
   u.panel(bx - 12, cy, bw + 24, ch, 'chip', false);
   let by = cy + 10;
   if (save && confirming) {
-    u.text('Start over? Your shop will be lost.', app.W / 2, by, C.strong, { align: 'center' });
+    u.text(ask, app.W / 2, by, C.strong, { align: 'center' });
     by += 20;
     if (u.button('erase', bx, by, bw, M.btn + 2, 'Yes, start a new shop', { style: 'bad' })) {
       confirming = false;

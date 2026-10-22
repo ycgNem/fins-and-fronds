@@ -8,7 +8,7 @@ s.tutorial.done = true;
 s.tier = 2;
 const t = emptyTank(s, 0, 'std_29', 'fresh');
 s.tanks.push(t);
-t.equip = ['hob_filter', 'heater_50', 'led_planted'];
+t.equip = ['hob_filter', 'heater_150', 'led_planted'];
 t.chem.bacA = t.chem.bacB = 1;
 place(s, t, 'malaysian_driftwood', 90, 1, { size: 1.2 });
 place(s, t, 'coconut_cave', 220, 2);

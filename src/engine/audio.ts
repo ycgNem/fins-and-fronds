@@ -89,7 +89,8 @@ export class Audio {
     const ctx = this.ctx;
     if (!ctx) return;
     const n = scene.near, quiet = scene.night ? 0.6 : 1;
-    const trickle = { none: 0, sponge: 0.15, hob: 1, canister: 0.25, sump: 1.2 }[scene.filter];
+    // a soft wash of falling water in the background, never a hiss to listen to
+    const trickle = { none: 0, sponge: 0.08, hob: 0.5, canister: 0.12, sump: 0.65 }[scene.filter];
     this.fade('room', 0.05);
     this.fade('trickle', 0.2 * trickle * n * quiet);
     this.fade('hum', 0.06 * scene.hum * (0.5 + 0.5 * n));
@@ -99,7 +100,7 @@ export class Audio {
     // one-shots
     const rate = {
       // the odd stray bubble only from a running tank, never from an empty room
-      bubble: scene.filter === 'none' && scene.air === 0 ? 0 : (scene.air * 5 + (scene.filter === 'sponge' ? 3 : 0) + 0.25) * n,
+      bubble: scene.filter === 'none' && scene.air === 0 ? 0 : (scene.air * 2.5 + (scene.filter === 'sponge' ? 1 : 0) + 0.2) * n,
       drip: scene.rain * 5,
       door: scene.night ? 0 : scene.crowd / 35,
     };
@@ -108,7 +109,7 @@ export class Audio {
       this.next[k] -= dt;
       if (this.next[k] > 0) continue;
       this.next[k] = expo(rate[k]);
-      if (k === 'bubble') this.play('bubble', 0.35 + Math.random() * 0.4, true);
+      if (k === 'bubble') this.play('bubble', 0.2 + Math.random() * 0.3, true);
       else if (k === 'drip') this.drip();
       else this.play('door', 0.8, true);
     }
@@ -131,15 +132,16 @@ export class Audio {
     };
     // room tone: brown noise under 300 Hz
     add('room', chain(this.loop(this.brown!), biquad(ctx, 'lowpass', 300, 0.7)));
-    // trickle: bright noise, its loudness wobbling at two unrelated rates like falling water
+    // trickle: soft noise whose loudness and color drift at random, like falling water (fixed-rate
+    // wobbles beat against each other and repeat, which the ear picks out within a minute)
     {
-      const f = biquad(ctx, 'bandpass', 2300, 0.8);
+      const f = biquad(ctx, 'bandpass', 1400, 0.5);
       const am = ctx.createGain();
       am.gain.value = 0.7;
-      lfo(ctx, 3.1, 0.22).connect(am.gain);
-      lfo(ctx, 4.7, 0.16).connect(am.gain);
-      lfo(ctx, 0.37, 0.12).connect(f.frequency);
-      add('trickle', chain(this.loop(this.white!), f, biquad(ctx, 'highshelf', 4000, 0.7, -8), am));
+      this.loop(drift(ctx, 29, 0.4)).connect(gainOf(ctx, 0.22)).connect(am.gain);
+      this.loop(drift(ctx, 17, 7)).connect(gainOf(ctx, 0.1)).connect(am.gain);
+      this.loop(drift(ctx, 23, 0.25)).connect(gainOf(ctx, 220)).connect(f.frequency);
+      add('trickle', chain(this.loop(this.white!), f, biquad(ctx, 'lowpass', 3200, 0.5), biquad(ctx, 'highshelf', 2500, 0.7, -10), am));
     }
     // hum: a pump at mains frequency with its harmonic, and a low rumble of water through pipes
     {
@@ -305,8 +307,9 @@ export class Audio {
   }
 }
 
+/** A loop of noise; long and an odd length, so its repeat is never heard. */
 function noise(ctx: AudioContext, kind: 'white' | 'brown'): AudioBuffer {
-  const len = ctx.sampleRate * 3;
+  const len = Math.round(ctx.sampleRate * 13.7);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d = buf.getChannelData(0);
   let last = 0;
@@ -328,6 +331,38 @@ function biquad(ctx: AudioContext, type: BiquadFilterType, hz: number, q: number
   f.Q.value = q;
   f.gain.value = gain;
   return f;
+}
+
+/** A control signal that wanders at random between -1 and 1, at about `hz` and slower, for
+ *  `secs` seconds (looped, an odd length): an LFO that never settles into a beat. */
+function drift(ctx: AudioContext, secs: number, hz: number): AudioBuffer {
+  const rate = 8000;
+  const buf = ctx.createBuffer(1, Math.round(rate * secs), rate);
+  const d = buf.getChannelData(0);
+  // white noise through two one-pole lowpasses, then scaled to fill -1..1
+  const a = 1 - Math.exp((-2 * Math.PI * hz) / rate);
+  let p = 0, q = 0, peak = 1e-6;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < d.length; i++) {
+      p += a * (Math.random() * 2 - 1 - p);
+      q += a * (p - q);
+      if (pass) {
+        d[i] = q;
+        peak = Math.max(peak, Math.abs(q));
+      }
+    }
+  }
+  // ease the seam so the loop does not click
+  const ease = Math.min(d.length >> 2, rate);
+  for (let i = 0; i < ease; i++) d[d.length - 1 - i] = d[d.length - 1 - i] * (i / ease) + d[0] * (1 - i / ease);
+  for (let i = 0; i < d.length; i++) d[i] /= peak;
+  return buf;
+}
+
+function gainOf(ctx: AudioContext, v: number): GainNode {
+  const g = ctx.createGain();
+  g.gain.value = v;
+  return g;
 }
 
 /** an oscillator scaled to +-depth, for modulating a parameter */

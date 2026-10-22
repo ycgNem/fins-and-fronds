@@ -17,7 +17,7 @@ import type { TankStats } from '../sim/Game';
 import type { Tank } from '../sim/state';
 import { type Agent, Agents, BURIED, type Cave, type SceneCtx } from './agents';
 import { bayer, ctx2d, makeCanvas, Pix, shadeOf } from './art/pix';
-import { creatureFrame, creatureLength, drawFrame, type Frame, importedFrame, itemFrame } from './art/sprites';
+import { creatureFrame, creatureLength, drawFrame, type Frame, importedFrame, itemFrame, placedFrame, turnedFrame } from './art/sprites';
 
 export const MARGIN = { l: 8, r: 8, t: 14, b: 18 };
 
@@ -118,7 +118,7 @@ export interface DrawOpts {
   selectItem?: number;
   hoverAgent?: number;
   selectAgent?: number;
-  ghost?: { id: string; x: number; layer: 0 | 1 | 2; ok: boolean; on?: number; y?: number };
+  ghost?: { id: string; x: number; layer: 0 | 1 | 2; ok: boolean; on?: number; y?: number; rot?: number };
   /** Care mode: show the scraper / sponge under the cursor */
   tool?: { kind: 'scrape' | 'wipe'; x: number; y: number };
 }
@@ -322,16 +322,15 @@ export class TankView {
 
   /**
    * The look's far scenery along the back, its foot tucked under the back ground band, tiled
-   * with every other tile mirrored, and washed with the haze tone so it sits far away. It stays
-   * low and faint: a hint of the habitat behind the glass, never competing with the scape.
+   * with every other tile mirrored, and washed with the haze tone so it sits far away. The whole
+   * strip shows (nothing cropped), fading into the water towards its top: a hint of the habitat
+   * behind the glass, never competing with the scape.
    */
   private drawFar(t: Tank, bg: HTMLCanvasElement, far: Frame, haze: number) {
     const { w, h, surface } = this.g;
     let foot = 0;
     for (let x = 0; x < w; x += 4) foot = Math.max(foot, groundY(t, this.g, x, 0));
-    // at most about half the water's depth shows above the back of the substrate
-    const shown = Math.min(far.h, Math.round((h - surface) * 0.5));
-    const y = Math.max(surface + 4, Math.min(h, foot + 3) - shown);
+    const bottom = Math.min(h, foot + 3), y = bottom - far.h;
     const layer = makeCanvas(w, h);
     const c = ctx2d(layer);
     const x0 = -Math.floor(((far.w * 2 - (w % (far.w * 2))) % (far.w * 2)) / 2); // centered
@@ -343,10 +342,18 @@ export class TankView {
       c.restore();
     }
     c.globalCompositeOperation = 'source-atop';
-    c.fillStyle = rgba(haze, 0.62);
+    c.fillStyle = rgba(haze, 0.55);
     c.fillRect(0, 0, w, h);
+    // a dithered fade upwards: thick at the foot, thinning out by the top of the strip (or the surface)
+    const top = Math.max(y, surface + 2), span = Math.max(1, (bottom - top) * 0.6);
+    const img = c.getImageData(0, 0, w, h);
+    for (let py = 0; py < h; py++) {
+      const keep = py < top ? 0 : Math.min(1, (py - top) / span) * 0.92;
+      for (let px = 0; px < w; px++) if (bayer(px, py) >= keep) img.data[(py * w + px) * 4 + 3] = 0;
+    }
+    c.putImageData(img, 0, 0);
     const out = ctx2d(bg);
-    out.globalAlpha = 0.78;
+    out.globalAlpha = 0.85;
     out.drawImage(layer, 0, 0);
     out.globalAlpha = 1;
   }
@@ -431,12 +438,10 @@ export class TankView {
     for (const p of t.items) {
       const it = item(p.id);
       const base = itemBase(t, p);
-      if (it.tags?.includes('cave') && !p.on) {
-        // the drawn size (imported art can differ from the item's nominal size)
-        const f = itemFrame(p.id, p.size, p.seed, 0, p.health);
-        caves.push({ uid: p.uid, x: base.x, y: base.y, w: f.w, h: f.h, layer: p.layer });
-      }
-      if (it.cat === 'rock' || it.cat === 'coral' || it.cat === 'wood') perches.push({ x: base.x, y: base.y - it.h * p.size * 0.5 });
+      // the drawn size (imported art can differ from the item's nominal size, and it may be tilted)
+      const f = placedFrame(p, 0);
+      if (it.tags?.includes('cave') && !p.on) caves.push({ uid: p.uid, x: base.x, y: base.y, w: f.w, h: f.h, layer: p.layer });
+      if (it.cat === 'rock' || it.cat === 'coral' || it.cat === 'wood') perches.push({ x: base.x, y: base.y - f.h * 0.5 });
     }
     const ctx: SceneCtx = { t, g: this.g, lightsOn: opts.lightsOn, flow: st?.facts.flow ?? 1, kreisel: this.g.shell.tags.includes('kreisel'), caves, perches };
     this.agents.update(dt, ctx);
@@ -523,7 +528,7 @@ export class TankView {
     const pockets = (l: number) => {
       for (const p of t.items) {
         if (p.layer !== l || !homes.has(p.uid)) continue;
-        const f = itemFrame(p.id, p.size, p.seed, 0, p.health), b = itemBase(t, p);
+        const f = placedFrame(p, 0), b = itemBase(t, p);
         const pw = Math.round(f.w * 0.6), ph = Math.max(3, Math.round(f.h * 0.15));
         c.fillStyle = rgba(0, 0.26);
         c.beginPath();
@@ -806,7 +811,7 @@ export class TankView {
   private drawItem(c: CanvasRenderingContext2D, t: Tank, p: Tank['items'][number], frame: number, o: DrawOpts) {
     const it = item(p.id);
     const base = itemBase(t, p);
-    const f = itemFrame(p.id, p.size, p.seed, frame + (p.seed % 4), p.health);
+    const f = placedFrame(p, frame + (p.seed % 4));
     const by = it.place === 'surface' ? this.g.surface - 1 : it.place === 'hang' ? this.g.surface - 10 : base.y;
     if (it.place !== 'surface' && it.place !== 'hang' && !p.on && it.cat !== 'plant') {
       c.fillStyle = rgba(0, 0.16);
@@ -830,7 +835,7 @@ export class TankView {
 
   private drawGhost(c: CanvasRenderingContext2D, t: Tank, gh: NonNullable<DrawOpts['ghost']>, frame: number) {
     const it = item(gh.id);
-    const f = itemFrame(gh.id, it.plant ? 0.7 : 1, 1, frame, 1);
+    const f = turnedFrame(itemFrame(gh.id, it.plant ? 0.7 : 1, 1, frame, 1), gh.rot ?? 0);
     let y: number;
     if (it.place === 'surface') y = this.g.surface - 1;
     else if (it.place === 'hang') y = this.g.surface - 10;
@@ -1047,7 +1052,7 @@ export class TankView {
       const it = item(p.id);
       if (!it.coral?.glow) continue;
       const b = itemBase(t, p);
-      drawFrame(c, itemFrame(p.id, p.size, p.seed, Math.floor(this.time * 2.2), p.health), b.x, b.y, p.flip, 0.55);
+      drawFrame(c, placedFrame(p, Math.floor(this.time * 2.2)), b.x, b.y, p.flip, 0.55);
     }
   }
 

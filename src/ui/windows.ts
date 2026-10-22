@@ -14,6 +14,7 @@ import { deserialize, serialize } from '../sim/save';
 import { clockText, dayOf } from '../sim/state';
 import { drawIcon, drawPicture, hasArt } from '../render/icons';
 import { TOOLBAR_H, TOP_H, WIN_ICON } from './hud';
+import { tourShowing } from './tutorial';
 import { ICON, M, type UI } from './ui';
 
 const heights = new Map<string, number>();
@@ -35,8 +36,10 @@ const RIBBON = 30;
 /** where the open window sits, in UI pixels */
 export function windowRect(app: App): { x: number; y: number; w: number; h: number } {
   const menu = app.window === 'menu';
-  const w = Math.min(app.W - 32, menu ? 600 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, menu ? 400 : 500);
-  return { x: Math.floor((app.W - w) / 2), y: TOP_H + Math.floor((app.H - TOP_H - TOOLBAR_H - h) / 2), w, h };
+  // while Ida's tour is showing, the window leaves her the wall on its left for the note
+  const gutter = tourShowing(app) ? Math.min(250, Math.max(0, app.W - 560)) : 0;
+  const w = Math.min(app.W - 32 - gutter, menu ? 600 : 780), h = Math.min(app.H - TOP_H - TOOLBAR_H - 8, menu ? 400 : 500);
+  return { x: gutter + Math.floor((app.W - gutter - w) / 2), y: TOP_H + Math.floor((app.H - TOP_H - TOOLBAR_H - h) / 2), w, h };
 }
 
 export function drawWindow(app: App) {
@@ -320,7 +323,11 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
   const r = REGIONS.find((q) => q.id === app.panel.tripSel) ?? regions[0];
   if (!r) return;
   const dx = x + lw + 14, dw = w - lw - 14;
-  column(u, 'regiond', dx, top, dw, listH - 32, (x, y, w) => {
+  // why it cannot sail yet sits beside the button, as tall as it needs, above the window's foot
+  const why = canExpedition(s, r.id as RegionId);
+  const whyH = why ? u.paraHeight(why, dw - 190) : 0;
+  const foot = Math.max(M.btn + 6, whyH + 4);
+  column(u, 'regiond', dx, top, dw, listH - foot - 6, (x, y, w) => {
     const ph = drawPicture(u.ctx, `pc:${r.id}`, x, y, w, 180, r.expedition.tier > s.tier ? 0.4 : 1);
     if (ph) y += ph + 8;
     u.head(r.name, x, y, C.head, { maxW: w });
@@ -334,8 +341,7 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
     u.text(`${expeditionHours(s, r.id as RegionId).toFixed(1)} game hours away`, x, y, C.textDim);
     return y + M.row;
   });
-  const why = canExpedition(s, r.id as RegionId);
-  if (why) u.para(why, dx, top + listH - M.btn - 4, dw - 190, C.warn);
+  if (why) u.para(why, dx, top + listH - whyH, dw - 190, C.warn);
   if (u.button('sail', dx + dw - 180, top + listH - M.btn - 2, 180, M.btn + 2, `Set sail ${ICON.coin}${r.expedition.cost}`, { style: why ? 'flat' : 'good', disabled: !!why, tip: why ?? 'Captain Wren will bring back animals, plants and stones from here' })) app.run(act.sendExpedition(g, r.id as RegionId));
 }
 

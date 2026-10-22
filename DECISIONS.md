@@ -2,6 +2,34 @@
 
 Short records of choices that shape the code. Newest first.
 
+## 2026-10-21 (second play-test pass)
+
+- **Nothing overlaps, and the UI checks itself.** `ui.audit` records every text, button and panel
+  a frame draws, and `ui.overlaps(propsDrawn)` lists text on text, text on another button, text
+  under or spilling out of a panel, text off screen and shop props under the interface. Writing
+  that belongs to a prop (the chalkboard, the corkboard badge) or a passing toast is drawn inside
+  `ui.own(...)` and is not counted. The layouts give way rather than collide: an empty rack in a
+  short row shows just its button, names shorten to leave room for the figure beside them, a prop
+  that does not fit its corner is left out, the OPEN sign drops to its art's size in a narrow
+  window, only the two newest toasts show, and while Ida's tour runs a window leaves her the wall
+  on its left.
+- **The backdrop shows whole, fading up into the water.** Cropping it to half the depth cut the
+  scenery off at the sand. Now the full strip stands on the back of the substrate and thins out
+  upward in a Bayer dither (the rest of the tank fades the same way), hazed 55% and drawn at 85%.
+- **Heaters are rated in gallons, like the boxes in a real shop.** 50 W up to 10 gal, 150 W up to
+  30, the new 200 W up to 50, 300 W up to 75, titanium 1000 W up to 250. A heater holds a tank of
+  its rated size 5 C above the hall (`BAL.heatLift`), more in a smaller tank, less in a bigger
+  one, and ratings add up, so two heaters work too. The Heat tab says whether each one is big
+  enough for this tank, and the thermostat says when the heaters top out below it.
+- **Ambient sound never loops audibly.** Noise buffers are 13.7 s, and the filter trickle is
+  shaped by slow random drift instead of fixed-rate LFOs (two sines beat into a pattern that
+  repeats every ten seconds). The trickle is about half as loud and softer (bandpass 1400 Hz,
+  lowpass 3200 Hz); sponge filters and airstones send about a third as many bubbles.
+- **Rocks and wood tilt.** `Placed.rot` (degrees as seen, steps of 15) turns the sprite through
+  Scale2x twice before sampling, so edges stay clean, and the turned piece rests on its lowest
+  pixel. Epiphytes and corals on it ride along; the scape height in the rating uses the turned
+  box. `R` / `Shift+R` while placing or on the selected piece, or the tilt stepper on its card.
+
 ## 2026-10-21 (owner's play-test feedback)
 
 - **The tank is yours, the backdrop is a hint.** The far backdrops stay but sit low (at most half

@@ -13,12 +13,15 @@ export function isRainy(day: number): boolean {
 /** the props are drawn a little larger than their art, so the shop around the tanks reads at a glance */
 export const PROP_SCALE = 1.25;
 
+/** where each prop went this frame, in UI pixels (the UI audit checks them against text and panels) */
+export const propsDrawn: { name: string; x: number; y: number; w: number; h: number }[] = [];
+
 /** draw a prop with its bottom-left corner at (x, y); returns its size, or null if there is no art */
-export function prop(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, opts: { dim?: number; flip?: boolean } = {}): { w: number; h: number } | null {
+export function prop(ctx: CanvasRenderingContext2D, name: string, x: number, y: number, opts: { dim?: number; flip?: boolean; scale?: number } = {}): { w: number; h: number } | null {
   const fr = importedFrame(name);
   if (!fr) return null;
   const img = opts.dim ? dimmed(fr, name, opts.dim) : fr;
-  const { w, h } = propSize(name)!;
+  const { w, h } = propSize(name, opts.scale)!;
   const dx = Math.round(x), dy = Math.round(y - h);
   const smooth = ctx.imageSmoothingEnabled;
   ctx.imageSmoothingEnabled = false;
@@ -30,13 +33,14 @@ export function prop(ctx: CanvasRenderingContext2D, name: string, x: number, y: 
     ctx.restore();
   } else ctx.drawImage(img.img, img.sx, img.sy, fr.w, fr.h, dx, dy, w, h);
   ctx.imageSmoothingEnabled = smooth;
+  propsDrawn.push({ name, x: dx, y: dy, w, h });
   return { w, h };
 }
 
-/** a prop's drawn size in UI pixels */
-export function propSize(name: string): { w: number; h: number } | null {
+/** a prop's drawn size in UI pixels (at the usual scale unless a tight spot asks for another) */
+export function propSize(name: string, scale = PROP_SCALE): { w: number; h: number } | null {
   const fr = importedFrame(name);
-  return fr ? { w: Math.round(fr.w * PROP_SCALE), h: Math.round(fr.h * PROP_SCALE) } : null;
+  return fr ? { w: Math.round(fr.w * scale), h: Math.round(fr.h * scale) } : null;
 }
 
 const dimCache = new Map<string, Frame>();

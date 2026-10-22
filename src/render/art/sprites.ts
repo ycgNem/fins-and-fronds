@@ -135,6 +135,88 @@ export function itemFrame(id: string, size: number, seed: number, frame: number,
   return fr;
 }
 
+const turned = new WeakMap<Frame, Map<number, Frame>>();
+
+/**
+ * A frame turned clockwise by deg, cached, resting on its lowest pixel with the anchor centered
+ * under it (a tilted stone or branch lies on the sand). The art is smoothed with Scale2x twice
+ * before it is sampled, so turned edges stay clean pixel lines instead of stair-steps.
+ */
+export function turnedFrame(fr: Frame, deg: number): Frame {
+  deg = ((Math.round(deg) % 360) + 360) % 360;
+  if (!deg) return fr;
+  let byDeg = turned.get(fr);
+  if (!byDeg) turned.set(fr, (byDeg = new Map()));
+  let out = byDeg.get(deg);
+  if (!out) byDeg.set(deg, (out = turn(fr, deg)));
+  return out;
+}
+
+function turn(fr: Frame, deg: number): Frame {
+  const src = document.createElement('canvas');
+  src.width = fr.w;
+  src.height = fr.h;
+  const sx = src.getContext('2d')!;
+  sx.drawImage(fr.img, fr.sx, fr.sy, fr.w, fr.h, 0, 0, fr.w, fr.h);
+  let px: Uint32Array = new Uint32Array(sx.getImageData(0, 0, fr.w, fr.h).data.buffer.slice(0));
+  let w = fr.w, h = fr.h;
+  for (let i = 0; i < 2; i++) [px, w, h] = scale2x(px, w, h);
+  const k = w / fr.w;
+  const r = (deg * Math.PI) / 180, cos = Math.cos(r), sin = Math.sin(r);
+  const W = Math.ceil(Math.abs(fr.w * cos) + Math.abs(fr.h * sin)) + 2;
+  const H = Math.ceil(Math.abs(fr.w * sin) + Math.abs(fr.h * cos)) + 2;
+  const out = new Uint32Array(W * H);
+  let x0 = W, x1 = -1, y0 = H, y1 = -1;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    // where this pixel's center came from, turned back
+    const dx = x + 0.5 - W / 2, dy = y + 0.5 - H / 2;
+    const ux = Math.floor((dx * cos + dy * sin + fr.w / 2) * k), uy = Math.floor((-dx * sin + dy * cos + fr.h / 2) * k);
+    if (ux < 0 || uy < 0 || ux >= w || uy >= h) continue;
+    const v = px[uy * w + ux];
+    if (v >>> 24 < 128) continue;
+    out[y * W + x] = v | 0xff000000;
+    x0 = Math.min(x0, x);
+    x1 = Math.max(x1, x);
+    y0 = Math.min(y0, y);
+    y1 = Math.max(y1, y);
+  }
+  if (x1 < 0) return fr;
+  const c = document.createElement('canvas');
+  c.width = x1 - x0 + 1;
+  c.height = y1 - y0 + 1;
+  const img = new ImageData(c.width, c.height);
+  const dst = new Uint32Array(img.data.buffer);
+  for (let y = y0; y <= y1; y++) dst.set(out.subarray(y * W + x0, y * W + x1 + 1), (y - y0) * c.width);
+  c.getContext('2d')!.putImageData(img, 0, 0);
+  return wrap(c, Math.floor(c.width / 2), c.height - 1);
+}
+
+/** Scale2x (EPX): doubles pixel art, rounding corners along diagonals instead of blocking them. */
+function scale2x(px: Uint32Array, w: number, h: number): [Uint32Array, number, number] {
+  const o = new Uint32Array(w * h * 4), W = w * 2;
+  const at = (x: number, y: number) => px[Math.max(0, Math.min(h - 1, y)) * w + Math.max(0, Math.min(w - 1, x))];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const p = at(x, y), a = at(x, y - 1), b = at(x + 1, y), c = at(x - 1, y), d = at(x, y + 1);
+    let e0 = p, e1 = p, e2 = p, e3 = p;
+    if (c === a && c !== d && a !== b) e0 = a;
+    if (a === b && a !== c && b !== d) e1 = b;
+    if (d === c && d !== b && c !== a) e2 = c;
+    if (b === d && b !== a && d !== c) e3 = d;
+    o[y * 2 * W + x * 2] = e0;
+    o[y * 2 * W + x * 2 + 1] = e1;
+    o[(y * 2 + 1) * W + x * 2] = e2;
+    o[(y * 2 + 1) * W + x * 2 + 1] = e3;
+  }
+  return [o, W, h * 2];
+}
+
+/** A placed item's frame, turned if it has been tilted. The stored angle is as seen, so a
+ *  mirrored item turns the other way before drawFrame mirrors it back. */
+export function placedFrame(p: { id: string; size: number; seed: number; health: number; flip: boolean; rot?: number }, frame: number): Frame {
+  const f = itemFrame(p.id, p.size, p.seed, frame, p.health);
+  return p.rot ? turnedFrame(f, p.flip ? -p.rot : p.rot) : f;
+}
+
 /** Draw a frame with its anchor at (x, y), optionally mirrored. */
 export function drawFrame(ctx: CanvasRenderingContext2D, fr: Frame, x: number, y: number, flip = false, alpha = 1) {
   x = Math.round(x);

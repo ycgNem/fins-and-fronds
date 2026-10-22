@@ -95,12 +95,17 @@ export function o2Saturation(temp: number, sg = 1): number {
   return fresh * (1 - Math.max(0, sg - 1) * 7.5);
 }
 
+/** Degrees above the room that heaters rated for heatL liters can hold a tank of this many liters. */
+export function maxHeatLift(heatL: number, liters: number): number {
+  return (BAL.heatLift * heatL) / Math.max(1, liters);
+}
+
 /** The temperature the tank is heading for with its gear and lights. */
 export function targetTemp(t: Tank, f: Facts): number {
   const room = BAL.roomTemp + (f.lightsOn ? f.gear.lightHeat : 0);
   let target = room;
   const set = t.set.heater;
-  if (set > room && f.gear.heatW > 0) target = Math.min(set, room + (BAL.heatPerWattPerL * f.gear.heatW) / f.liters);
+  if (set > room && f.gear.heatL > 0) target = Math.min(set, room + maxHeatLift(f.gear.heatL, f.liters));
   if (set < room && f.gear.chillW > 0) target = Math.max(set, room - (BAL.chillPerWattPerL * f.gear.chillW) / f.liters);
   return target;
 }
