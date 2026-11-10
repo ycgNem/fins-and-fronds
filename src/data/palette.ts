@@ -103,7 +103,7 @@ export function rampAt(name: RampName, n: number): number {
  * UI colors (indices), so windows never use raw numbers. The interface is light: sea-glass panels
  * with dark ink, on a sage wall (STYLE.md, Interface). Text colors are chosen to read on `panel`.
  */
-export const UI: Record<'ink' | 'panel' | 'panelHi' | 'panelLo' | 'edge' | 'text' | 'strong' | 'textDim' | 'textMute' | 'head' | 'accent' | 'gold' | 'coin' | 'good' | 'warn' | 'bad' | 'pick' | 'pickLo' | 'paper' | 'paperInk' | 'onDark' | 'wallTop' | 'wallBottom' | 'floor', number> = {
+export const UI: Record<'ink' | 'panel' | 'panelHi' | 'panelLo' | 'edge' | 'text' | 'strong' | 'textDim' | 'textMute' | 'head' | 'accent' | 'gold' | 'coin' | 'good' | 'warn' | 'bad' | 'goodText' | 'warnText' | 'badText' | 'pick' | 'pickLo' | 'paper' | 'paperInk' | 'onDark' | 'wallTop' | 'wallBottom' | 'floor', number> = {
   ink: 0,
   /** sea glass: the panel face, its highlight and its shadow */
   panel: 8,
@@ -119,12 +119,18 @@ export const UI: Record<'ink' | 'panel' | 'panelHi' | 'panelLo' | 'edge' | 'text
   /** headings (display face) and accents */
   head: 39,
   accent: 40,
-  /** prices in text; the coin itself */
-  gold: 20,
+  /** prices in text (a dark bronze, well clear of the warning colors); the coin itself */
+  gold: 24,
   coin: 18,
+  /** status fills (bars, chips, stripes) */
   good: 30,
   warn: 21,
   bad: 14,
+  /** the same status as text: darker twins that keep 4:1 or better on the panels and paper
+   *  (ui.text swaps a fill color for its twin by itself) */
+  goodText: 29,
+  warnText: 20,
+  badText: 14,
   /** selected things: tabs, toggles, rows */
   pick: 18,
   pickLo: 17,
@@ -139,9 +145,14 @@ export const UI: Record<'ink' | 'panel' | 'panelHi' | 'panelLo' | 'edge' | 'text
 };
 
 /** Good and bad as blue and orange (told apart with any common color blindness) instead of green
- *  and red. Status colors are read at draw time, so flipping this restyles everything at once. */
+ *  and red. Status colors are read at draw time, so flipping this restyles everything at once.
+ *  The bright blue, amber and orange fills are far too pale for text on the light panels (about
+ *  1.2-2:1), so the text twins are the dark blue, olive and rust of the same hues (3.8-4.3:1). */
 export function setCalmColors(on: boolean) {
   UI.good = on ? 47 : 30;
   UI.warn = on ? 23 : 21;
   UI.bad = on ? 16 : 14;
+  UI.goodText = on ? 46 : 29;
+  UI.warnText = on ? 25 : 20;
+  UI.badText = on ? 20 : 14;
 }

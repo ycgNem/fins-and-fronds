@@ -43,6 +43,13 @@ export const GUEST_NAMES = [
 ];
 
 export const GUEST_PLACES = [
-  'from across town', 'visiting from Larkfield', 'on a school trip', 'with Grandma', 'on our anniversary', 'on a rainy Saturday',
+  'from across town', 'visiting from Larkfield', 'with Grandma', 'on our anniversary',
   'from the coast', 'after work', 'with the twins', 'first visit!', 'third visit this month', 'from the aquascaping club',
 ];
+
+/** signatures that only fit the day something is on (src/sim/week.ts event ids) */
+export const GUEST_PLACES_ON: Record<string, string[]> = {
+  school: ['on a school trip', 'Room 4'],
+  market: ['on market day', 'after the market'],
+  judging: ['here for the judging'],
+};

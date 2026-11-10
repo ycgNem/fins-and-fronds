@@ -8,20 +8,20 @@ export const BRACKISH: SpeciesDef[] = [
   ...group({ kind: 'fish', water: 'brackish', regions: ['mangrove'], temp: [24, 30], ph: [7.5, 8.5], gh: [8, 20], sg: [1.005, 1.015], tier: 2 }, [
     {
       id: 'archerfish', name: 'Banded Archerfish', sci: 'Toxotes jaculatrix', cm: 20, body: 'deep', sg: [1.003, 1.012],
-      look: { body: 'silver', pattern: 'bars', accent: 'ink' }, temper: 'semi', zone: 'surface', school: 3, minL: 300, diet: ['live', 'frozen'],
-      rarity: 3, appeal: 9, tags: ['iconic', 'oddball', 'eats_small'], needs: ['open_air', 'land'],
+      look: { body: 'silver', pattern: 'bars', accent: 'ink' }, temper: 'semi', zone: 'surface', school: 3, minL: 240, diet: ['live', 'frozen'],
+      rarity: 3, appeal: 9, tags: ['iconic', 'oddball', 'eats_small'], needs: ['open_air'],
       fact: 'Archerfish shoot jets of water to knock insects off leaves, correcting for the bend of light at the surface, and they learn faces.',
     },
     {
       id: 'mono', name: 'Silver Mono', sci: 'Monodactylus argenteus', cm: 25, body: 'disc', sg: [1.005, 1.020],
       look: { body: 'silver', fin: 'yellow' }, temper: 'semi', zone: 'mid', school: 5, minL: 400, rarity: 2, appeal: 6, tags: ['schooling'],
-      needs: ['swim_space'],
+      needs: ['swim_space'], tier: 3,
       fact: 'Monos school in estuaries as juveniles and move out to sea as they grow, so their tank should creep saltier over the years.',
     },
     {
       id: 'scat', name: 'Spotted Scat', sci: 'Scatophagus argus', cm: 30, body: 'disc',
       look: { body: 'gold_sand', pattern: 'spots', accent: 'ink' }, temper: 'peaceful', zone: 'mid', school: 3, minL: 400, diet: ['veg', 'flake'],
-      rarity: 2, appeal: 6, tags: ['plant_eater'], needs: ['swim_space'],
+      rarity: 2, appeal: 6, tags: ['plant_eater'], needs: ['swim_space'], tier: 3,
       fact: "Spotted scats graze algae and almost anything else; their Latin name politely means 'dung-eater'.",
     },
     {
@@ -39,7 +39,7 @@ export const BRACKISH: SpeciesDef[] = [
     {
       id: 'bumblebee_goby', name: 'Bumblebee Goby', sci: 'Brachygobius doriae', cm: 3, body: 'goby', ph: [7.0, 8.5], sg: [1.002, 1.008],
       look: { body: 'yellow', pattern: 'bars', accent: 'ink' }, temper: 'semi', zone: 'bottom', school: 6, diet: ['frozen', 'live'], appeal: 6,
-      tags: ['tiny', 'colorful', 'territorial'], needs: ['caves', 'shells'], tier: 1,
+      tags: ['tiny', 'colorful', 'territorial'], needs: ['caves', 'shells'],
       fact: 'Bumblebee gobies perch on rocks with fused pelvic fins and claim tiny territories, each about the size of a shell.',
     },
     {
@@ -49,7 +49,7 @@ export const BRACKISH: SpeciesDef[] = [
       fact: "Mudskippers spend most of their time out of the water, breathing through their skin and a mouthful of water, and 'skip' on their pectoral fins.",
     },
     {
-      id: 'orange_chromide', name: 'Orange Chromide', sci: 'Pseudetroplus maculatus', cm: 8, body: 'cichlid', temp: [23, 28], sg: [1.002, 1.010],
+      id: 'orange_chromide', name: 'Orange Chromide', sci: 'Pseudetroplus maculatus', cm: 8, body: 'cichlid', temp: [23, 28], sg: [1.000, 1.010],
       look: { body: 'gold', pattern: 'dots', accent: 'ink' }, temper: 'semi', zone: 'bottom', rarity: 2, appeal: 6, tags: ['colorful', 'brackish_ok'],
       needs: ['rocks', 'caves'], breed: { type: 'cave', ease: 3 },
       fact: 'One of only a few Asian cichlids; orange chromides sometimes clean parasites off their bigger relatives, the green chromides.',
@@ -82,7 +82,7 @@ export const BRACKISH: SpeciesDef[] = [
     },
   ]),
   // Nerites live in rivers but breed only in brackish estuaries: kept in freshwater, they never multiply.
-  ...group({ kind: 'snail', water: 'fresh', regions: ['mangrove'], temp: [22, 28], ph: [7.0, 8.5], gh: [6, 18] }, [
+  ...group({ kind: 'snail', water: 'fresh', regions: ['mangrove'], temp: [22, 28], ph: [7.0, 8.5], gh: [6, 18], sg: [1.000, 1.012] }, [
     {
       id: 'zebra_nerite', name: 'Zebra Nerite', sci: 'Neritina natalensis', cm: 2.5, body: 'snail', look: { body: 'gold', pattern: 'stripe', accent: 'ink' },
       temper: 'peaceful', zone: 'glass', diet: ['algae'], appeal: 5, tags: ['algae', 'brackish_ok'], source: 'start',

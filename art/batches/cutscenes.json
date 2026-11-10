@@ -9,6 +9,8 @@
     "cs:intro_morning": "art/raw/cutscenes/intro_morning.png",
     "cs:town_crowd": "art/raw/cutscenes/town_crowd.png",
     "cs:town_ribbon": "art/raw/cutscenes/town_ribbon.png",
-    "cs:town_inside": "art/raw/cutscenes/town_inside.png"
+    "cs:town_inside": "art/raw/cutscenes/town_inside.png",
+    "cs:finale_window": "art/raw/cutscenes/finale_window.png",
+    "cs:finale_ida": "art/raw/cutscenes/finale_ida.png"
   }
 }

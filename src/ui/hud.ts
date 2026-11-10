@@ -2,18 +2,22 @@
 // the clock and speed, reputation and coins), the window pills along the bottom, toasts, the
 // guestbook slip and the hall of bays. There are no full-width bars: the wall shows between the
 // chips (STYLE.md, Interface). The tank modes are folder tabs on the side panel (panels.ts).
-import { species, TIERS, upgrade } from '../data';
-import { rgba, UI as C } from '../data/palette';
+import { correspondent, REQUESTS, species, TIERS, upgrade } from '../data';
+import { PALETTE_RGB, RAMP, rgba, UI as C } from '../data/palette';
 import { drawIcon, hasArt } from '../render/icons';
 import { prop, PROP_SCALE, propSize, streetWindow, wallClock } from '../render/shop';
-import { type App, SPEEDS } from '../app/app';
+import { type App, SPEEDS, type Toast } from '../app/app';
 import { baysUnlocked } from '../sim/catalog';
 import { clockText, dayOf } from '../sim/state';
 import { isOpen } from '../sim/visitors';
+import { dayName, weekEvent } from '../sim/week';
 import { BAL } from '../sim/balance';
 import { isStock, offers } from '../sim/sales';
+import type { TankStats } from '../sim/Game';
+import type { Tank } from '../sim/state';
+import { layoutShelf, type Shelf, tagW } from './shelf';
 import { noteBox, noteReserve } from './tutorial';
-import { ICON, M, textWidth } from './ui';
+import { ICON, M, type Rect, textWidth, type UI } from './ui';
 
 /** the band the top chips sit in, and the band the window pills sit in */
 export const TOP_H = 34;
@@ -21,11 +25,142 @@ export const TOOLBAR_H = 34;
 const CHIP_H = 26, CHIP_Y = 5;
 
 export function drawHud(app: App) {
+  watchTanks(app);
   topChips(app);
   windowPills(app);
   if (app.view === 'hall') hall(app);
+  else if (app.tank) {
+    // a tank that just earned a star sparkles along its top edge
+    const r = app.tankRect, k = app.scale;
+    sparkles(app, app.tank.id, r.x / k, r.y / k, r.w / k, Math.min(r.h / k, 60));
+  }
   toasts(app);
   guestLine(app);
+}
+
+// ---------------------------------------------------------------- news from the tanks
+
+/** What the interface remembers about each tank between frames: the most stars and the tank types
+ *  it has had (to celebrate a new one), its recent Wellbeing (to warn when it falls fast), and when
+ *  it last sparkled. Read from the stats, so the sim needs no events for any of it. */
+const seen = new Map<number, { stars: number; types: Set<string>; well: number; at: number; warned: number; sparkle: number }>();
+/** the tank types the codex held last frame (a type new to the codex has its own toast) */
+let codexTypes: Set<string> | null = null;
+/** the game all that belongs to (a loaded save starts the memory afresh) */
+let seenGame: App['game'] = null;
+const SPARKLE_SECS = 2.5;
+
+function watchTanks(app: App) {
+  const g = app.game;
+  if (!g) return;
+  if (g !== seenGame) {
+    seen.clear();
+    codexTypes = null;
+    seenGame = g;
+  }
+  const s = app.state;
+  const known = codexTypes ?? new Set(s.codex.archetypes);
+  for (const t of s.tanks) {
+    const st = g.stats.get(t.id);
+    if (!st) continue;
+    const well = st.rating.parts.wellbeing;
+    const m = seen.get(t.id);
+    if (!m) {
+      seen.set(t.id, { stars: st.rating.stars, types: new Set(st.cls.matches.map((q) => q.def.id)), well, at: s.time, warned: -Infinity, sparkle: -99 });
+      continue;
+    }
+    // (while Ida's tour runs her note does the talking)
+    const say = s.tutorial.done && !isStock(t);
+    if (st.rating.stars > m.stars) {
+      // a whole star more than it has had (half stars come and go while you scape)
+      if (say && st.rating.stars >= 2 && Math.floor(st.rating.stars) > Math.floor(m.stars)) {
+        app.toast(`${t.name} is now a ${Math.floor(st.rating.stars)}-star tank!`, 'good');
+        app.audio.play('chime');
+        m.sparkle = app.ui.time;
+      }
+      m.stars = st.rating.stars;
+    }
+    let told = false;
+    for (const q of st.cls.matches) {
+      if (m.types.has(q.def.id)) continue;
+      m.types.add(q.def.id);
+      if (!say) continue;
+      m.sparkle = app.ui.time;
+      // a type the codex already knew gets its own word (the best one, if several come at once);
+      // one new to the codex is toasted by the game
+      if (known.has(q.def.id) && !told) app.toast(`${t.name} is now recognized: ${q.def.name}!`, 'good');
+      told = true;
+    }
+    // a sharp fall in Wellbeing: the recent level follows a rise at once and a fall slowly, so a
+    // slow slide over a day stays quiet and a bad hour does not
+    const dt = Math.max(0, s.time - m.at);
+    m.at = s.time;
+    if (!t.animals.length || well >= m.well) m.well = well;
+    else m.well -= (m.well - well) * Math.min(1, dt / BAL.dropWindowMin);
+    if (say && m.well - well >= BAL.wellbeingDrop && s.time - m.warned >= BAL.warnGapMin) {
+      const worst = [...st.moods.values()].sort((a, b) => a.mood - b.mood)[0];
+      const why = worst?.reasons.find((r) => !r.good)?.text;
+      app.toast(`${t.name}: wellbeing is falling.${worst ? ` ${species(worst.sp).name}: ${why ?? 'unsettled'}.` : ''}`, 'bad');
+      m.warned = s.time;
+      m.well = well;
+    }
+  }
+  for (const id of seen.keys()) if (!s.tanks.some((t) => t.id === id)) seen.delete(id);
+  codexTypes = new Set(s.codex.archetypes);
+}
+
+type Attention = { icon: string; text: string; bad: boolean };
+
+/** Small reasons to go and look at a tank, for its hall card: an unwell species, toxic water, a
+ *  missed feeding, green glass. */
+export function attention(app: App, t: Tank, st: TankStats): Attention[] {
+  const A = BAL.attention;
+  const out: Attention[] = [];
+  const worst = [...st.moods.values()].sort((a, b) => a.mood - b.mood)[0];
+  if (worst && worst.mood < A.mood) out.push({ icon: ICON.heart, text: `${species(worst.sp).name}: ${worst.reasons.find((r) => !r.good)?.text ?? 'unwell'}`, bad: worst.mood < 0.3 });
+  const ch = t.chem;
+  if (ch.nh3 > A.toxin || ch.no2 > A.toxin) out.push({ icon: ICON.drop, text: `${ch.nh3 >= ch.no2 ? 'Ammonia' : 'Nitrite'} in the water: test it and change some (Water)`, bad: true });
+  const auto = (app.state.upgrades['auto_feeders'] ?? 0) > 0 || t.equip.includes('auto_feeder');
+  if (t.animals.length && !auto && !app.game!.fedRecently(t)) out.push({ icon: ICON.fish, text: 'Hungry: not fed for a day (Care, or F)', bad: false });
+  if (ch.glass > A.glass) out.push({ icon: ICON.leaf, text: `The glass is ${Math.round(ch.glass * 100)}% green: scrape it (Care)`, bad: false });
+  return out;
+}
+
+/** the attention badges in a row, right-aligned at (rx, y); hovering them says why */
+function badges(u: UI, list: Attention[], rx: number, y: number) {
+  if (!list.length) return;
+  const bw = 15, x0 = rx - list.length * (bw + 2);
+  list.forEach((a, i) => {
+    const x = x0 + i * (bw + 2);
+    u.rr(x, y, bw, 14, 3, 0);
+    const fill = a.bad ? C.bad : C.warn;
+    u.rr(x + 1, y + 1, bw - 2, 12, 3, fill);
+    u.text(a.icon, x + Math.floor(bw / 2) + 1, y, inkOn(fill), { align: 'center' });
+  });
+  if (u.hover(x0, y, list.length * (bw + 2), 14)) u.tip([{ text: 'Needs a look' }, ...list.map((a) => ({ text: a.text, color: a.bad ? C.bad : C.warn }))]);
+}
+
+/** ink or white, whichever reads better on this palette color (the colorblind-safe amber is pale) */
+function inkOn(c: number): number {
+  const [r, g, b] = PALETTE_RGB[c].map((v) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.18 ? 0 : 9;
+}
+
+/** a few pixel stars twinkling over a tank that just did well */
+function sparkles(app: App, id: number, x: number, y: number, w: number, h: number) {
+  const age = app.ui.time - (seen.get(id)?.sparkle ?? -99);
+  if (age < 0 || age > SPARKLE_SECS) return;
+  const u = app.ui;
+  u.ctx.globalAlpha = Math.min(1, (SPARKLE_SECS - age) * 1.5);
+  for (let i = 0; i < 12; i++) {
+    // fixed spots per star, each twinkling on its own beat and drifting up a little
+    const sx = x + ((i * 0.618 + 0.11) % 1) * w, sy = y + ((i * 0.377 + 0.2) % 1) * h - age * 6;
+    if (Math.sin(age * 9 + i * 1.7) < -0.2) continue;
+    const c = i % 3 ? C.coin : 9, big = i % 4 === 0;
+    u.fill(sx - 1, sy - (big ? 3 : 2), 2, big ? 6 : 4, c);
+    u.fill(sx - (big ? 3 : 2), sy - 1, big ? 6 : 4, 2, c);
+  }
+  u.ctx.globalAlpha = 1;
 }
 
 function topChips(app: App) {
@@ -39,7 +174,7 @@ function topChips(app: App) {
   const multi = s.tanks.length > 1;
   const nameW = t && app.view === 'tank' ? Math.min(160, textWidth(t.name)) : 0;
   const open = isOpen(s, s.time);
-  const clock = `Day ${dayOf(s.time)}  ${clockText(s.time)}`;
+  const clock = `${dayName(s.time).slice(0, 3)}, day ${dayOf(s.time)}  ${clockText(s.time)}`;
   const speedW = [20, 20, 26, 32];
   const coins = String(Math.floor(s.coins));
   const coinW = textWidth(coins, 'display');
@@ -76,15 +211,29 @@ function topChips(app: App) {
   const rx = W - 6 - rw;
   const cx = Math.min(rx - cw - 12, Math.max(lw + 18, Math.floor(W / 2 - cw / 2)));
   u.panel(cx, CHIP_Y, cw, CHIP_H, 'chip');
-  u.text(clock, cx + 12, CHIP_Y + 6, C.strong);
+  // an open window holds the clock: it dims and the pause button shows it
+  const held = !!app.window && s.settings.speed > 0;
+  u.text(clock, cx + 12, CHIP_Y + 6, held ? C.textDim : C.strong);
+  // the week: what is on today
+  const today = weekEvent(s.time);
+  if (u.hover(cx, CHIP_Y, textWidth(clock) + 16, CHIP_H)) u.tip([{ text: `${dayName(s.time)}, day ${dayOf(s.time)}` }, { text: today ? today.text : 'Nothing special on today.', color: C.textDim }]);
   let sx = cx + 12 + textWidth(clock) + 10;
   u.rr(sx - 4, CHIP_Y + 5, textWidth(sign) + 8, 16, 3, open ? C.good : C.panelLo);
   u.text(sign, sx, CHIP_Y + 6, open ? 9 : C.textDim);
-  if (u.hover(sx - 4, CHIP_Y, textWidth(sign) + 8, CHIP_H)) u.tip([{ text: open ? 'Open to visitors' : 'Closed: no visitors until 9:00' }]);
+  if (u.hover(sx - 4, CHIP_Y, textWidth(sign) + 8, CHIP_H)) {
+    // (sleeping waits for the end of Ida's tour: Game.sleepUntilOpen does nothing during it)
+    const sleep = s.tutorial.done ? 'Click to sleep until morning' : 'After the tour, click here to sleep until morning';
+    u.tip([{ text: open ? 'Open to visitors' : 'Closed: no visitors until 9:00' }, ...(open ? [] : [{ text: sleep, color: C.textDim }])]);
+    // sleep through the closed night instead of fast-forwarding it
+    if (!open && u.clicked && s.tutorial.done && app.game) {
+      u.eat();
+      app.game.sleepUntilOpen();
+    }
+  }
   sx += textWidth(sign) + 16;
   const labels = ['||', ICON.right, ICON.right + ICON.right, ICON.right + ICON.right + ICON.right];
   SPEEDS.forEach((sp, i) => {
-    if (u.button(`speed${i}`, sx, by - 2, speedW[i], 18, labels[i], { active: s.settings.speed === sp, style: 'flat', tip: sp === 0 ? 'Pause (Space)' : `${sp} game minute${sp > 1 ? 's' : ''} per second` })) s.settings.speed = sp;
+    if (u.button(`speed${i}`, sx, by - 2, speedW[i], 18, labels[i], { active: (held ? 0 : s.settings.speed) === sp, style: 'flat', tip: sp === 0 ? 'Pause (Space)' : `${sp} game minute${sp > 1 ? 's' : ''} per second` })) s.settings.speed = sp;
     sx += speedW[i] + 2;
   });
 
@@ -110,7 +259,7 @@ function topChips(app: App) {
 
 /** the icon art for each window (ui:<name>, icons sheet) */
 export const WIN_ICON: Record<NonNullable<App['window']>, string> = {
-  letters: 'letters', codex: 'codex', trips: 'trips', upgrades: 'upgrades', guestbook: 'guestbook', menu: 'settings', newtank: 'fish',
+  letters: 'letters', codex: 'codex', trips: 'trips', upgrades: 'upgrades', guestbook: 'guestbook', menu: 'settings', newtank: 'fish', news: 'scroll',
 };
 
 function windowPills(app: App) {
@@ -143,35 +292,71 @@ function windowPills(app: App) {
     x += bw + 4;
   }
   u.layer = layer;
+  pillsEnd = x;
 }
 
-function toasts(app: App) {
-  const u = app.ui;
-  // beside Ida's note when there is room on its left, else below it
+/** where the window pills end, so the guestbook slip can share their band */
+let pillsEnd = 0;
+
+/** Where this frame's toasts go: only the newest two (a pile of notices would bury the tank),
+ *  stacked from the top left, beside Ida's note when there is room on its left, else below it.
+ *  maxW is the column they wrap in. Empty in Watch, which hides them. */
+export function toastBoxes(app: App): { maxW: number; boxes: (Rect & { t: Toast })[] } {
   const note = noteBox(app);
   const beside = note && note.y < TOP_H + 20 ? note.x - 16 : 380;
   let y = note && note.y < TOP_H + 20 && beside < 200 ? note.y + note.h + 8 : TOP_H + 6;
   const x = 8, maxW = Math.max(200, Math.min(380, beside));
-  // only the newest two: a pile of notices would bury the tank (the audit skips them: they pass)
-  for (const t of app.toasts.slice(-2)) u.own('toast', () => {
+  if (app.watch) return { maxW, boxes: [] };
+  const boxes = app.toasts.slice(-2).map((t) => {
     const w = Math.min(maxW, textWidth(t.text) + 26);
-    const h = u.paraHeight(t.text, w - 26) + 10;
+    const h = app.ui.paraHeight(t.text, w - 26) + 10;
+    const b = { t, x, y, w, h };
+    y += h + 5;
+    return b;
+  });
+  return { maxW, boxes };
+}
+
+/**
+ * Where the new-chapter banner goes in a UI W wide: centred near the top, unless that covers a
+ * toast (the tier toast comes with it, and on an 800-wide screen the banner hid its last line).
+ * Then to the right of the toasts' column when there is room, else below them; lower than it has
+ * been (since) only, so it never hops up as a toast above it goes.
+ */
+export function bannerBox(W: number, w: number, toasts: { maxW: number; boxes: Rect[] }, since = 0): Rect {
+  const h = 56, top = 80;
+  const r = { x: Math.floor((W - w) / 2), y: Math.max(top, since), w, h };
+  const hits = (q: Rect) => toasts.boxes.some((b) => q.x < b.x + b.w + 6 && b.x < q.x + q.w + 6 && q.y < b.y + b.h + 6 && b.y < q.y + q.h + 6);
+  if (!hits(r)) return r;
+  const right = Math.max(...toasts.boxes.map((b) => b.x)) + toasts.maxW + 8;
+  if (right + w <= W - 8) return { ...r, x: right + Math.floor((W - 8 - right - w) / 2) };
+  return { ...r, y: Math.max(r.y, ...toasts.boxes.map((b) => b.y + b.h + 8)) };
+}
+
+function toasts(app: App) {
+  const u = app.ui;
+  // (the audit lets them cover the shop: they pass. Never each other, nor the new-chapter banner)
+  for (const { t, x, y, w, h } of toastBoxes(app).boxes) u.own('toast', () => {
     u.ctx.globalAlpha = Math.min(1, t.life);
     u.panel(x, y, w, h, 'chip', false);
     u.rr(x + 5, y + 5, 5, h - 10, 2, t.tone === 'good' ? C.good : t.tone === 'bad' ? C.bad : C.accent);
     u.para(t.text, x + 16, y + 4, w - 24, C.strong);
     u.ctx.globalAlpha = 1;
-    y += h + 5;
   });
 }
 
+/** the newest guestbook line on a paper slip in the bottom band, after the window pills (over the
+ *  floor it covered the stock-rack labels and the plants in the corner) */
 function guestLine(app: App) {
   const g = app.guest;
   if (!g) return;
   const u = app.ui;
   const text = `"${g.text}"  ${g.who}`;
-  const w = Math.min(app.W - 360, textWidth(text) + 20);
-  const x = 8, y = app.H - TOOLBAR_H - 26;
+  const x = pillsEnd + 6, y = app.H - TOOLBAR_H + 6;
+  // (in the hall the counter's corner reaches down into this band on short screens)
+  const end = app.view === 'hall' ? Math.min(app.W - hallArea(app).right, app.W - 6 - (propSize('sh:counter')?.w ?? 0)) - 4 : app.W - 8;
+  const w = Math.min(end - x, textWidth(text) + 20);
+  if (w < 120) return;
   u.ctx.globalAlpha = Math.min(1, g.life);
   u.panel(x, y, w, 22, 'paper', false);
   u.text(text, x + 10, y + 4, C.paperInk, { maxW: w - 18 });
@@ -231,8 +416,22 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
   const open = !!isOpen(s, s.time);
   if (left) {
     // the window sits low on the wall, the way a shop window does (and clear of the toasts)
-    const wx = 22, ww = left - 40, wh = Math.min(150, Math.floor((floorY - top) * 0.36));
+    const wx = 22, ww = left - 40, full = Math.min(150, Math.floor((floorY - top) * 0.36));
     const wy = Math.max(top + 26, Math.floor(app.H * 0.26));
+    const mon = propSize('sh:monstera'), pot = propSize('sh:pothos');
+    // the keepsakes stand on planks between the window and the plant. When they need more wall the
+    // window gives up to a third of its height for them (still tall enough for the OPEN sign)
+    const sx0 = 12, sx1 = left - 8, sy1 = floorY + 4 - (mon?.h ?? 0) - 6;
+    const sy0 = (wh: number) => Math.max(wy + wh + 12, top + (pot?.h ?? 0) + 4);
+    const items = (s.keepsakes ?? []).flatMap((id) => {
+      const k = propSize(`ks:${id}`, 1);
+      return k ? [{ id, ...k }] : [];
+    });
+    let wh = full, shelf = layoutShelf(items, sx1 - sx0, sy1 - sy0(wh), [PROP_SCALE, 1]);
+    for (let h = full - 6; shelf?.hidden !== 0 && items.length && h >= Math.max(90, full * 0.66); h -= 6) {
+      const k = layoutShelf(items, sx1 - sx0, sy1 - sy0(h), [PROP_SCALE, 1]);
+      if (k && (!shelf || k.hidden < shelf.hidden)) [shelf, wh] = [k, h];
+    }
     streetWindow(ctx, wx, wy, ww, wh, hour, dayOf(s.time), u.time);
     // the OPEN sign at full size when the window is wide enough for it, else at its art's size
     const sk = (propSize('sh:open')?.w ?? 0) <= ww - 10 ? PROP_SCALE : 1;
@@ -247,11 +446,11 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
       }
     }
     // the pothos hangs from the ceiling line under the chips, in front of the window frame
-    const pot = propSize('sh:pothos');
     if (pot) prop(ctx, 'sh:pothos', wx + ww - pot.w + 6, top + pot.h);
     prop(ctx, 'sh:monstera', 10, floorY + 4);
-    const mon = propSize('sh:monstera'), bk = propSize('sh:buckets');
+    const bk = propSize('sh:buckets');
     if (bk && 14 + (mon?.w ?? 60) + bk.w <= left + 2) prop(ctx, 'sh:buckets', 14 + (mon?.w ?? 60), floorY + 3);
+    if (shelf) keepsakeShelf(app, sx0, sx1, sy0(wh), shelf);
   }
   if (right) {
     const rx = app.W - right;
@@ -263,7 +462,9 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
       const bx = rx + Math.floor((right - cb.w) / 2);
       prop(ctx, 'sh:chalkboard', bx, y + cb.h);
       const fish = s.tanks.flatMap((t) => offers(t, app.game!.stats.get(t.id)?.moods));
-      const lines = fish.length ? fish.slice(0, 4).map((o) => `${species(o.sp).name} ${o.each}`) : s.tanks.some(isStock) ? ['Sold out!', 'More soon'] : ['Nothing yet'];
+      // sold out only after a sale today; a rack still breeding its first fish says so
+      const racked = s.tanks.some((t) => isStock(t) && (t.animals.length || t.bags.length));
+      const lines = fish.length ? fish.slice(0, 4).map((o) => `${species(o.sp).name} ${o.each}`) : (s.stats.salesToday ?? 0) > 0 ? ['Sold out!', 'More soon'] : racked ? ['Coming soon'] : ['Nothing yet'];
       // chalk on the board (its own writing, not an overlap)
       u.own('sh:chalkboard', () => {
         u.text('Today', bx + cb.w / 2, y + Math.round(9 * PROP_SCALE), 9, { align: 'center' });
@@ -314,6 +515,38 @@ function shopCorners(app: App, left: number, right: number, top: number, bottom:
   }
 }
 
+/** The keepsake shelf: what each correspondent left when their story ended (art ks:<id>; one
+ *  without art yet is left off), laid out by layoutShelf in the wall from x0 to x1 below y0. When
+ *  the wall is too small for all of them, as many as fit stay (mostly the newest), with a "+N" for
+ *  the rest where it has room; every one is in the Codex, under Plaques, as their tips say. */
+function keepsakeShelf(app: App, x0: number, x1: number, y0: number, shelf: Shelf) {
+  const u = app.ui;
+  const more = shelf.hidden ? `${shelf.hidden} more in the Codex, under Plaques.` : 'Every keepsake is listed in the Codex, under Plaques.';
+  for (const p of shelf.planks) {
+    const py = y0 + p;
+    // a plank on two brackets, with its shadow on the wall
+    u.fill(x0 + 2, py + 3, x1 - x0 - 4, 2, 0, 0.18);
+    u.fill(x0, py - 1, x1 - x0, 4, RAMP.wood[2]);
+    u.fill(x0, py - 1, x1 - x0, 1, RAMP.wood[3]);
+    u.fill(x0, py + 2, x1 - x0, 1, RAMP.wood[1]);
+    for (const bx of [x0 + 6, x1 - 9]) u.fill(bx, py + 3, 3, 6, RAMP.wood[1]);
+  }
+  for (const k of shelf.spots) {
+    const x = x0 + k.x, base = y0 + shelf.planks[k.row] - 1;
+    prop(u.ctx, `ks:${k.id}`, x, base, { scale: shelf.scale });
+    if (u.hover(x, base - k.h, k.w, k.h)) {
+      const r = REQUESTS.find((q) => q.from === k.id && q.keepsake);
+      u.tip([{ text: r?.keepsake ?? 'A keepsake' }, { text: `From ${correspondent(k.id).name}, at the end of their story. Their letters are kept in Letters.`, color: C.textDim }, { text: more, color: C.textDim }]);
+    }
+  }
+  if (shelf.more) {
+    // the ones the wall had no room for: a chalk tag on the last plank
+    const x = x0 + shelf.more.x, base = y0 + shelf.planks[shelf.more.row] - 1;
+    u.text(`+${shelf.hidden}`, x + 2, base - 12, C.onDark, { shadow: 0 });
+    if (u.hover(x, base - 14, tagW(shelf.hidden), 14)) u.tip([{ text: `${shelf.hidden} more keepsake${shelf.hidden > 1 ? 's' : ''}` }, { text: 'The wall has no room for them here. The Codex keeps every one, under Plaques.', color: C.textDim }]);
+  }
+}
+
 /** one block of bays: a tank on its stand, an empty stand to build on, or one still closed off */
 function grid(app: App, gx: number, gw: number, y0: number, cols: number, ch: number, total: number, bayOf: (i: number) => number, open: number, rack: boolean) {
   const u = app.ui;
@@ -335,7 +568,7 @@ function grid(app: App, gx: number, gw: number, y0: number, cols: number, ch: nu
       const kk = k >= 1 ? Math.floor(k) : k;
       const dw = Math.round(v.canvas.width * kk), dh = Math.round(v.canvas.height * kk);
       const hour = (s.time % 1440) / 60;
-      v.draw(t, st, { hour, lightsOn: hour >= t.set.lightOn && hour < t.set.lightOff, open: !!isOpen(s, s.time) });
+      if (app.thumbDue(t.id)) v.draw(t, st, { hour, lightsOn: hour >= t.set.lightOn && hour < t.set.lightOff, open: !!isOpen(s, s.time) });
       const tx = x + Math.floor((iw - dw) / 2), ty = y + ih - dh;
       // a soft shadow on the floor under the stand
       u.ctx.fillStyle = rgba(0, 0.22);
@@ -343,22 +576,27 @@ function grid(app: App, gx: number, gw: number, y0: number, cols: number, ch: nu
       u.ctx.imageSmoothingEnabled = kk < 1;
       u.ctx.drawImage(v.canvas, tx, ty, dw, dh);
       u.ctx.imageSmoothingEnabled = false;
-      const lw = Math.min(cw, Math.max(150, dw)), lx = x + Math.floor((cw - lw) / 2), ly = y + ih + 4;
+      // the label is as wide as its writing needs, up to the whole cell (not cut at the tank's width)
+      const rate = st ? `${ICON.coin} ${Math.round(st.coinsPerHour)}/h` : '';
+      const need = rack ? textWidth(t.name) + textWidth('12 for sale') + 26
+        : Math.max(textWidth(t.name, 'display') + 86, textWidth(st?.cls.best ? st.cls.best.def.name : 'Unrecognized') + textWidth(rate) + 26);
+      const lw = Math.min(cw, Math.max(150, dw, need)), lx = x + Math.floor((cw - lw) / 2), ly = y + ih + 4;
       u.panel(lx, ly, lw, foot - 6, 'paper', false);
       if (rack) {
         const forSale = offers(t, st?.moods).reduce((a, o) => a + o.n, 0);
         const note = forSale ? `${forSale} for sale` : t.animals.length ? 'breeding' : 'empty';
         u.text(t.name, lx + 7, ly + 4, C.paperInk, { maxW: lw - 22 - textWidth(note) });
-        u.text(note, lx + lw - 7, ly + 4, forSale ? 30 : 3, { align: 'right' });
+        u.text(note, lx + lw - 7, ly + 4, forSale ? C.good : 3, { align: 'right' });
       } else {
         u.head(t.name, lx + 7, ly + 4, C.paperInk, { maxW: lw - 82 });
         if (st) {
           u.stars(lx + lw - 66, ly + 5, st.rating.stars, C.coin, 62);
-          const rate = `${ICON.coin} ${Math.round(st.coinsPerHour)}/h`;
           u.text(st.cls.best ? st.cls.best.def.name : 'Unrecognized', lx + 7, ly + 18, 3, { maxW: lw - 22 - textWidth(rate) });
-          u.text(rate, lx + lw - 7, ly + 18, 20, { align: 'right' });
+          u.text(rate, lx + lw - 7, ly + 18, C.gold, { align: 'right' });
         }
       }
+      if (st) badges(u, attention(app, t, st), tx + dw - 4, ty + 4);
+      sparkles(app, t.id, tx, ty, dw, Math.min(dh, 50));
       if (u.hover(x, y, cw, ch)) {
         u.rr(tx - 2, ty - 2, dw + 4, 2, 1, C.pick);
         if (u.clicked) {

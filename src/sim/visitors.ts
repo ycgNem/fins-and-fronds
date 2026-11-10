@@ -1,13 +1,14 @@
 // The visitors: implied, never drawn. They exist as numbers (visitors per hour, coins), as
 // fingerprints on the glass, as coins dropping into the box and as lines in the guestbook.
 import { species } from '../data';
-import { GUEST_LINES, GUEST_NAMES, GUEST_PLACES, type GuestTrigger } from '../data/guestbook';
+import { GUEST_LINES, GUEST_NAMES, GUEST_PLACES, GUEST_PLACES_ON, type GuestTrigger } from '../data/guestbook';
 import type { Rng } from '../engine/rng';
 import { BAL, sizeFactor } from './balance';
 import type { Classification } from './archetype';
 import { type Facts, litersOf } from './facts';
 import type { Rating } from './rating';
 import { type GameState, hourOf, type Tank } from './state';
+import { weekEvent } from './week';
 import type { SpeciesMood } from './wellbeing';
 
 export function isOpen(state: GameState, time: number): 'day' | 'night' | false {
@@ -42,8 +43,9 @@ function fill(s: string, vars: Record<string, string>): string {
   return s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
 }
 
-/** Pick a guestbook line that fits what visitors saw in this tank. */
-export function guestLine(rng: Rng, t: Tank, f: Facts, rating: Rating, cls: Classification, moods: Map<string, SpeciesMood>, night: boolean): { text: string; who: string } {
+/** Pick a guestbook line that fits what visitors saw in this tank (`fresh`: its species that are
+ *  new to the codex today). */
+export function guestLine(rng: Rng, t: Tank, f: Facts, rating: Rating, cls: Classification, moods: Map<string, SpeciesMood>, night: boolean, fresh: string[] = [], time?: number): { text: string; who: string } {
   const triggers: GuestTrigger[] = [];
   const ids = [...f.bySpecies.keys()];
   const vars: Record<string, string> = { tank: t.name, type: cls.best?.def.name ?? 'tank' };
@@ -75,6 +77,9 @@ export function guestLine(rng: Rng, t: Tank, f: Facts, rating: Rating, cls: Clas
   if (t.chem.algae > 0.4 || t.chem.glass > 0.5) triggers.push('algae');
   if (t.smudge > 0.5) triggers.push('smudged');
   if (t.pests.snails > 15) triggers.push('pests');
+  if (fresh.length) triggers.push('new_species', 'new_species');
+  // plants and stones, nothing living in it yet
+  if (!t.animals.length) triggers.push('empty');
   const sad = [...moods.values()].find((m) => m.mood < 0.45);
   if (sad) triggers.push('stressed', 'stressed');
   const r = rating.total;
@@ -82,7 +87,9 @@ export function guestLine(rng: Rng, t: Tank, f: Facts, rating: Rating, cls: Clas
   const trig = rng.pick(triggers);
   if (trig === 'big' && big) vars.sp = big.name.toLowerCase();
   if (trig === 'stressed' && sad) vars.sp = species(sad.sp).name.toLowerCase();
-  if (trig === 'new_species' && ids.length) vars.sp = species(rng.pick(ids)).name;
+  if (trig === 'new_species' && fresh.length) vars.sp = species(rng.pick(fresh)).name.toLowerCase();
   const text = fill(rng.pick(GUEST_LINES[trig]), vars);
-  return { text, who: `${rng.pick(GUEST_NAMES)}, ${rng.pick(GUEST_PLACES)}` };
+  // a school trip signs only on Friday, the market crowd on Saturday (and more often that day)
+  const today = time === undefined ? [] : GUEST_PLACES_ON[weekEvent(time)?.id ?? ''] ?? [];
+  return { text, who: `${rng.pick(GUEST_NAMES)}, ${rng.pick([...GUEST_PLACES, ...today, ...today])}` };
 }

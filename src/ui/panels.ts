@@ -8,14 +8,16 @@ import { UI as C } from '../data/palette';
 import type { EquipDef, ItemCat, ItemDef, Slot, SpeciesDef } from '../data/types';
 import { creatureFrame, itemFrame, placedFrame } from '../render/art/sprites';
 import * as act from '../sim/actions';
-import { equipForSale, itemsForSale, speciesForSale, substratesForSale } from '../sim/catalog';
+import { equipForSale, itemsForSale, speciesForSale, substratePrice, substratesForSale } from '../sim/catalog';
 import { facts, FLOW_NAMES, litersOf } from '../sim/facts';
 import { PART_NAMES, type RatingParts } from '../sim/rating';
+import { reportIdeas } from '../sim/ideas';
 import { type Animal, hourOf, type Tank, type WaterSource } from '../sim/state';
-import { cycleProgress, maxHeatLift, SOURCES } from '../sim/water';
+import { cycleProgress, maxChillDrop, maxHeatLift, SOURCES } from '../sim/water';
 import { BAL } from '../sim/balance';
-import { isStock, offers } from '../sim/sales';
-import { type SpeciesMood, speciesMoods } from '../sim/wellbeing';
+import { isStock, offers, reserves } from '../sim/sales';
+import { type MoodCtx, type SpeciesMood, speciesMoods } from '../sim/wellbeing';
+import { type Biotope, biotopeOf, explain, fitsBiotope, type Heading, heading, heldBack, homeChip, homeLine, nearFor, rackCount, REGION_SHORT } from './hints';
 import { TOOLBAR_H, TOP_H } from './hud';
 import { ICON, M, textWidth, type TipLine, type UI } from './ui';
 
@@ -55,6 +57,26 @@ function moodColor(m: number) {
   return m >= 0.75 ? C.good : m >= 0.45 ? C.warn : C.bad;
 }
 
+/** A two-click confirmation that lapses on a timer (removing gear or a plant is for good): the
+ *  first click arms it, a second within a few seconds goes ahead. */
+let armed = { id: '', until: 0 };
+function isArmed(u: UI, id: string) {
+  return armed.id === id && u.time < armed.until;
+}
+function confirmed(u: UI, id: string): boolean {
+  if (isArmed(u, id)) {
+    armed = { id: '', until: 0 };
+    return true;
+  }
+  armed = { id, until: u.time + BAL.confirmSecs };
+  return false;
+}
+
+/** the price of something, in bronze, or in red when you cannot afford it */
+function priceColor(app: App, cost: number) {
+  return app.state.coins >= cost ? C.gold : C.bad;
+}
+
 const MODES: { id: Mode; label: string; title: string; tip: string }[] = [
   { id: 'look', label: 'Look', title: 'Report card', tip: 'Watch the tank and read its report card (1)' },
   { id: 'scape', label: 'Scape', title: 'Aquascape', tip: 'Stones, wood, plants, corals and the substrate (2)' },
@@ -71,11 +93,15 @@ export function drawPanel(app: App) {
   const x = app.W - pw - 6, y = TOP_H + 2;
   const h = app.H - TOP_H - TOOLBAR_H - 4;
   const cur = MODES.findIndex((m) => m.id === app.mode);
+  // an animal or piece that has gone (sold, netted, rehomed) lets go of the card
+  const sel = app.select;
+  if (sel && !(sel.kind === 'agent' ? t.animals.some((q) => q.uid === sel.uid) : t.items.some((q) => q.uid === sel.uid))) app.select = null;
   // the card first, then the tabs over its top edge
   u.panel(x, y + TAB_H, pw, h - TAB_H, 'card');
   const pick = u.folderTabs('modes', x + 6, y, pw - 12, MODES.map((m) => m.label), cur, MODES.map((m) => m.tip));
   if (pick !== cur) app.setMode(MODES[pick].id);
   u.head(MODES[cur].title, x + M.pad + 2, y + TAB_H + 8);
+  if (app.mode === 'scape') scapeMeter(app, t, x + pw - M.pad - 2, y + TAB_H + 8);
   const ix = x + M.pad + 2, iy = y + TAB_H + 28, iw = pw - M.pad * 2 - 2, ih = h - TAB_H - 34;
   switch (app.mode) {
     case 'look': look(app, t, ix, iy, iw, ih); break;
@@ -100,7 +126,8 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     u.text(best ? best.def.name : 'Unrecognized tank', x, y, best ? C.strong : C.textDim, { maxW: w });
     if (best && u.hover(x, y, w, M.line)) u.tip([{ text: best.def.blurb }, { text: best.def.real, color: C.textDim }], 260);
     y += M.line;
-    u.text(best ? best.def.family : st.cls.near[0] ? `Close to: ${st.cls.near[0].def.name}` : 'Add life and a scape', x, y, C.textDim, { maxW: w });
+    const near = nearFor(st);
+    u.text(best ? best.def.family : near[0] ? `Close to: ${near[0].def.name}` : 'Add life and a scape', x, y, C.textDim, { maxW: w });
     y += M.line + 6;
     u.stars(x, y, st.rating.stars);
     u.head(`${Math.round(st.rating.total)}`, x + w - 34, y, C.strong, { align: 'right' });
@@ -111,7 +138,11 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       u.text(PART_NAMES[k], x, y, C.text);
       u.bar(x + 100, y + 3, w - 132, 10, v / 100, v >= 75 ? C.good : v >= 50 ? C.accent : v >= 30 ? C.warn : C.bad);
       u.text(String(Math.round(v)), x + w, y, C.strong, { align: 'right' });
-      if (u.hover(x, y, w, M.row)) u.tip([{ text: PART_NAMES[k] }, { text: st.rating.notes[k] ?? 'Looking good.' }]);
+      if (u.hover(x, y, w, M.row)) {
+        // habitat lists every problem, the most pressing first
+        const said = k === 'habitat' && st.rating.habitatIssues.length ? st.rating.habitatIssues.slice(0, 4) : [st.rating.notes[k] ?? 'Looking good.'];
+        u.tip([{ text: PART_NAMES[k] }, ...said.map((s, i) => ({ text: s, color: i ? C.textDim : C.text }))]);
+      }
       y += M.row;
     }
     y += 4;
@@ -122,14 +153,17 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     if (u.hover(x, y, w, M.row)) u.tip([{ text: 'Running costs per day' }, { text: 'Power and water for its size, wear on its gear, and food for every animal.', color: C.textDim }]);
     y += M.row + 4;
     // advice: what keeps this from being more true to its type, or what would make it one
-    const hints = best ? best.hints.slice(0, 3) : st.cls.near.slice(0, 2).flatMap((n) => n.hints.slice(0, 1).map((hh) => `${n.def.name}: ${hh}`));
-    const notes = (Object.keys(st.rating.notes) as (keyof RatingParts)[]).filter((k) => st.rating.parts[k] < 60).map((k) => st.rating.notes[k]!).slice(0, 2);
-    if (hints.length || notes.length) {
+    const hints = best ? best.hints.slice(0, 3) : near.slice(0, 2).flatMap((n) => n.hints.slice(0, 1).map((hh) => `${n.def.name}: ${hh}`));
+    const notes = (Object.keys(st.rating.notes) as (keyof RatingParts)[]).filter((k) => st.rating.parts[k] < 60)
+      .flatMap((k) => (k === 'habitat' ? st.rating.habitatIssues.slice(0, 2) : [st.rating.notes[k] ?? ''])).filter((s) => s).slice(0, 3);
+    // (a stock tank hears what keeps it from breeding instead)
+    const ideas = reportIdeas(t, st, notes, hints);
+    if (ideas.length) {
       u.divider(x, y, w);
       y += 6;
       u.head('Ideas', x, y);
       y += M.row + 2;
-      for (const s of new Set([...notes, ...hints])) y += u.para(`${ICON.right} ${s}`, x, y, w, C.text) + 3;
+      for (const s of ideas) y += u.para(`${ICON.right} ${s}`, x, y, w, C.text) + 3;
     }
     y += 3;
     u.divider(x, y, w);
@@ -157,9 +191,13 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
           if (a) app.select = { kind: 'agent', uid: a.uid };
         }
         u.sprite(creatureFrame(sp, 0), x, y, 32, 22);
-        u.text(s.name, x + 38, y + 4, C.strong, { maxW: w - 110 });
-        u.text(`x${m.count}`, x + w - 40, y + 4, C.textDim, { align: 'right' });
-        u.bar(x + w - 34, y + 7, 34, 8, m.mood, moodColor(m.mood));
+        // a species that is not thriving says why in its row, not only in the tooltip (touch has no hover)
+        const why = m.mood < 0.75 ? m.reasons.find((r) => !r.good)?.text : undefined;
+        const ly = why ? y - 1 : y + 4;
+        u.text(s.name, x + 38, ly, C.strong, { maxW: w - 110 });
+        u.text(`x${m.count}`, x + w - 40, ly, C.textDim, { align: 'right' });
+        u.bar(x + w - 34, ly + 3, 34, 8, m.mood, moodColor(m.mood));
+        if (why) u.text(why, x + 38, y + 11, moodColor(m.mood), { maxW: w - 38 });
         y += M.item;
       }
       if (t.pests.snails >= 1) {
@@ -183,7 +221,7 @@ function look(app: App, t: Tank, x: number, y: number, w: number, h: number) {
           app.run(act.dismantleTank(app.game!, t));
         } else app.panel.confirmDismantle = t.id;
       }
-      if (c && !u.hover(x + hw + 6, y, hw, M.btnS + 2)) app.panel.confirmDismantle = 0;
+      if (c && u.disarmed(x + hw + 6, y, hw, M.btnS + 2)) app.panel.confirmDismantle = 0;
       y += M.btnS + 6;
     }
     return y;
@@ -195,20 +233,41 @@ function salesCard(app: App, t: Tank, x: number, y: number, w: number): number {
   const u = app.ui;
   const st = app.game!.stats.get(t.id);
   u.head('For sale', x, y);
-  u.text(`today ${ICON.coin} ${Math.round(app.state.stats.salesToday ?? 0)}`, x + w, y + 1, C.gold, { align: 'right' });
+  u.text(`today ${ICON.coin} ${Math.round(t.today)}`, x + w, y + 1, C.gold, { align: 'right' });
   y += M.row + 2;
+  // the stepper is a floor: a species that breeds always keeps a whole breeding group (reserveOf in
+  // src/sim/sales.ts), so each row below says what that species really keeps back
   const keep = t.keep ?? BAL.keepDefault;
-  const d = u.stepper('keep', x, y, `keep ${keep}`, 90);
+  u.text('Keep at least', x, y + 1, C.textDim);
+  const sx = x + textWidth('Keep at least') + 6;
+  const d = u.stepper('keep', sx, y, String(keep), 56, [
+    { text: `Keep at least ${keep} of each species` },
+    { text: 'Customers never buy these. A species that breeds keeps a whole breeding group (its school, or a pair) even when that is more, so the colony goes on breeding.', color: C.textDim },
+  ]);
   if (d) act.setKeep(app.game!, t, keep + d);
-  u.text('of each as breeders', x + 96, y + 1, C.textDim, { maxW: w - 96 });
+  u.text('of each', sx + 62, y + 1, C.textDim, { maxW: x + w - sx - 62 });
   y += M.btnS + 6;
   const os = offers(t, st?.moods);
-  if (!os.length) y += u.para(t.animals.length ? 'Nothing to sell yet. Customers buy healthy adults above the breeders you keep; fry sell once they grow up.' : 'Stock it from the supplier or breed fish here; customers will buy them. Overgrown plants are cut into cuttings for sale.', x, y, w, C.textDim) + 4;
-  for (const o of os) {
-    u.sprite(creatureFrame(o.sp, 0), x, y, 32, 22);
-    u.text(species(o.sp).name, x + 38, y + 4, C.strong, { maxW: w - 120 });
-    u.text(`${o.n} x ${ICON.coin}${o.each}`, x + w, y + 4, C.gold, { align: 'right' });
-    y += M.item;
+  const kinds = reserves(t);
+  if (!kinds.length) y += u.para(t.animals.length ? 'Only fry so far: they sell once they grow up.' : 'Stock it from the supplier or breed fish here; customers will buy them. Overgrown plants are cut into cuttings for sale.', x, y, w, C.textDim) + 4;
+  else if (!os.length) y += u.para('Nothing to sell yet. Customers buy healthy adults above the breeding group each species keeps back; fry sell once they grow up.', x, y, w, C.textDim) + 4;
+  for (const { sp, adults: n, keep: kept } of kinds) {
+    const def = species(sp), o = os.find((q) => q.sp === sp);
+    // the counter sells only the healthy, unnamed ones past the reserve: a third line counts the
+    // sick and the pets, or "15 here, keeps 10" with nothing for sale would read as a fault
+    const c = rackCount(t, sp);
+    // (healthy adults past the reserve that still do not sell are too unhappy to: offers() skips them)
+    const spare = c.well - kept;
+    // (none for sale: how many there are, beside what it keeps and what it holds back, says why)
+    const price = o ? `${o.n} x ${ICON.coin}${o.each}` : spare > 0 ? 'too unsettled' : `${n} here`;
+    u.sprite(creatureFrame(sp, 0), x, y + 2, 32, 22);
+    u.text(def.name, x + 38, y, C.strong, { maxW: w - 44 - textWidth(price) });
+    u.text(price, x + w, y, o ? C.gold : C.textMute, { align: 'right' });
+    const why = def.breed.type === 'none' || def.breed.ease <= 0 ? `keeps ${kept} back` : kept > keep ? `keeps ${kept}, a breeding group` : `keeps ${kept} to breed`;
+    u.text(why, x + 38, y + 13, C.textDim, { maxW: w - 38 });
+    const held = heldBack(c, kept);
+    if (held) u.text(held, x + 38, y + 26, C.textDim, { maxW: w - 38 });
+    y += held ? 43 : 30;
   }
   y += 4;
   u.divider(x, y, w);
@@ -253,7 +312,8 @@ function speciesCard(app: App, s: SpeciesDef, m: SpeciesMood | undefined, x: num
   u.text(`${s.cm} cm, ${s.temper}, ${s.zone}${note ? ` (${note})` : ''}`, x, y, C.text, { maxW: w });
   y += M.line;
   u.text(`${s.temp[0]}-${s.temp[1]}C  pH ${s.ph[0]}-${s.ph[1]}${s.gh ? `  GH ${s.gh[0]}-${s.gh[1]}` : ''}${s.sg ? `  SG ${s.sg[0]}` : ''}`, x, y, C.text, { maxW: w });
-  y += M.line + 4;
+  y += M.line;
+  y += u.para(`Home: ${homeLine(s)}`, x, y, w, C.accent) + 4;
   y += u.para(s.fact, x, y, w, C.textDim) + 4;
   if (m) {
     u.text(`Mood ${Math.round(m.mood * 100)}%`, x, y, moodColor(m.mood));
@@ -287,6 +347,24 @@ function itemTip(it: ItemDef): TipLine[] {
   return lines;
 }
 
+/** everyone who will share this water: the residents and the fish still floating in their bags */
+function sharers(t: Tank): SpeciesDef[] {
+  return [...new Set([...t.animals.map((a) => a.sp), ...t.bags.map((b) => b.sp)])].map((id) => species(id));
+}
+
+/** "raises pH: not for the neon tetra" when stone or wood pushes the water out of a resident's range */
+function chemClash(t: Tank, it: ItemDef): string {
+  const fx = it.fx;
+  if (!fx) return '';
+  // (tannins only pull the pH down in soft water: carbonate hardness soaks them up)
+  const up = (fx.ph ?? 0) > 0 || (fx.gh ?? 0) > 0, down = (fx.ph ?? 0) < 0 || ((fx.tannin ?? 0) > 0 && t.chem.kh < 5);
+  for (const s of sharers(t)) {
+    if (up && (s.ph[1] < 7.6 || (s.gh && s.gh[1] < 10))) return `raises pH: not for the ${s.name.toLowerCase()}`;
+    if (down && s.ph[0] > 7.3) return `lowers pH: not for the ${s.name.toLowerCase()}`;
+  }
+  return '';
+}
+
 function itemCard(app: App, it: ItemDef, x: number, y: number, w: number, size: number, health: number): number {
   const u = app.ui;
   u.panel(x, y, w, 66, 'inset', false);
@@ -314,6 +392,44 @@ const SCAPE_TABS: { label: string; cats?: ItemCat[]; tip: string }[] = [
   { label: 'Kept', tip: 'Cuttings, frags and stones in storage' },
   { label: 'Sand', tip: 'Substrate and slope' },
 ];
+
+/** the scape part of the rating as you work, and what the last placement, drag or tilt did to it:
+ *  `base` is the score before that burst of changes, `at` when the score last moved because of one */
+const scapeSeen = new Map<number, { v: number; base: number; sig: string; moved: number; at: number; seen: number }>();
+
+function scapeMeter(app: App, t: Tank, rx: number, y: number) {
+  const u = app.ui;
+  const st = app.game!.stats.get(t.id);
+  if (!st) return;
+  const v = Math.round(st.rating.parts.scape);
+  // only a change the player just made counts (growing plants move it too, slowly and on their own)
+  const sig = t.items.map((p) => `${p.uid}:${p.x}:${p.layer}:${p.rot ?? 0}:${p.flip ? 1 : 0}`).join();
+  let m = scapeSeen.get(t.id);
+  // (coming back to the Scape tab later starts afresh rather than reporting what changed meanwhile)
+  if (!m || u.time - m.seen > 0.5) scapeSeen.set(t.id, (m = { v, base: v, sig, moved: -99, at: -99, seen: u.time }));
+  m.seen = u.time;
+  if (m.sig !== sig) {
+    // a drag moves a piece every frame: the delta counts from where the whole move began
+    if (u.time - m.moved > 1.5) m.base = m.v;
+    [m.sig, m.moved] = [sig, u.time];
+  }
+  if (m.v !== v) {
+    if (u.time - m.moved < 1.5) m.at = u.time;
+    else m.base = v;
+    m.v = v;
+  }
+  const d = v - m.base;
+  const label = `Scape ${v}`;
+  u.text(label, rx, y + 1, C.strong, { align: 'right' });
+  const age = u.time - m.at;
+  if (d && age < BAL.scapeDeltaSecs) {
+    // the +/- fades out where it appeared
+    u.ctx.globalAlpha = Math.min(1, (BAL.scapeDeltaSecs - age) * 1.5);
+    u.text(`${d > 0 ? '+' : ''}${d}`, rx - textWidth(label) - 6, y + 1, d > 0 ? C.good : C.warn, { align: 'right' });
+    u.ctx.globalAlpha = 1;
+  }
+  if (u.hover(rx - textWidth(label) - 30, y, textWidth(label) + 30, M.row)) u.tip([{ text: `Scape ${v}/100` }, { text: 'The composition part of the rating: fill, depth layers, a focal point near a third, slope, one or two materials, open water and healthy plants.', color: C.textDim }, ...(st.rating.notes.scape ? [{ text: st.rating.notes.scape, color: C.accent }] : [])], 260);
+}
 
 function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   const u = app.ui;
@@ -351,12 +467,24 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       const d = u.stepper('turn', by, y + 54, rot ? `tilt ${Math.abs(rot)} ${rot > 0 ? 'right' : 'left'}` : 'upright', Math.min(140, w - 90));
       if (d) app.run(act.turnItem(g, t, sel.uid, d));
     }
-    if (it.plant && u.button('trim', by, y + 54, 56, M.btnS, 'Trim', { tip: 'Cut it back; cuttings go to storage' })) app.run(act.trimPlant(g, t, sel.uid));
+    // buttons that would refuse say so up front (disabled, with the reason as their tip)
+    const trimWhy = sel.size < 0.9 ? 'Nothing to trim yet: let it grow in first.' : '';
+    if (it.plant && u.button('trim', by, y + 54, 56, M.btnS, 'Trim', { disabled: !!trimWhy, tip: trimWhy || 'Cut it back; cuttings go to storage' })) app.toast(act.trimPlant(g, t, sel.uid), 'good');
     if (it.plant) by += 60;
-    if (it.coral && u.button('frag', by, y + 54, 56, M.btnS, 'Frag', { tip: 'Cut a frag to grow on (needs Coral Fragging)' })) app.run(act.fragCoral(g, t, sel.uid));
-    if (u.button('remove', x + w - 78, y + 54, 74, M.btnS, 'Remove', { style: 'bad', tip: it.cat === 'plant' || it.cat === 'coral' ? 'Rehome it for a little money' : 'Back into storage' })) {
-      app.run(act.removeItem(g, t, sel.uid));
-      app.select = null;
+    const fragWhy = !(s.upgrades['fragging'] ?? 0) ? 'Learn Coral Fragging first (Upgrades, Breeding).' : sel.size < 1.2 ? 'Let it grow a little more first.' : '';
+    if (it.coral && u.button('frag', by, y + 54, 56, M.btnS, 'Frag', { disabled: !!fragWhy, tip: fragWhy || 'Cut a frag to grow on; it goes to storage' })) app.toast(act.fragCoral(g, t, sel.uid), 'good');
+    // a plant or coral is rehomed for good: that asks twice. A stone or wood goes back to storage,
+    // and whatever grows on it goes with it for replanting (removeItem), so it needs no second click
+    const living = it.cat === 'plant' || it.cat === 'coral';
+    const riders = t.items.filter((q) => q.on === sel.uid).length;
+    const rmId = `item:${sel.uid}`;
+    const rmTip = living ? `Rehome it for ${Math.round(it.price * 0.3)} coins. It is gone for good: click twice.`
+      : riders ? `Back into storage, with the ${riders === 1 ? 'one' : riders} growing on it` : 'Back into storage';
+    if (u.button('remove', x + w - 78, y + 54, 74, M.btnS, isArmed(u, rmId) ? 'Sure?' : 'Remove', { style: 'bad', tip: rmTip })) {
+      if (!living || confirmed(u, rmId)) {
+        app.run(act.removeItem(g, t, sel.uid));
+        app.select = null;
+      }
     }
     y += ch + 6;
     h -= ch + 6;
@@ -387,6 +515,7 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   let list: { it: ItemDef; n?: number }[];
   if (cur.label === 'Kept') list = Object.entries(s.inventory).filter(([id, n]) => n > 0 && item(id)).map(([id, n]) => ({ it: item(id), n }));
   else list = itemsForSale(s, t.water).filter((it) => cur.cats!.includes(it.cat)).map((it) => ({ it }));
+  u.mark('scapelist', x, y, w, Math.min(h, 90));
   column(u, `scape${app.panel.scapeTab}`, x, y, w, h, (x, y, w) => {
     if (!list.length) y += u.para(cur.label === 'Kept' ? 'Nothing in storage. Trimmed cuttings, coral frags and expedition finds land here.' : 'Nothing of this kind for this water yet.', x, y, w, C.textDim);
     for (const { it, n } of list) {
@@ -404,8 +533,10 @@ function scape(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       u.sprite(itemFrame(it.id, 1, 1, 0), x, y, 32, 28);
       u.text(it.name, x + 38, y, why ? C.textMute : C.strong, { maxW: w - 96 });
       const sub = it.plant ? `${['', 'low', 'medium', 'high'][it.plant.light]} light${it.plant.co2 === 2 ? ', CO2' : ''}` : it.coral ? `${it.coral.type}, PAR ${it.coral.par[0]}+` : it.fx?.tannin ? 'tannins' : it.fx?.gh ? 'hardens water' : it.cat;
-      u.text(sub, x + 38, y + M.line, C.textDim, { maxW: w - 96 });
-      u.text(n !== undefined ? `x${n}` : `${ICON.coin} ${it.price}`, x + w, y, n !== undefined ? C.text : C.gold, { align: 'right' });
+      // stone or wood that would move the water out of a resident's range says so
+      const clash = chemClash(t, it);
+      u.text(clash || sub, x + 38, y + M.line, clash ? C.warn : C.textDim, { maxW: w - 96 });
+      u.text(n !== undefined ? `x${n}` : `${ICON.coin} ${it.price}`, x + w, y, n !== undefined ? C.text : priceColor(app, it.price), { align: 'right' });
       y += rh;
     }
     return y;
@@ -425,12 +556,12 @@ function ground(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   y += M.btnS + 8;
   column(u, 'ground', x, y, w, h - (M.row + M.btnS + 10), (x, y, w) => {
     for (const sub of substratesForSale(s, t.water)) {
-      const cost = Math.round(sub.price * (litersOf(t) / 60));
+      const cost = substratePrice(t, sub);
       const tip: TipLine[] = [{ text: sub.name }, { text: sub.blurb, color: C.textDim }];
       if (sub.fx.ph) tip.push({ text: `pH ${sub.fx.ph > 0 ? '+' : ''}${sub.fx.ph}${sub.rich ? `, nutrients ${sub.rich}/3` : ''}`, color: C.accent });
       if (u.row(x - 3, y - 1, w + 6, M.row + 2, sub.id === t.substrate, tip) && sub.id !== t.substrate) app.run(act.setSubstrate(g, t, sub.id));
       u.text(sub.name, x, y + 1, C.strong, { maxW: w - 60 });
-      u.text(`${ICON.coin} ${cost}`, x + w, y + 1, C.gold, { align: 'right' });
+      u.text(`${ICON.coin} ${cost}`, x + w, y + 1, priceColor(app, cost), { align: 'right' });
       y += M.row + 2;
     }
     return y;
@@ -439,38 +570,86 @@ function ground(app: App, t: Tank, x: number, y: number, w: number, h: number) {
 
 // ---------------------------------------------------------------- stock
 
-const predictions = new Map<string, { mood: number; reasons: string[]; hurts: string[] }>();
-let predictionKey = '';
+interface Prediction {
+  mood: number;
+  /** what would bother it, with the cause when the water is still on its way there */
+  reasons: string[];
+  hurts: string[];
+}
 
-/** What would happen if n of this species went in: the real mood model, run on a copy. */
-function predict(app: App, t: Tank, sp: string, n: number) {
-  const key = `${t.id}|${t.animals.length}|${t.items.length}|${t.equip.join()}|${t.substrate}|${Math.round(t.chem.temp)}|${Math.round(t.chem.ph * 5)}|${Math.round(t.chem.gh)}`;
-  if (key !== predictionKey) {
+const predictions = new Map<string, Prediction>();
+let predictionKey = '';
+/** the tank as it will be (settled water, every bag released), and its residents' moods then */
+let settled: { tank: Tank; moods: Map<string, SpeciesMood>; heading: Heading } | null = null;
+
+const fakeAnimal = (sp: string, uid: number): Animal => ({ uid, sp, age: 30, health: 1, mood: 1, fry: false, bornHere: false, grade: 2 });
+
+/**
+ * What would happen if n of this species went in: the real mood model, run on a copy of the tank
+ * as it will be a day later. The water there has settled where the source, substrate, stones and
+ * heater take it (a tank set up a minute ago still reads like tap water), and the fish still
+ * floating in their bags have swum out. Feeding is assumed: the verdict is about the species.
+ */
+function predict(app: App, t: Tank, sp: string, n: number): Prediction {
+  const ch = t.chem;
+  const key = `${t.id}|${t.animals.length}|${t.bags.map((b) => `${b.sp}:${b.n}`).join()}|${t.items.length}|${t.equip.join()}|${t.substrate}|${t.set.heater}|${t.set.source}|${t.set.co2}|${Math.round(ch.co2)}|${Math.round(ch.nh3 * 20)}|${Math.round(ch.no2 * 20)}|${Math.round(ch.no3 / 10)}|${Math.round(ch.o2)}|${hourOf(app.state.time)}`;
+  const ctx: MoodCtx = { fedRecently: true, gentle: app.state.settings.gentle };
+  const hour = hourOf(app.state.time);
+  if (key !== predictionKey || !settled) {
     predictions.clear();
     predictionKey = key;
+    const bagged = t.bags.flatMap((b, j) => b.animals ?? Array.from({ length: b.n }, (_, i) => fakeAnimal(b.sp, -1000 - j * 100 - i)));
+    const later: Tank = { ...t, animals: [...t.animals, ...bagged] };
+    const h = heading(later, facts(later, hour));
+    later.chem = { ...ch, temp: h.temp, ph: h.ph, gh: h.gh, kh: h.kh, tannin: h.tannin };
+    settled = { tank: later, moods: speciesMoods(later, facts(later, hour), ctx), heading: h };
   }
   const k = `${sp}|${n}`;
   let p = predictions.get(k);
   if (!p) {
-    const clone: Tank = {
-      ...t,
-      animals: [...t.animals, ...Array.from({ length: n }, (_, i) => ({ uid: -1 - i, sp, age: 30, health: 1, mood: 1, fry: false, bornHere: false, grade: 2 }))],
-    };
-    const hour = hourOf(app.state.time);
-    const ctx = { fedRecently: true, gentle: app.state.settings.gentle };
-    const before = app.game!.stats.get(t.id)?.moods;
+    const base = settled.tank;
+    const clone: Tank = { ...base, animals: [...base.animals, ...Array.from({ length: n }, (_, i) => fakeAnimal(sp, -1 - i))] };
     const moods = speciesMoods(clone, facts(clone, hour), ctx);
     const mine = moods.get(sp);
     const hurts: string[] = [];
     for (const [id, m] of moods) {
       if (id === sp) continue;
-      const was = before?.get(id)?.mood ?? 1;
+      // (against the same settled water, so only the newcomers' own effect counts)
+      const was = settled.moods.get(id)?.mood ?? 1;
       if (was - m.mood > 0.08) hurts.push(`${species(id).name} would be unhappier`);
     }
-    p = { mood: mine?.mood ?? 0, reasons: (mine?.reasons ?? []).filter((r) => !r.good).map((r) => r.text), hurts };
+    p = { mood: mine?.mood ?? 0, reasons: (mine?.reasons ?? []).filter((r) => !r.good).map((r) => explain(r.text, settled!.heading)), hurts };
     predictions.set(k, p);
   }
   return p;
+}
+
+/** a prediction as the order list and the holding tank show it */
+function fitMark(p: { mood: number; hurts: string[] }): 'no' | 'maybe' | 'good fit' {
+  return p.hurts.length || p.mood < 0.45 ? 'no' : p.mood < 0.75 ? 'maybe' : 'good fit';
+}
+
+function fitColor(mark: string) {
+  return mark === 'good fit' ? C.good : mark === 'maybe' ? C.warn : C.bad;
+
+}
+
+/** the order list's filter chip (All, Fits, Fish, Inverts, the biotope) */
+let stockFilter = 0;
+
+/** The biotope helper: the place this tank is building toward, how native it is, and who is not
+ *  from there (a biotope type counts every animal species once, and each plant species half). */
+function biotopeNote(app: App, t: Tank, bio: Biotope, x: number, y: number, w: number): number {
+  const u = app.ui;
+  const pct = Math.round(bio.frac * 100), need = Math.round(bio.need * 100);
+  const strangers = [...new Set(t.animals.map((a) => a.sp))].map((id) => species(id)).filter((sp) => sp.source !== 'hitchhiker' && !fitsBiotope(sp, bio));
+  const head = `${bio.name}: ${pct}% native${bio.type ? ` (${bio.type} needs ${need}%)` : ''}`;
+  const hh = u.paraHeight(head, w);
+  u.para(head, x, y, w, pct >= need ? C.good : C.accent);
+  if (u.hover(x, y, w, hh)) u.tip([{ text: bio.name }, { text: `${bio.type ? `The ${bio.type} wants ${need}% of its species from here.` : 'Most of the animals here share this home.'} Each animal species counts once, each plant species half. The ${REGION_SHORT[bio.ids[0]]} filter lists the rest.`, color: C.textDim }], 260);
+  y += hh;
+  if (strangers.length) y += u.para(`Not from here: ${strangers.map((sp) => `${sp.name} (${homeChip(sp)})`).join(', ')}`, x, y, w, C.textDim);
+  return y + 6;
 }
 
 function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
@@ -482,13 +661,32 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   y += used;
   h -= used;
   if (app.panel.stockTab === 0) {
-    const list = speciesForSale(s, t.water).sort((a, b) => a.tier - b.tier || a.price - b.price);
+    const st = g.stats.get(t.id);
+    const bio = st ? biotopeOf(st) : null;
+    // filter chips: what will do well here, by kind, and the biotope this tank is building toward
+    const labels = ['All', 'Fits', 'Fish', 'Inverts', ...(bio ? [REGION_SHORT[bio.ids[0]]] : [])];
+    const tips = ['Everything the supplier lists', 'Only what is predicted to do well here', 'Fish only', 'Shrimp, snails, crabs and the other invertebrates', ...(bio ? [`Only species from ${bio.name}: they make the tank more native`] : [])];
+    if (stockFilter >= labels.length) stockFilter = 0;
+    const [fi, fh] = tabRows(u, 'sfilt', x, y, w, labels, stockFilter, labels.length, tips);
+    stockFilter = fi;
+    y += fh;
+    h -= fh;
+    const list = speciesForSale(s, t.water).sort((a, b) => a.tier - b.tier || a.price - b.price).filter((sp) =>
+      stockFilter === 1 ? fitMark(predict(app, t, sp.id, Math.max(1, sp.school))) === 'good fit'
+      : stockFilter === 2 ? sp.kind === 'fish'
+      : stockFilter === 3 ? sp.kind !== 'fish'
+      : stockFilter === 4 && bio ? fitsBiotope(sp, bio) : true);
     const buyH = app.panel.buySp ? 84 : 0;
     u.mark('stocklist', x, y, w, Math.min(h - buyH, 90));
     column(u, 'stock', x, y, w, h - buyH, (x, y, w) => {
+      if (bio && st) y = biotopeNote(app, t, bio, x, y, w);
+      if (!list.length) y += u.para(stockFilter === 1 ? 'Nothing on the list would be happy here yet. The tooltips say why.' : 'Nothing of this kind for this water yet.', x, y, w, C.textDim);
       for (const sp of list) {
         const p = predict(app, t, sp.id, Math.max(1, sp.school));
-        const tip: TipLine[] = [{ text: `${sp.name} (${sp.sci})` }, { text: sp.fact, color: C.textDim }, { text: `${sp.cm} cm, ${sp.temper}, needs ${sp.minL} L+${sp.school > 1 ? `, groups of ${sp.school}+` : ''}`, color: C.accent }, { text: `Predicted mood here: ${Math.round(p.mood * 100)}%`, color: moodColor(p.mood) }, ...p.reasons.slice(0, 3).map((r) => ({ text: `- ${r}`, color: C.warn })), ...p.hurts.slice(0, 2).map((r) => ({ text: `! ${r}`, color: C.bad }))];
+        const native = bio ? fitsBiotope(sp, bio) : false;
+        const tip: TipLine[] = [{ text: `${sp.name} (${sp.sci})` }, { text: sp.fact, color: C.textDim }, { text: `${sp.cm} cm, ${sp.temper}, needs ${sp.minL} L+${sp.school > 1 ? `, groups of ${sp.school}+` : ''}`, color: C.accent },
+          { text: `Home: ${homeLine(sp)}${bio ? (native ? ` (counts toward ${bio.name})` : ` (not from ${bio.name})`) : ''}`, color: C.text },
+          { text: `Predicted mood once the water settles: ${Math.round(p.mood * 100)}%`, color: moodColor(p.mood) }, ...p.reasons.slice(0, 3).map((r) => ({ text: `- ${r}`, color: C.warn })), ...p.hurts.slice(0, 2).map((r) => ({ text: `! ${r}`, color: C.bad }))];
         const rh = M.item + 6;
         if (u.row(x - 3, y - 2, w + 6, rh, app.panel.buySp === sp.id, tip)) {
           app.panel.buySp = sp.id;
@@ -496,10 +694,15 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
         }
         u.sprite(creatureFrame(sp.id, 0), x, y, 34, 28);
         u.text(sp.name, x + 40, y, C.strong, { maxW: w - 100 });
-        u.text(sp.kind === 'fish' ? sp.temper : sp.kind, x + 40, y + M.line, C.textDim, { maxW: w - 100 });
-        u.text(`${ICON.coin} ${sp.price}`, x + w, y, C.gold, { align: 'right' });
-        const mark = p.hurts.length || p.mood < 0.45 ? 'no' : p.mood < 0.75 ? 'maybe' : 'good fit';
-        u.text(mark, x + w, y + M.line, mark === 'good fit' ? C.good : mark === 'maybe' ? C.warn : C.bad, { align: 'right' });
+        u.text(`${ICON.coin} ${sp.price}`, x + w, y, priceColor(app, sp.price), { align: 'right' });
+        // the home chip (gold when it fits this tank's biotope), then why it would not do well
+        const chip = homeChip(sp), cw = textWidth(chip) + 6;
+        u.rr(x + 40, y + M.line, cw, 13, 3, native ? C.pick : C.panelLo, native ? 0.7 : 0.6);
+        u.text(chip, x + 43, y + M.line - 1, native ? C.strong : C.textDim);
+        const mark = fitMark(p);
+        const why = mark === 'good fit' ? (sp.kind === 'fish' ? sp.temper : sp.kind) : p.reasons[0] ?? p.hurts[0] ?? '';
+        u.text(why, x + 44 + cw, y + M.line, mark === 'good fit' ? C.textDim : moodColor(p.hurts.length ? 0 : p.mood), { maxW: w - 104 - cw });
+        u.text(mark, x + w, y + M.line, fitColor(mark), { align: 'right' });
         y += rh;
       }
       return y;
@@ -514,7 +717,7 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       if (d) app.panel.buyN = Math.max(1, Math.min(sp.max ?? 50, app.panel.buyN + d));
       const cost = sp.price * app.panel.buyN;
       u.text(`${ICON.coin} ${cost}`, x + 106, by + 26, s.coins >= cost ? C.gold : C.bad);
-      if (u.button('order', x + 6, by + 48, w - 12, M.btn + 2, 'Order (arrives in a bag)', { style: 'good', disabled: s.coins < cost })) {
+      if (u.button('order', x + 6, by + 48, w - 12, M.btn + 2, 'Order (arrives in a bag)', { style: 'good', disabled: s.coins < cost, tip: s.coins < cost ? `Not enough coins: ${cost} needed` : undefined })) {
         const msg = act.buyAnimals(g, t, sp.id, app.panel.buyN);
         if (msg) app.toast(msg, 'bad');
         else app.toast(`${app.panel.buyN} ${sp.name} on the way: they float for half an hour to acclimate.`, 'info');
@@ -527,13 +730,14 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       for (const [sp, m] of st?.moods ?? []) {
         const s0 = species(sp);
         u.sprite(creatureFrame(sp, 0), x, y, 34, 28);
-        u.text(s0.name, x + 40, y, C.strong, { maxW: w - 110 });
-        u.text(`x${m.count}  mood ${Math.round(m.mood * 100)}%`, x + 40, y + M.line, moodColor(m.mood));
-        if (u.button(`net${sp}`, x + w - 86, y + 5, 48, M.btnS + 2, 'Net 1', { style: 'flat', tip: 'Move one to the holding tank' })) {
+        // the name has the row to itself; the Net buttons sit beside the shorter count line below it
+        u.text(s0.name, x + 40, y, C.strong, { maxW: w - 40 });
+        u.text(`x${m.count}  mood ${Math.round(m.mood * 100)}%`, x + 40, y + M.line, moodColor(m.mood), { maxW: w - 132 });
+        if (u.button(`net${sp}`, x + w - 86, y + 12, 48, M.btnS + 2, 'Net 1', { style: 'flat', tip: 'Move one to the holding tank' })) {
           const a = t.animals.find((q) => q.sp === sp && !q.fry) ?? t.animals.find((q) => q.sp === sp);
           if (a) app.run(act.moveToHolding(g, t, [a.uid]));
         }
-        if (u.button(`netall${sp}`, x + w - 34, y + 5, 34, M.btnS + 2, 'All', { style: 'flat', tip: 'Net every one of them (fry too) into holding' })) {
+        if (u.button(`netall${sp}`, x + w - 34, y + 12, 34, M.btnS + 2, 'All', { style: 'flat', tip: 'Net every one of them (fry too) into holding' })) {
           app.run(act.moveToHolding(g, t, t.animals.filter((q) => q.sp === sp).map((q) => q.uid)));
         }
         y += M.item + 6;
@@ -548,9 +752,20 @@ function stock(app: App, t: Tank, x: number, y: number, w: number, h: number) {
       for (const [sp, uids] of groups) {
         const s0 = species(sp);
         u.sprite(creatureFrame(sp, 0), x, y, 34, 28);
-        u.text(s0.name, x + 40, y, C.strong, { maxW: w - 160 });
+        // the name and count keep clear of the three buttons (150 px) on the right
+        const tw = w - 194;
+        u.text(s0.name, x + 40, y, C.strong, { maxW: tw });
         u.text(`x${uids.length}`, x + 40, y + M.line, C.textDim);
         const no = act.cannotHouse(t, sp);
+        // how they would fit this tank, all of them, with the same marks as the order list
+        const p = no ? null : predict(app, t, sp, uids.length);
+        const mark = p ? fitMark(p) : 'no';
+        const cw = textWidth(`x${uids.length}`) + 8;
+        u.text(mark, x + 40 + cw, y + M.line, fitColor(mark), { maxW: tw - cw });
+        if (u.hover(x, y - 2, tw + 40, M.item + 4)) {
+          const why: TipLine[] = p ? [{ text: `Predicted mood here: ${Math.round(p.mood * 100)}%`, color: moodColor(p.mood) }, ...p.reasons.slice(0, 3).map((r) => ({ text: `- ${r}`, color: C.warn })), ...p.hurts.slice(0, 2).map((r) => ({ text: `! ${r}`, color: C.bad }))] : [{ text: no, color: C.bad }];
+          u.tip([{ text: `${s0.name} x${uids.length} in this tank` }, ...why]);
+        }
         if (u.button(`hadd${sp}`, x + w - 150, y + 5, 40, M.btnS + 2, 'Add', { style: 'good', disabled: !!no, tip: no || 'Float one into this tank' })) app.run(act.placeFromHolding(g, t, [uids[0]]));
         if (u.button(`haddall${sp}`, x + w - 106, y + 5, 38, M.btnS + 2, 'All', { style: 'good', disabled: !!no, tip: no || 'Float them all into this tank' })) app.run(act.placeFromHolding(g, t, uids));
         if (u.button(`hsell${sp}`, x + w - 64, y + 5, 64, M.btnS + 2, 'Rehome', { style: 'flat', tip: 'Give them all to local hobbyists for a little money' })) app.run(act.sellHolding(g, uids));
@@ -572,12 +787,27 @@ const GEAR_TABS: { label: string; slots: Slot[] }[] = [
   { label: 'Other', slots: ['lid', 'feeder', 'ro', 'mister'] },
 ];
 
+/** what the numbers on a piece of gear mean, for its tooltip */
+function equipHelp(e: EquipDef): string {
+  if (e.slot === 'filter') return 'bio: liters of bacteria-rich media, how much waste it can turn safe. L/h: how much water it moves an hour (about 4-10 times the tank an hour is usual).';
+  if (e.slot === 'light') return 'PAR: how much light reaches the plants. Low-light plants want about 20-40, carpets and reds 60 and up.';
+  if (e.slot === 'flow') return 'L/h: how much water it pushes an hour. More current suits stream and reef animals; slow-water fish dislike it.';
+  if (e.slot === 'co2') return 'ppm: how much CO2 it adds while the lights are on. Plants grow faster; the pH drops by day.';
+  return '';
+}
+
+/** a big number in fewer letters: 60012 as 60k, 2480 as 2.5k */
+function shortNum(n: number): string {
+  const r = Math.round(n);
+  if (r < 1000) return String(r);
+  return r < 10000 ? `${(r / 1000).toFixed(1).replace(/\.0$/, '')}k` : `${Math.round(r / 1000)}k`;
+}
+
 function equipStat(e: EquipDef): string {
-  if (e.slot === 'filter') return `bio ${e.bio ?? 0} L, ${e.lph ?? 0} L/h`;
-  if (e.slot === 'heater') return `${e.watts} W, up to ${e.maxGal} gal`;
-  if (e.slot === 'chiller') return `${e.watts} W`;
+  if (e.slot === 'filter') return `bio ${e.bio ?? 0} L, ${e.turnover ? `${e.turnover}x the tank` : `${e.lph ?? 0} L`}/h`;
+  if (e.slot === 'heater' || e.slot === 'chiller') return `${e.watts} W, up to ${e.maxGal} gal`;
   if (e.slot === 'light') return `PAR ${e.par}${e.tint ? `, ${e.tint}` : ''}`;
-  if (e.slot === 'flow') return `${e.lph} L/h`;
+  if (e.slot === 'flow') return e.turnover ? `${e.turnover}x the tank/h` : `${e.lph} L/h`;
   if (e.slot === 'co2') return `+${e.co2} ppm`;
   return e.slot;
 }
@@ -592,12 +822,23 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   const liters = f?.liters ?? litersOf(t), gal = Math.round(liters / BAL.galL);
   // installed
   u.text('Installed', x, y, C.head);
-  if (f) u.text(`bioload ${Math.round(f.bioload)}/${Math.round(f.bioCap)}, ${FLOW_NAMES[f.flow]}`, x + w, y, f.bioload > f.bioCap ? C.bad : C.textDim, { align: 'right' });
+  if (f) {
+    // an exhibit's numbers run to five digits: shortened (60k) when they crowd the heading, and on
+    // a line of their own when even that does not fit beside it
+    const room = w - textWidth('Installed') - 8;
+    let load = `bioload ${Math.round(f.bioload)}/${Math.round(f.bioCap)}, ${FLOW_NAMES[f.flow]}`;
+    if (textWidth(load) > room) load = `bioload ${shortNum(f.bioload)}/${shortNum(f.bioCap)}, ${FLOW_NAMES[f.flow]}`;
+    if (textWidth(load) > room) y += M.row;
+    u.text(load, x + w, y, f.bioload > f.bioCap ? C.bad : C.textDim, { align: 'right', maxW: w });
+    if (u.hover(x + w - textWidth(load), y, textWidth(load), M.row)) u.tip([{ text: `Bioload ${Math.round(f.bioload)} of ${Math.round(f.bioCap)}` }, { text: 'The waste the animals make, against what the filter can turn safe. Past the second number the filter cannot keep up: the fish suffer and Habitat drops. Bigger fish make far more waste than small ones.', color: C.textDim }, { text: `Current: ${FLOW_NAMES[f.flow]} (filters and powerheads, for the tank's size)`, color: C.textDim }], 260);
+  }
   y += M.row;
   for (const id of t.equip) {
     const e = equip(id);
-    u.text(e.name, x + 4, y, C.strong, { maxW: w - 30 });
-    if (u.button(`rm${id}`, x + w - M.btnS, y - 1, M.btnS, M.btnS, 'x', { style: 'flat', tip: `Remove (refund ${Math.round(e.price * 0.5)})` })) app.run(act.removeEquip(g, t, id));
+    // removing is for good (half the price back), so it asks once more
+    const rmId = `gear:${t.id}:${id}`, sure = isArmed(u, rmId), bw = sure ? 52 : M.btnS;
+    u.text(e.name, x + 4, y, C.strong, { maxW: w - 14 - bw });
+    if (u.button(`rm${id}`, x + w - bw, y - 1, bw, M.btnS, sure ? 'Sure?' : 'x', { style: sure ? 'bad' : 'flat', tip: sure ? `Click again to remove it (refund ${Math.round(e.price * 0.5)})` : `Remove (refund ${Math.round(e.price * 0.5)})` }) && confirmed(u, rmId)) app.run(act.removeEquip(g, t, id));
     y += M.row;
   }
   if (!t.equip.length) {
@@ -610,17 +851,23 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   if (hasHeat) {
     const d = u.stepper('heat', x, y, `${t.set.heater}C`, 80);
     if (d) act.setHeater(g, t, t.set.heater + d);
-    // heaters too small for the tank top out below the thermostat (at night, with the lights off)
+    // heaters too small for the tank top out below the thermostat (at night, with the lights off),
+    // chillers too small bottom out above it
     const top = f && f.gear.heatL > 0 ? BAL.roomTemp + maxHeatLift(f.gear.heatL, liters) : Infinity;
+    const floor = f && f.gear.chillL > 0 ? BAL.roomTemp - maxChillDrop(f.gear.chillL, liters) : -Infinity;
     if (t.set.heater > top + 0.05) u.text(`too small, max ${top.toFixed(1)}C`, x + 88, y + 1, C.warn, { maxW: w - 88 });
+    else if (t.set.heater < floor - 0.05) u.text(`too small, min ${floor.toFixed(1)}C`, x + 88, y + 1, C.warn, { maxW: w - 88 });
     else u.text('thermostat', x + 88, y + 1, C.textDim);
     y += M.btnS + 4;
   }
-  const half = Math.floor((w - 6) / 2);
-  const dOn = u.stepper('lon', x, y, `on ${t.set.lightOn}:00`, half);
-  const dOff = u.stepper('loff', x + half + 6, y, `off ${t.set.lightOff}:00`, half);
-  if (dOn || dOff) act.setLights(g, t, t.set.lightOn + dOn, t.set.lightOff + dOff);
-  y += M.btnS + 4;
+  // the light timer only once there is a light, its two steppers well apart
+  if (t.equip.some((e) => equip(e).slot === 'light')) {
+    const half = Math.floor((w - 16) / 2);
+    const dOn = u.stepper('lon', x, y, `on ${t.set.lightOn}:00`, half);
+    const dOff = u.stepper('loff', x + w - half, y, `off ${t.set.lightOff}:00`, half);
+    if (dOn || dOff) act.setLights(g, t, t.set.lightOn + dOn, t.set.lightOff + dOff);
+    y += M.btnS + 4;
+  }
   if (t.equip.some((e) => equip(e).slot === 'co2')) {
     const on = u.toggle('co2', x, y + 1, 'CO2 on with the lights', t.set.co2, w);
     if (on !== t.set.co2) act.toggleCo2(g, t);
@@ -637,15 +884,17 @@ function gear(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     for (const e of list) {
       const has = t.equip.includes(e.id);
       const rh = M.line * 2 + 4;
-      // a heater says whether it is big enough for this tank on its own
-      const small = e.slot === 'heater' && (e.maxGal ?? 0) < gal;
-      const fit: TipLine[] = e.slot !== 'heater' ? [] : small
-        ? [{ text: `Too small on its own for this ${gal} gal tank: add a second heater, or pick a bigger one.`, color: C.warn }]
+      // a heater or chiller says whether it is big enough for this tank on its own
+      const rated = e.slot === 'heater' || e.slot === 'chiller';
+      const small = rated && (e.maxGal ?? 0) < gal;
+      const fit: TipLine[] = !rated ? [] : small
+        ? [{ text: e.slot === 'heater' ? `Too small on its own for this ${gal} gal tank: add a second heater, or pick a bigger one.` : `Too small for this ${gal} gal tank: it cannot cool it far. Pick a bigger chiller.`, color: C.warn }]
         : [{ text: `Big enough for this ${gal} gal tank.`, color: C.good }];
-      if (u.row(x - 3, y - 2, w + 6, rh, has, [{ text: e.name }, { text: e.blurb, color: C.textDim }, { text: equipStat(e), color: C.accent }, ...fit, ...(e.needsShell ? [{ text: `Needs a ${e.needsShell} tank`, color: C.warn }] : []), ...(has ? [{ text: 'Installed. Remove it with the x in the list above.', color: C.good }] : [])]) && !has) app.run(act.buyEquip(g, t, e.id));
+      const help = equipHelp(e);
+      if (u.row(x - 3, y - 2, w + 6, rh, has, [{ text: e.name }, { text: e.blurb, color: C.textDim }, { text: equipStat(e), color: C.accent }, ...(help ? [{ text: help, color: C.textDim }] : []), ...fit, ...(e.needsShell ? [{ text: `Needs a ${e.needsShell} tank`, color: C.warn }] : []), ...(has ? [{ text: 'Installed. Remove it with the x in the list above.', color: C.good }] : [])]) && !has) app.run(act.buyEquip(g, t, e.id));
       u.text(e.name, x, y, C.strong, { maxW: w - 60 });
       u.text(equipStat(e), x, y + M.line, small ? C.warn : C.textDim, { maxW: w - 60 });
-      u.text(has ? 'installed' : `${ICON.coin} ${e.price}`, x + w, y, has ? C.good : C.gold, { align: 'right' });
+      u.text(has ? 'installed' : `${ICON.coin} ${e.price}`, x + w, y, has ? C.good : priceColor(app, e.price), { align: 'right' });
       y += rh;
     }
     return y;
@@ -684,16 +933,20 @@ function water(app: App, t: Tank, x: number, y: number, w: number, h: number) {
   column(u, 'water', x, y, w, h, (x, y, w) => {
     const rows: [string, string, number, string][] = [];
     const inR = (v: number, r: [number, number] | null) => (!r ? C.strong : v >= r[0] && v <= r[1] ? C.good : C.warn);
+    // the state never rests on color alone: above the residents' range reads with an up arrow,
+    // below with a down arrow, and a toxin worth acting on with a '!'
+    const off = (v: number, r: [number, number] | null) => (!r ? '' : v > r[1] ? ` ${ICON.up}` : v < r[0] ? ` ${ICON.down}` : '');
     const tr = range((sp) => sp.temp), pr = range((sp) => sp.ph), gr = range((sp) => sp.gh), sr = range((sp) => sp.sg);
-    rows.push([`${ICON.temp} Temperature`, `${ch.temp.toFixed(1)}C`, inR(ch.temp, tr), tr ? `Residents like ${tr[0]}-${tr[1]}C` : 'Most tropical fish like 24-27C']);
-    rows.push(['pH', kits ? ch.ph.toFixed(2) : strip(ch.ph, [5.5, 6, 6.5, 7, 7.5, 8, 8.5]), inR(ch.ph, pr), pr ? `Residents like pH ${pr[0]}-${pr[1]}` : 'Acidity: soft water, wood and leaves lower it; limestone raises it']);
-    if (t.water !== 'marine') rows.push(['GH / KH', kits ? `${ch.gh.toFixed(1)} / ${ch.kh.toFixed(1)}` : `${strip(ch.gh, [0, 3, 6, 10, 14, 20])} / ${strip(ch.kh, [0, 3, 6, 10, 15])}`, inR(ch.gh, gr), 'General and carbonate hardness (degrees). KH buffers pH.']);
-    if (t.water !== 'fresh') rows.push(['Salinity', `SG ${ch.sg.toFixed(3)}`, inR(ch.sg, sr), `Target ${t.set.salt.toFixed(3)}. Evaporation leaves salt behind: top off with fresh water.`]);
+    rows.push([`${ICON.temp} Temperature`, `${ch.temp.toFixed(1)}C${off(ch.temp, tr)}`, inR(ch.temp, tr), tr ? `Residents like ${tr[0]}-${tr[1]}C` : 'Most tropical fish like 24-27C']);
+    rows.push(['pH', `${kits ? ch.ph.toFixed(2) : strip(ch.ph, [5.5, 6, 6.5, 7, 7.5, 8, 8.5])}${off(ch.ph, pr)}`, inR(ch.ph, pr), pr ? `Residents like pH ${pr[0]}-${pr[1]}` : 'Acidity: soft water, wood and leaves lower it; limestone raises it']);
+    if (t.water !== 'marine') rows.push(['GH / KH', `${kits ? `${ch.gh.toFixed(1)} / ${ch.kh.toFixed(1)}` : `${strip(ch.gh, [0, 3, 6, 10, 14, 20])} / ${strip(ch.kh, [0, 3, 6, 10, 15])}`}${off(ch.gh, gr)}`, inR(ch.gh, gr), 'General and carbonate hardness (degrees). KH buffers pH.']);
+    if (t.water !== 'fresh') rows.push(['Salinity', `SG ${ch.sg.toFixed(3)}${off(ch.sg, sr)}`, inR(ch.sg, sr), `Target ${t.set.salt.toFixed(3)}. Evaporation leaves salt behind: top off with fresh water.`]);
     const toxic = (v: number, warn: number, bad: number) => (v >= bad ? C.bad : v >= warn ? C.warn : C.good);
-    rows.push(['Ammonia', kits ? ch.nh3.toFixed(2) : strip(ch.nh3, [0, 0.25, 0.5, 1, 2, 4]), toxic(ch.nh3, 0.1, 0.5), 'NH3/NH4 from waste and food. Toxic. Eaten by the first bacteria.']);
-    rows.push(['Nitrite', kits ? ch.no2.toFixed(2) : strip(ch.no2, [0, 0.25, 0.5, 1, 2, 5]), toxic(ch.no2, 0.1, 0.5), 'NO2: the middle of the cycle. Toxic. Eaten by the second bacteria.']);
-    rows.push(['Nitrate', kits ? ch.no3.toFixed(0) : strip(ch.no3, [0, 10, 20, 40, 80, 160]), toxic(ch.no3, 30, 60), 'NO3: the end of the cycle. Mild; plants use it, water changes remove it.']);
-    rows.push(['Oxygen', `${ch.o2.toFixed(1)} mg/L`, ch.o2 >= 6 ? C.good : ch.o2 >= 4 ? C.warn : C.bad, 'Warm water holds less. Surface movement and air pumps add it.']);
+    const alarm = (v: number, warn: number) => (v >= warn ? ' !' : '');
+    rows.push(['Ammonia', `${kits ? ch.nh3.toFixed(2) : strip(ch.nh3, [0, 0.25, 0.5, 1, 2, 4])}${alarm(ch.nh3, 0.1)}`, toxic(ch.nh3, 0.1, 0.5), 'NH3/NH4 from waste and food. Toxic. Eaten by the first bacteria.']);
+    rows.push(['Nitrite', `${kits ? ch.no2.toFixed(2) : strip(ch.no2, [0, 0.25, 0.5, 1, 2, 5])}${alarm(ch.no2, 0.1)}`, toxic(ch.no2, 0.1, 0.5), 'NO2: the middle of the cycle. Toxic. Eaten by the second bacteria.']);
+    rows.push(['Nitrate', `${kits ? ch.no3.toFixed(0) : strip(ch.no3, [0, 10, 20, 40, 80, 160])}${alarm(ch.no3, 30)}`, toxic(ch.no3, 30, 60), 'NO3: the end of the cycle. Mild; plants use it, water changes remove it.']);
+    rows.push(['Oxygen', `${ch.o2.toFixed(1)} mg/L${ch.o2 < 6 ? ` ${ICON.down}` : ''}`, ch.o2 >= 6 ? C.good : ch.o2 >= 4 ? C.warn : C.bad, 'Warm water holds less. Surface movement and air pumps add it.']);
     if (ch.tannin > 0.02) rows.push(['Tannins', `${Math.round(ch.tannin * 100)}%`, C.strong, 'Tea-colored humic acids from wood, leaves and peat.']);
     for (const [label, val, col, tip] of rows) {
       u.row(x - 3, y - 1, w + 6, M.row, false, tip);
@@ -722,7 +975,8 @@ function water(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     let bx = x;
     for (const frac of [0.1, 0.25, 0.5]) {
       const cost = Math.round(litersOf(t) * frac * (0.01 + (t.water === 'fresh' ? 0 : 0.03)));
-      if (u.button(`wc${frac}`, bx, y, third, M.btn, `${frac * 100}% ${ICON.coin}${cost}`, { tip: 'Swap old water for new: lowers nitrate and pulls the chemistry toward the source water' })) app.run(act.doWaterChange(g, t, frac));
+      const broke = s.coins < cost;
+      if (u.button(`wc${frac}`, bx, y, third, M.btn, cost ? `${frac * 100}% ${ICON.coin} ${cost}` : `${frac * 100}% free`, { disabled: broke, tip: broke ? `Not enough coins: it costs ${cost}` : 'Swap old water for new: lowers nitrate and pulls the chemistry toward the source water' })) app.run(act.doWaterChange(g, t, frac));
       bx += third + 4;
     }
     y += M.btn + 8;
@@ -733,7 +987,9 @@ function water(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     bx = x;
     for (const k of srcs) {
       const bw = Math.floor((w - (srcs.length - 1) * 3) / srcs.length);
-      if (u.button(`src${k}`, bx, y, bw, M.btnS + 2, SOURCES[k].name.replace(' water', ''), { active: t.set.source === k, style: 'flat', tip: [{ text: SOURCES[k].name }, { text: SOURCES[k].blurb, color: C.textDim }, ...(SOURCES[k].needs ? [{ text: `Needs: ${equip(SOURCES[k].needs!).name}`, color: C.warn }] : [])] })) app.run(act.setSource(g, t, k));
+      const needs = SOURCES[k].needs;
+      const lacks = !!needs && !t.equip.includes(needs) && !s.tanks.some((q) => q.equip.includes(needs));
+      if (u.button(`src${k}`, bx, y, bw, M.btnS + 2, SOURCES[k].name.replace(' water', ''), { active: t.set.source === k, disabled: lacks, style: 'flat', tip: [{ text: SOURCES[k].name }, { text: SOURCES[k].blurb, color: C.textDim }, ...(needs ? [{ text: `${lacks ? 'Locked: needs' : 'Needs'} an ${equip(needs).name} somewhere in the aquarium (Gear, Other)`, color: C.warn }] : [])] })) app.run(act.setSource(g, t, k));
       bx += bw + 3;
     }
     y += M.btnS + 10;
@@ -748,11 +1004,15 @@ function water(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     const hw = Math.floor((w - 4) / 2);
     const donor = act.seedSource(g, t);
     if (cyc < 0.7) {
-      if (u.button('seed', x, y, w, M.btn, donor ? `Seed from ${donor.name}` : 'Seed from a mature filter', { style: 'good', disabled: !donor, tip: donor ? 'Move a sponge of bacteria-rich media from a mature filter: free, and nearly instant' : 'Needs another tank of the same water with a filter that is fully cycled' })) app.run(act.seedFilter(g, t));
+      const filtered = t.equip.some((e) => equip(e).slot === 'filter');
+      const seedWhy = !donor ? 'Needs another tank of the same water with a filter that is fully cycled' : !filtered ? 'Add a filter first (Gear): the bacteria need somewhere to live' : '';
+      if (u.button('seed', x, y, w, M.btn, donor ? `Seed from ${donor.name}` : 'Seed from a mature filter', { style: 'good', disabled: !!seedWhy, tip: seedWhy || 'Move a sponge of bacteria-rich media from a mature filter: free, and nearly instant' })) app.run(act.seedFilter(g, t));
       y += M.btn + 4;
     }
-    if (u.button('bact', x, y, hw, M.btn, `Bacteria ${ICON.coin}15`, { tip: 'Bottled nitrifying bacteria: jump-start the cycle' })) app.run(act.dose(g, t, 'bacteria'));
-    if (u.button('amm', x + hw + 4, y, hw, M.btn, `Ammonia ${ICON.coin}3`, { tip: 'Feed the bacteria in an empty tank: a fishless cycle' })) app.run(act.dose(g, t, 'ammonia'));
+    const bactWhy = Math.min(ch.bacA, ch.bacB) >= 0.6 ? 'A bottle cannot help any more: the colony has to grow on its own now.' : s.coins < 15 ? 'Not enough coins.' : '';
+    const ammWhy = t.animals.length || t.bags.length ? 'Not with animals in the tank: dosing ammonia is for a fishless cycle.' : s.coins < 3 ? 'Not enough coins.' : '';
+    if (u.button('bact', x, y, hw, M.btn, `Bacteria ${ICON.coin} 15`, { disabled: !!bactWhy, tip: bactWhy || 'Bottled nitrifying bacteria: jump-start the cycle' })) app.run(act.dose(g, t, 'bacteria'));
+    if (u.button('amm', x + hw + 4, y, hw, M.btn, `Ammonia ${ICON.coin} 3`, { disabled: !!ammWhy, tip: ammWhy || 'Feed the bacteria in an empty tank: a fishless cycle' })) app.run(act.dose(g, t, 'ammonia'));
     y += M.btn + 6;
     return y;
   });
@@ -787,7 +1047,11 @@ function care(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     const over = t.items.filter((p) => item(p.id).plant && p.size >= 1.2);
     if (over.length) {
       u.text(`${over.length} plant${over.length > 1 ? 's' : ''} overgrown`, x, y + 2, C.warn);
-      if (u.button('trimall', x + w - 80, y, 80, M.btnS + 2, 'Trim all', { tip: 'Cut back every overgrown plant; cuttings go to storage' })) for (const p of over) app.run(act.trimPlant(g, t, p.uid));
+      if (u.button('trimall', x + w - 80, y, 80, M.btnS + 2, 'Trim all', { tip: 'Cut back every overgrown plant; cuttings go to storage' })) {
+        // (trimming answers with what it saved, which is news, not a refusal)
+        const said = over.map((p) => act.trimPlant(g, t, p.uid));
+        app.toast(over.length > 1 ? `Trimmed ${over.length} plants. The cuttings are in storage (Scape, Kept).` : said[0], 'good');
+      }
       y += M.row + 6;
     }
     // pests
@@ -803,7 +1067,7 @@ function care(app: App, t: Tank, x: number, y: number, w: number, h: number) {
     if (p.snails >= 1) {
       y += u.para(`${Math.ceil(p.snails)} pest snails (bladder and ramshorn) breeding on leftovers. Assassin snails hunt them; feeding less helps.`, x, y, w, C.text) + 4;
       if (u.button('assassins', x, y, w, M.btn, 'Order assassin snails', { tip: 'Clea helena: eats pest snails, leaves fish and shrimp alone' })) {
-        app.mode = 'stock';
+        app.setMode('stock');
         app.panel.stockTab = 0;
         app.panel.buySp = 'assassin_snail';
         app.panel.buyN = 3;

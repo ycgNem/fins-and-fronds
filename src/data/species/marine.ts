@@ -1,10 +1,11 @@
 // Marine fish and invertebrates: reefs, lagoons, kelp forests, tide pools, open ocean, deep sea and
-// cold northern seas. Reef parameters: SG 1.023-1.026, pH 8.0-8.4 (RESEARCH.md, "Reef").
+// cold northern seas. Reef parameters: SG 1.023-1.026, pH 8.0-8.4 (RESEARCH.md, "Reef"). Reef
+// animals live in surge and current, so they take strong flow unless they say otherwise.
 import { group } from './define';
 import type { SpeciesDef } from '../types';
 
-const reef = { water: 'marine', temp: [24, 28], ph: [8.0, 8.4], sg: [1.023, 1.026], tier: 3 } as const;
-const cold = { water: 'marine', ph: [7.9, 8.3], sg: [1.024, 1.026], tier: 4 } as const;
+const reef = { water: 'marine', temp: [24, 28], ph: [8.0, 8.4], sg: [1.023, 1.026], flow: [0, 3], tier: 3 } as const;
+const cold = { water: 'marine', ph: [7.9, 8.4], sg: [1.024, 1.026], tier: 4 } as const;
 
 export const MARINE: SpeciesDef[] = [
   // ---------------------------------------------------------------- Indo-Pacific reef fish
@@ -35,7 +36,7 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'mandarin_dragonet', name: 'Mandarin Dragonet', sci: 'Synchiropus splendidus', cm: 7, body: 'goby',
-      look: { body: 'blue', accent: 'orange', pattern: 'marble', fin: 'teal' }, temper: 'peaceful', zone: 'rock', max: 2, minL: 200, diet: ['plankton', 'live'],
+      look: { body: 'blue', accent: 'orange', pattern: 'marble', fin: 'teal' }, temper: 'peaceful', zone: 'rock', max: 2, minL: 200, flow: [0, 2], diet: ['plankton', 'live'],
       rarity: 4, appeal: 10, tags: ['colorful', 'reef_safe', 'sensitive'], needs: ['mature', 'rocks'],
       fact: 'Mandarins pick tiny copepods off the rock all day; only a mature tank with a refugium raises enough to feed one.',
     },
@@ -53,7 +54,7 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'banggai_cardinal', name: 'Banggai Cardinalfish', sci: 'Pterapogon kauderni', cm: 8, body: 'deep',
-      look: { body: 'silver', pattern: 'bars', accent: 'ink', fin: 'pearl' }, temper: 'peaceful', zone: 'mid', school: 3, diet: ['frozen'], rarity: 2, appeal: 7,
+      look: { body: 'silver', pattern: 'bars', accent: 'ink', fin: 'pearl' }, temper: 'peaceful', zone: 'mid', school: 3, flow: [0, 2], diet: ['frozen'], rarity: 2, appeal: 7,
       tags: ['reef_safe', 'mouthbrooder', 'endangered', 'iconic'], breed: { type: 'mouthbrooder', ease: 3 },
       fact: "Found only around Indonesia's Banggai Islands; the male broods the eggs in his mouth and releases fully formed young.",
     },
@@ -101,7 +102,7 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'flashlight_fish', name: 'Flashlight Fish', sci: 'Anomalops katoptron', cm: 10, body: 'deep',
-      look: { body: 'black', accent: 'sky', pattern: 'glow' }, temper: 'peaceful', zone: 'mid', school: 6, diet: ['frozen', 'live'], rarity: 4, appeal: 9,
+      look: { body: 'black', accent: 'sky', pattern: 'glow' }, temper: 'peaceful', zone: 'mid', school: 6, flow: [0, 2], diet: ['frozen', 'live'], rarity: 4, appeal: 9,
       tags: ['nocturnal', 'bioluminescent', 'glow', 'schooling', 'oddball'], needs: ['dim', 'caves'], tier: 4, source: 'expedition',
       fact: 'Glowing bacteria live in pouches under its eyes; it blinks them on and off by rotating the organs, to signal and to confuse predators.',
     },
@@ -112,6 +113,12 @@ export const MARINE: SpeciesDef[] = [
       fact: 'Garden eels live in colonies, each poking out of its own sand burrow to catch plankton, and all vanish at once when startled.',
     },
     {
+      id: 'blue_spotted_stingray', name: 'Blue-spotted Ribbontail Ray', sci: 'Taeniura lymma', regions: ['indo_pacific', 'red_sea'], cm: 35, body: 'ray',
+      look: { body: 'gold_sand', accent: 'blue', pattern: 'spots' }, temper: 'peaceful', zone: 'bottom', minL: 700, diet: ['frozen', 'live'], rarity: 4, appeal: 10,
+      tags: ['iconic', 'colorful', 'venomous', 'eats_inverts', 'sensitive', 'big'], needs: ['deep_sand', 'mature'], breed: { type: 'livebearer', ease: 1 },
+      fact: 'By day it rests half-buried in reef sand; on the rising tide groups glide onto the flats to dig for crabs and worms. Its tail carries venomous spines.',
+    },
+    {
       id: 'lyretail_anthias', name: 'Lyretail Anthias', sci: 'Pseudanthias squamipinnis', regions: ['indo_pacific', 'red_sea'], cm: 15, body: 'torpedo',
       look: { body: 'orange', fin: 'magenta' }, temper: 'peaceful', zone: 'mid', school: 5, minL: 400, diet: ['frozen', 'plankton'], rarity: 2, appeal: 8,
       tags: ['schooling', 'reef_safe', 'colorful'], needs: ['swim_space', 'current'],
@@ -119,7 +126,7 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'dragonface_pipefish', name: 'Dragonface Pipefish', sci: 'Corythoichthys haematopterus', regions: ['indo_pacific', 'seagrass'], cm: 15, body: 'pipefish',
-      look: { body: 'sand', pattern: 'bars', accent: 'red' }, temper: 'peaceful', zone: 'bottom', school: 2, diet: ['live', 'plankton'], rarity: 3, appeal: 7,
+      look: { body: 'sand', pattern: 'bars', accent: 'red' }, temper: 'peaceful', zone: 'bottom', school: 2, flow: [0, 2], diet: ['live', 'plankton'], rarity: 3, appeal: 7,
       tags: ['sensitive', 'oddball'], needs: ['mature', 'hitch'],
       fact: 'A seahorse cousin stretched out straight, it hunts copepods along the sand; like seahorses, the males carry the eggs.',
     },
@@ -181,6 +188,12 @@ export const MARINE: SpeciesDef[] = [
   ]),
   // ---------------------------------------------------------------- seahorses and lagoon life
   ...group({ ...reef, kind: 'fish', regions: ['seagrass', 'caribbean'], temp: [20, 26] }, [
+    {
+      id: 'cownose_ray', name: 'Cownose Ray', sci: 'Rhinoptera bonasus', cm: 80, body: 'ray', temp: [18, 28], sg: [1.020, 1.026],
+      look: { body: 'brown', belly: 'pearl', fin: 'brown' }, temper: 'peaceful', zone: 'bottom', school: 5, minL: 8000, diet: ['frozen'], rarity: 3, appeal: 10,
+      tags: ['schooling', 'iconic', 'big', 'touchable', 'venomous', 'eats_inverts'], needs: ['sand', 'swim_space'], breed: { type: 'livebearer', ease: 1 }, tier: 4,
+      fact: 'Cownose rays migrate along the Atlantic coast in schools of thousands, flapping like birds; in aquarium lagoons they glide up to be stroked.',
+    },
     {
       id: 'dwarf_seahorse', name: 'Dwarf Seahorse', sci: 'Hippocampus zosterae', cm: 2.5, body: 'seahorse', look: { body: 'olive', pattern: 'dots' },
       temper: 'peaceful', zone: 'mid', school: 2, minL: 20, flow: [0, 1], diet: ['live'], rarity: 3, appeal: 9, tags: ['iconic', 'tiny', 'sensitive'],
@@ -286,7 +299,7 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'upside_down_jelly', name: 'Upside-down Jelly', sci: 'Cassiopea xamachana', kind: 'jelly', regions: ['seagrass', 'caribbean'], cm: 20, body: 'jelly',
-      temp: [24, 29], look: { body: 'olive', accent: 'pearl', pattern: 'spots' }, temper: 'peaceful', zone: 'substrate', school: 3, diet: ['plankton'], rarity: 2,
+      temp: [24, 29], look: { body: 'olive', accent: 'pearl', pattern: 'spots' }, temper: 'peaceful', zone: 'substrate', school: 3, flow: [0, 2], diet: ['plankton'], rarity: 2,
       appeal: 8, tags: ['photosynthetic', 'oddball'], needs: ['sand'],
       fact: 'Cassiopea lies bell-down on the sand with its arms up, farming algae in its tissues like a coral.',
     },
@@ -311,9 +324,9 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'leopard_shark', name: 'Leopard Shark', sci: 'Triakis semifasciata', cm: 120, body: 'shark', look: { body: 'slate', pattern: 'saddle', accent: 'ink' },
-      temper: 'predator', zone: 'bottom', school: 3, minL: 20000, diet: ['frozen', 'carnivore'], rarity: 4, appeal: 10, tags: ['cold', 'iconic', 'big', 'eats_inverts'],
+      temper: 'semi', zone: 'bottom', school: 3, minL: 20000, diet: ['frozen', 'carnivore'], rarity: 4, appeal: 10, tags: ['cold', 'iconic', 'big', 'eats_inverts'],
       needs: ['chill', 'swim_space', 'sand'], tier: 5,
-      fact: 'Leopard sharks cruise kelp beds and sandy bays in schools; harmless to people, they are favorites of big exhibit tanks.',
+      fact: 'Leopard sharks cruise kelp beds and sandy bays in schools, digging crabs, clams and worms from the sand; harmless to people, they are favorites of big exhibits.',
     },
   ]),
   ...group({ ...cold, regions: ['kelp_forest', 'rocky_shore'], temp: [8, 18] }, [
@@ -330,8 +343,8 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'ochre_star', name: 'Ochre Sea Star', sci: 'Pisaster ochraceus', kind: 'star', cm: 25, body: 'star', look: { body: 'orange' },
-      temper: 'peaceful', zone: 'rock', diet: ['carnivore'], appeal: 7, tags: ['cold', 'touchable', 'iconic', 'eats_inverts'], tier: 3,
-      fact: 'A keystone species: take ochre stars away and mussels crowd out almost everything else on the shore.',
+      temper: 'peaceful', zone: 'rock', diet: ['carnivore'], appeal: 7, tags: ['cold', 'touchable', 'iconic'], tier: 3,
+      fact: 'A keystone species that pries open mussels and barnacles: take ochre stars away and mussels crowd out almost everything else on the shore.',
     },
   ]),
   ...group({ ...cold, regions: ['rocky_shore'], temp: [10, 18], tier: 3 }, [
@@ -362,14 +375,14 @@ export const MARINE: SpeciesDef[] = [
   // ---------------------------------------------------------------- open ocean drifters
   ...group({ ...cold, regions: ['open_ocean'], temp: [14, 22] }, [
     {
-      id: 'moon_jelly', name: 'Moon Jelly', sci: 'Aurelia aurita', kind: 'jelly', regions: ['open_ocean', 'kelp_forest'], cm: 25, body: 'jelly', temp: [15, 22],
+      id: 'moon_jelly', name: 'Moon Jelly', sci: 'Aurelia aurita', kind: 'jelly', regions: ['open_ocean', 'kelp_forest'], cm: 25, body: 'jelly', temp: [15, 24],
       look: { body: 'pearl', clear: true, accent: 'lilac' }, temper: 'peaceful', zone: 'drift', school: 5, minL: 150, flow: [1, 2], diet: ['plankton'], rarity: 2,
-      appeal: 9, tags: ['iconic', 'transparent'], needs: ['kreisel'], breed: { type: 'colony', ease: 2 },
-      fact: 'Moon jellies have no brain, heart or bones; the four horseshoe rings in the bell are their reproductive organs.',
+      appeal: 9, tags: ['iconic', 'transparent'], needs: ['kreisel'],
+      fact: 'Moon jellies have no brain, heart or bones. New jellies bud from tiny polyps fixed to rock, so aquariums raise them in nurseries, never in the kreisel.',
     },
     {
       id: 'sea_nettle', name: 'Pacific Sea Nettle', sci: 'Chrysaora fuscescens', kind: 'jelly', regions: ['open_ocean', 'kelp_forest'], cm: 30, body: 'jelly', temp: [12, 18],
-      look: { body: 'orange', clear: true, accent: 'gold' }, temper: 'peaceful', zone: 'drift', school: 3, minL: 300, flow: [1, 2], diet: ['plankton'], rarity: 3,
+      look: { body: 'orange', clear: true, accent: 'gold' }, temper: 'peaceful', zone: 'drift', school: 3, minL: 200, flow: [1, 2], diet: ['plankton'], rarity: 3,
       appeal: 10, tags: ['iconic', 'venomous'], needs: ['kreisel', 'chill'],
       fact: 'Sea nettles trail tentacles several meters long; in a kreisel lit from above they glow like slow orange lanterns.',
     },
@@ -387,9 +400,10 @@ export const MARINE: SpeciesDef[] = [
     },
   ]),
   // ---------------------------------------------------------------- deep sea and cold northern seas
-  ...group({ ...cold, regions: ['deep_sea'], temp: [6, 14], ph: [7.6, 8.1], sg: [1.025, 1.027], tier: 5, source: 'expedition' }, [
+  // the few deep animals an aquarium can keep share a chilled band around 12-14 C
+  ...group({ ...cold, regions: ['deep_sea'], temp: [6, 14], ph: [7.6, 8.3], sg: [1.025, 1.027], tier: 5, source: 'expedition' }, [
     {
-      id: 'pinecone_fish', name: 'Pinecone Fish', sci: 'Monocentris japonica', kind: 'fish', cm: 15, body: 'round', temp: [14, 20],
+      id: 'pinecone_fish', name: 'Pinecone Fish', sci: 'Monocentris japonica', kind: 'fish', cm: 16, body: 'round', temp: [12, 20],
       look: { body: 'gold', pattern: 'spots', accent: 'ink' }, temper: 'peaceful', zone: 'mid', school: 3, diet: ['frozen'], rarity: 4, appeal: 9,
       tags: ['bioluminescent', 'glow', 'nocturnal', 'oddball'], needs: ['dim', 'chill'],
       fact: 'Armored in plate-like scales, pinecone fish carry glowing bacteria in organs on the lower jaw, like little headlights.',
@@ -402,12 +416,12 @@ export const MARINE: SpeciesDef[] = [
     },
     {
       id: 'japanese_spider_crab', name: 'Japanese Spider Crab', sci: 'Macrocheira kaempferi', kind: 'crab', cm: 300, body: 'spidercrab', temp: [10, 16],
-      look: { body: 'orange', pattern: 'spots', accent: 'pearl' }, temper: 'peaceful', zone: 'bottom', minL: 8000, diet: ['detritus', 'frozen'], rarity: 5, appeal: 10,
+      look: { body: 'orange', pattern: 'spots', accent: 'pearl' }, temper: 'peaceful', zone: 'bottom', minL: 6000, diet: ['detritus', 'frozen'], rarity: 5, appeal: 10,
       tags: ['big', 'iconic', 'cold', 'scavenger'], needs: ['chill', 'dim'],
       fact: 'The largest arthropod alive, with leg spans up to 3.7 m; Japanese aquariums keep them in cold, dim tanks.',
     },
     {
-      id: 'giant_isopod', name: 'Giant Isopod', sci: 'Bathynomus giganteus', kind: 'isopod', cm: 40, body: 'isopod', temp: [6, 12],
+      id: 'giant_isopod', name: 'Giant Isopod', sci: 'Bathynomus giganteus', kind: 'isopod', cm: 40, body: 'isopod', temp: [6, 14],
       look: { body: 'pearl', accent: 'peach' }, temper: 'peaceful', zone: 'bottom', minL: 400, diet: ['detritus', 'carnivore'], rarity: 4, appeal: 9,
       tags: ['big', 'oddball', 'iconic', 'cold', 'scavenger'], needs: ['chill', 'dim'],
       fact: 'A giant cousin of the pill bug from the deep Gulf of Mexico; one in a Japanese aquarium famously went over five years without eating.',

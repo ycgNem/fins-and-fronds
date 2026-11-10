@@ -20,8 +20,8 @@ export const SUBSTRATES: SubstrateDef[] = [
     blurb: 'Porous fired clay that holds nutrients for roots without changing water chemistry.',
   },
   {
-    id: 'aquasoil', name: 'Active Aquasoil', water: ['fresh'], grain: 'soil', colors: ['brown', 'black'], fx: { ph: -0.8, kh: -3, gh: -1 }, rich: 3, price: 22, tier: 0,
-    blurb: 'Baked volcanic soil packed with nutrients that softens water and buffers pH low. It leaches ammonia when new and loses its buffering after a year or so.',
+    id: 'aquasoil', name: 'Active Aquasoil', water: ['fresh'], grain: 'soil', colors: ['brown', 'black'], fx: { ph: -0.8, kh: -3, gh: -0.5 }, rich: 3, price: 22, tier: 0,
+    blurb: 'Baked volcanic soil packed with nutrients that strips carbonate hardness and buffers the pH slightly acid, though never much below 6.2. It leaches ammonia when new and loses its buffering after a year or so.',
   },
   {
     id: 'capped_soil', name: 'Capped Soil (Walstad)', water: ['fresh'], grain: 'soil', colors: ['sand', 'brown'], fx: {}, rich: 3, price: 12, tier: 0,

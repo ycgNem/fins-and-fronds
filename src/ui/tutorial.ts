@@ -9,7 +9,7 @@
 // button or tab to press (UI.rects, recorded as they are drawn). The note keeps to a band at the
 // top of the screen that the tank view and the hall leave free, so it never covers a tank.
 import type { App, Mode } from '../app/app';
-import { equip, item } from '../data';
+import { equip, item, shell } from '../data';
 import { UI as C } from '../data/palette';
 import { BAL } from '../sim/balance';
 import { isStock } from '../sim/sales';
@@ -17,7 +17,7 @@ import { cycleProgress } from '../sim/water';
 import { hallArea, TOOLBAR_H, TOP_H } from './hud';
 import { panelW } from './panels';
 import { ICON, M, type Rect, textWidth } from './ui';
-import { windowRect } from './windows';
+import { pickedShell, windowRect } from './windows';
 
 interface Step {
   id: string;
@@ -36,6 +36,10 @@ interface Step {
 const slots = (app: App) => new Set((app.tank?.equip ?? []).map((e) => equip(e).slot));
 const inMode = (app: App, m: Mode, then: string[]): string[] => (app.view === 'tank' && app.mode === m ? then : [`modes:${['look', 'scape', 'stock', 'gear', 'water', 'care'].indexOf(m)}`]);
 const cats = (app: App, ...c: string[]) => (app.tank?.items ?? []).filter((p) => c.includes(item(p.id).cat));
+/** a tab to point at, unless it is already the open one: then the pointer moves on to what is inside it */
+const tab = (id: string, i: number, open: number): string[] => (i === open ? [] : [`${id}:${i}`]);
+/** in the new-tank window: Build once a big enough size is picked, else the row of the one Ida means */
+const sizeUp = (app: App, liters: number, row: string): string[] => (pickedShell(app).liters >= liters ? ['build'] : [`shell:${row}`, 'shells']);
 
 export const STEPS: Step[] = [
   {
@@ -50,45 +54,48 @@ export const STEPS: Step[] = [
   },
   {
     id: 'size', title: 'Pick a size',
-    text: 'A 20 gallon long is a lovely first tank: wide for scaping and long enough for a school. The 29 is the same footprint, taller for stem plants. Bigger water is more forgiving, too. Then press Build.',
-    target: () => ['build', 'shells'],
+    text: 'A 20 gallon long is a lovely first tank: wide for scaping and long enough for a school, so I have picked one out. The 29 is the same footprint, taller for stem plants. Bigger water is more forgiving, too. Then press Build.',
+    // the window opens on the 20 gallon long; a smaller pick sends the pointer back to it
+    target: (app) => (app.window === 'newtank' ? sizeUp(app, shell('std_20l').liters, 'std_20l') : ['build0']),
     done: (app) => app.state.tanks.length > 0,
   },
   {
     id: 'filter', title: 'Filter first',
     text: 'The filter is the heart of the tank: it moves the water and it is where the good bacteria live. In Gear, buy a hang-on-back filter (or a sponge filter, gentlest for shrimp).',
-    target: (app) => inMode(app, 'gear', ['geartab:0', 'gearlist']),
+    target: (app) => inMode(app, 'gear', [...tab('geartab', 0, app.panel.gearTab), 'gearlist']),
     done: (app) => slots(app).has('filter'),
   },
   {
     id: 'heat', title: 'Heat and light',
     text: 'Tropical fish want about 24-26 C, so add a heater rated for your tank: each says how many gallons it can heat (Heat tab). Plants need light: a Basic LED will do, a Planted LED grows them faster (Light tab).',
-    target: (app) => inMode(app, 'gear', slots(app).has('heater') ? ['geartab:2', 'gearlist'] : ['geartab:1', 'gearlist']),
+    target: (app) => inMode(app, 'gear', [...tab('geartab', slots(app).has('heater') ? 2 : 1, app.panel.gearTab), 'gearlist']),
     done: (app) => slots(app).has('heater') && slots(app).has('light'),
   },
   {
     id: 'sand', title: 'Substrate and slope',
     text: 'Now the fun part. In Scape, the Sand tab sets what covers the bottom. Aquasoil feeds plants, sand suits corydoras. Raise the slope so the back sits higher than the front, or press Sculpt and shape it by hand.',
-    target: (app) => inMode(app, 'scape', ['stab:6', 'slope:+']),
+    target: (app) => inMode(app, 'scape', [...tab('stab', 6, app.panel.scapeTab), 'slope:+']),
     done: (app) => !!app.tank && (app.tank.substrate !== 'fine_sand' || Math.abs(app.tank.slope - 0.3) > 0.01 || app.tutorialFlags.has('sculpted')),
     ack: true,
   },
   {
     id: 'hardscape', title: 'Stone and wood',
     text: 'Stones and driftwood are the bones of a scape. Pick one in Rock or Wood, then click in the tank to set it down. Q, W and E place it at the back, middle or front. Put the biggest piece a third of the way across, not in the middle.',
-    target: (app) => inMode(app, 'scape', ['stab:1', 'stab:0']),
+    // on Rock or Wood already: the list; while a piece is in hand the tank is the target, and its ghost shows where
+    target: (app) => inMode(app, 'scape', app.placing ? [] : app.panel.scapeTab <= 1 ? ['scapelist'] : ['stab:1', 'stab:0']),
     done: (app) => cats(app, 'rock', 'wood').length > 0,
   },
   {
     id: 'plants', title: 'Living plants',
     text: 'Plants eat ammonia and outcompete algae. Add at least two kinds from the Plant tab: tall ones at the back, short ones in front. Java fern and anubias can sit right on your wood.',
-    target: (app) => inMode(app, 'scape', ['stab:2']),
+    target: (app) => inMode(app, 'scape', app.placing ? [] : app.panel.scapeTab === 2 ? ['scapelist'] : ['stab:2']),
     done: (app) => new Set(cats(app, 'plant').map((p) => p.id)).size >= 2,
   },
   {
     id: 'cycle', title: 'Cycle the tank',
     text: 'Fish make ammonia. Bacteria in the filter turn it into nitrite, then into nitrate, which plants and water changes remove. A brand-new tank has none yet. Squeeze one of my old sponges into your filter: they are full of them.',
-    target: (app) => inMode(app, 'water', ['cycle']),
+    // the sponge is a button on this note: once it is in, the cycle bar shows it took
+    target: (app) => inMode(app, 'water', ['tut:act', 'cycle']),
     action: {
       label: 'Squeeze in Ida\'s sponge',
       run: (app) => {
@@ -106,14 +113,16 @@ export const STEPS: Step[] = [
   },
   {
     id: 'stock', title: 'Fish!',
-    text: 'In Stock, every species says how it would fit this tank: "good fit", "maybe" or "no". Schooling fish need company: six or more neons or embers. Pick one, set the number and order.',
-    target: (app) => inMode(app, 'stock', app.panel.buySp ? ['order'] : ['stocktab:0', 'stocklist']),
+    // (the species data wants ten neons and eight harlequins; both suit plain tap water)
+    text: 'In Stock, every species says how it would fit this tank: "good fit", "maybe" or "no". Schooling fish need company: ten or more neon tetras, or eight harlequin rasboras. Pick one, set the number and order.',
+    target: (app) => inMode(app, 'stock', app.panel.stockTab !== 0 ? ['stocktab:0'] : app.panel.buySp ? ['order'] : ['stocklist']),
     done: (app) => !!app.tank && (app.tank.bags.length > 0 || app.tank.animals.length > 0),
   },
   {
     id: 'acclimate', title: 'Let them settle',
     text: 'New fish float in their bag for half an hour so the temperature evens out. Press play up top (or a faster speed) and watch them swim out.',
-    target: () => ['speed1', 'speed2'],
+    // once the clock runs there is nothing to press: just watch
+    target: (app) => (app.state.settings.speed === 0 ? ['speed1', 'speed2'] : []),
     done: (app) => !!app.tank && app.tank.animals.length > 0,
   },
   {
@@ -158,12 +167,12 @@ export const STEPS: Step[] = [
   {
     id: 'hall', title: 'The hall', ack: true,
     text: 'The hall shows every display bay at once (press H). More bays open as your reputation grows. Close the window first if one is open.',
-    target: () => ['hall'],
+    target: (app) => (app.view === 'hall' ? [] : ['hall']),
   },
   {
     id: 'stockroom', title: 'The stock room', ack: true,
     text: 'The back room has a rack for stock tanks. Shoppers buy fish from them over the counter: breed a pair of guppies or a colony of cherry shrimp there and keep a few back as breeders. Overgrown plants are cut and sold too. A 10 gallon with a sponge filter is a fine start.',
-    target: (app) => (app.window === 'newtank' ? ['build', 'shells'] : app.view === 'hall' ? [`build${BAL.rackBay}`] : ['hall']),
+    target: (app) => (app.window === 'newtank' ? sizeUp(app, shell('std_10').liters, 'std_10') : app.view === 'hall' ? [`build${BAL.rackBay}`] : ['hall']),
     done: (app) => app.state.tanks.some(isStock),
   },
   {
@@ -191,25 +200,46 @@ function active(app: App): boolean {
 export const tourShowing = active;
 
 /** where the note sits when no window is open: a band along the top of the tank view or the hall */
+/** a phone on its side: the note spreads across the band and the tank view reserves only this step */
+const short = (app: App) => app.H < 520;
+
 function band(app: App): { x: number; y: number; w: number } {
   const [x0, x1] = app.view === 'tank' && app.tank ? [4, app.W - panelW(app) - 12] : (() => {
     const a = hallArea(app);
     return [a.gx, a.gx + a.gw];
   })();
-  const w = Math.min(NOTE_W, x1 - x0);
+  const w = short(app) ? x1 - x0 : Math.min(NOTE_W, x1 - x0);
   return { x: x1 - w, y: TOP_H + 4, w };
 }
 
-function noteH(app: App, step: Step, w: number): number {
-  return 28 + app.ui.paraHeight(step.text, w - 24) + 8 + M.btn + 8;
+/**
+ * Back, the step's own action and Got it side by side are wider than a narrow note (the one beside
+ * a window): then the action gets a row of its own above the other two.
+ */
+function twoRows(step: Step, w: number, act = !!step.action): boolean {
+  if (!act || !step.action) return false;
+  const back = STEPS.indexOf(step) > 0 ? textWidth(`${ICON.left} Back`) + 20 + 6 : 0;
+  const ok = step.ack ? Math.max(76, textWidth('Thanks!') + 20, textWidth(`Got it ${ICON.right}`) + 20) + 6 : 0;
+  return 12 + back + textWidth(step.action.label) + 20 + ok + 12 > w;
+}
+
+/** whether the note shows this step's action button now (not while peeking back, not once hidden) */
+function acts(app: App, step: Step): boolean {
+  return !!step.action && STEPS.indexOf(step) === app.state.tutorial.step && !step.action.hidden?.(app);
+}
+
+/** the note's height for a step; `act`: with its action button (the reserve sizes for it always) */
+function noteH(app: App, step: Step, w: number, act = acts(app, step)): number {
+  return 28 + app.ui.paraHeight(step.text, w - 24) + 8 + M.btn + 8 + (twoRows(step, w, act) ? M.btn + 4 : 0);
 }
 
 /** UI pixels the tank view and the hall leave free at the top for the note, so it never covers a tank. */
 export function noteReserve(app: App): number {
   if (!active(app)) return 0;
   const b = band(app);
-  // sized for the longest step so the tank does not hop as the steps change
-  return Math.max(...STEPS.map((st) => noteH(app, st, b.w))) + 6;
+  // sized for the longest step so the tank does not hop as the steps change (on a short screen,
+  // for this one, so the tank keeps some room)
+  return Math.max(...(short(app) ? [STEPS[shownStep(app)]] : STEPS).map((st) => noteH(app, st, b.w, !!st.action))) + 6;
 }
 
 /** Ida's note for this frame, in UI pixels (null when there is none). */
@@ -231,6 +261,35 @@ export function noteBox(app: App): Rect | null {
     }
   }
   return { x, y, w, h: noteH(app, step, w) };
+}
+
+type Side = 'down' | 'up' | 'left' | 'right';
+
+const overlap = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const inside = (a: Rect, b: Rect) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+
+/**
+ * Where the arrow may go, best first. A folder tab has its card's title under it, so from above;
+ * a pill tab has its neighbours above and below, so only from a side; a list or a card from the
+ * side, in the padding; a stepper's little +/- has its label beside it, so the outline alone.
+ * Anything else from below, where a button keeps its breathing room, then above, then a side.
+ */
+function arrowSides(id: string, r: Rect): Side[] {
+  if (id.startsWith('modes:')) return ['up'];
+  if (/:\d+$/.test(id) || r.h >= 40) return ['left', 'right'];
+  if (r.w < 24 && r.h < 24) return [];
+  return ['down', 'up', 'left', 'right'];
+}
+
+/** the box the arrow sweeps on that side as it bobs */
+function arrowBox(r: Rect, side: Side): Rect {
+  const cx = Math.round(r.x + r.w / 2), cy = Math.round(r.y + r.h / 2);
+  switch (side) {
+    case 'down': return { x: cx - 6, y: r.y + r.h + 3, w: 12, h: 12 };
+    case 'up': return { x: cx - 6, y: r.y - 15, w: 12, h: 13 };
+    case 'right': return { x: r.x + r.w + 3, y: cy - 6, w: 12, h: 12 };
+    case 'left': return { x: r.x - 15, y: cy - 6, w: 13, h: 12 };
+  }
 }
 
 /** Advance past finished steps, then draw the note and the pointer. */
@@ -257,41 +316,58 @@ export function drawTutorial(app: App) {
   const peeking = i < s.tutorial.step;
   const step = STEPS[i];
   const u = app.ui;
+  const { x, y, w, h } = box;
 
-  // the pointer: the first target drawn this frame, and never one a window covers
-  let target: Rect | undefined;
-  for (const id of step.target?.(app) ?? []) {
-    const r = u.rects.get(id);
-    if (r && (!app.window || r.layer > 0)) {
-      target = r;
-      break;
+  // the pointer, drawn last (over the note, so the arrow is never hidden under it) and after the
+  // note's own buttons, which a step can point at too: the first target drawn this frame, and
+  // never one a window covers
+  const pointer = () => {
+    let id = '';
+    let r: (Rect & { layer: number }) | undefined;
+    for (const t of step.target?.(app) ?? []) {
+      const q = u.rects.get(t);
+      if (q && (!app.window || q.layer > 0)) {
+        [id, r] = [t, q];
+        break;
+      }
     }
-  }
-  // drawn last, over the note, so the arrow is never hidden under it
-  const pointer = (r: Rect | undefined) => {
     if (!r) return;
+    // a bobbing arrow on a side where it covers nothing else: no other button or tab, and not
+    // the note's words. With no such side the outline points on its own, a ring thicker.
+    const words = { x: x + 12, y: y + 9, w: w - 24, h: 19 + u.paraHeight(step.text, w - 24) };
+    const others = [...u.rects].filter(([k, q]) => k !== id && (!app.window || q.layer > 0) && !inside(r, q) && !inside(q, r)).map(([, q]) => q);
+    const side = arrowSides(id, r).find((sd) => {
+      const a = arrowBox(r, sd);
+      return a.x >= 0 && a.y >= 0 && a.x + a.w <= app.W && a.y + a.h <= app.H && !overlap(a, words) && !others.some((q) => overlap(a, q));
+    });
     const p = 0.5 + 0.5 * Math.sin(u.time * 5);
     u.ctx.globalAlpha = 0.55 + 0.45 * p;
-    for (const [d, c] of [[3, C.pick], [2, 9]] as const) {
+    for (const [d, c] of side ? ([[3, C.pick], [2, 9]] as const) : ([[4, C.pick], [3, C.pick], [2, 9]] as const)) {
       u.fill(r.x - d, r.y - d, r.w + d * 2, 1, c);
       u.fill(r.x - d, r.y + r.h + d - 1, r.w + d * 2, 1, c);
       u.fill(r.x - d, r.y - d, 1, r.h + d * 2, c);
       u.fill(r.x + r.w + d - 1, r.y - d, 1, r.h + d * 2, c);
     }
     u.ctx.globalAlpha = 1;
-    // a bobbing arrow on whichever side has room
+    if (!side) return;
     const bob = Math.round(Math.sin(u.time * 6) * 3);
-    const below = r.y < app.H / 2;
-    const ax = Math.round(r.x + r.w / 2), ay = below ? r.y + r.h + 6 + bob : r.y - 6 - bob;
+    const along = side === 'down' || side === 'up';
+    // the tip sits 6 px (give or take the bob) off the target, and the arrow widens away from it
+    const away = side === 'down' || side === 'right' ? 1 : -1;
+    const tip = side === 'down' ? r.y + r.h + 6 + bob : side === 'up' ? r.y - 6 - bob : side === 'right' ? r.x + r.w + 6 + bob : r.x - 6 - bob;
+    const mid = along ? Math.round(r.x + r.w / 2) : Math.round(r.y + r.h / 2);
     for (let k = 0; k < 6; k++) {
-      const yy = below ? ay + k : ay - k;
-      u.fill(ax - k - 1, yy, k * 2 + 2, 1, 0);
-      if (k > 0) u.fill(ax - k, yy, k * 2, 1, C.pick);
+      const at = tip + k * away;
+      if (along) u.fill(mid - k - 1, at, k * 2 + 2, 1, 0);
+      else u.fill(at, mid - k - 1, 1, k * 2 + 2, 0);
+      if (k > 0) {
+        if (along) u.fill(mid - k, at, k * 2, 1, C.pick);
+        else u.fill(at, mid - k, 1, k * 2, C.pick);
+      }
     }
   };
 
   // the note, pinned to the wall
-  const { x, y, w, h } = box;
   u.panel(x, y, w, h, 'paper');
   u.rr(x + w / 2 - 3, y - 3, 7, 7, 3, C.bad);
   u.fill(x + w / 2 - 1, y - 2, 2, 2, 61);
@@ -307,15 +383,18 @@ export function drawTutorial(app: App) {
     bx += bw + 6;
   }
   if (peeking) {
-    const label = i + 1 === s.tutorial.step ? `Back to step ${s.tutorial.step + 1} ${ICON.right}` : `Next ${ICON.right}`;
+    const n = s.tutorial.step + 1, long = `Back to step ${n} ${ICON.right}`;
+    // a narrow note (beside a window) has no room for the long label beside Back
+    const label = i + 1 !== s.tutorial.step ? `Next ${ICON.right}` : bx + textWidth(long) + 20 <= x + w - 12 ? long : `Step ${n} ${ICON.right}`;
     const bw = textWidth(label) + 20;
     if (u.button('tut:next', x + w - bw - 12, by, bw, M.btn, label, { style: 'good' })) app.tutorialPeek = i + 1 >= s.tutorial.step ? null : i + 1;
-    pointer(target);
+    pointer();
     return;
   }
   if (step.action && !step.action.hidden?.(app)) {
-    const bw = textWidth(step.action.label) + 20;
-    if (u.button('tut:act', bx, by, bw, M.btn, step.action.label, { style: 'good' })) step.action.run(app);
+    const bw = Math.min(w - 24, textWidth(step.action.label) + 20);
+    const [ax, ay] = twoRows(step, w) ? [x + 12, by - M.btn - 4] : [bx, by];
+    if (u.button('tut:act', ax, ay, bw, M.btn, step.action.label, { style: 'good' })) step.action.run(app);
   }
   if (step.ack) {
     const label = s.tutorial.step === STEPS.length - 1 ? 'Thanks!' : `Got it ${ICON.right}`;
@@ -325,5 +404,5 @@ export function drawTutorial(app: App) {
       if (s.tutorial.step >= STEPS.length) s.tutorial.done = true;
     }
   }
-  pointer(target);
+  pointer();
 }

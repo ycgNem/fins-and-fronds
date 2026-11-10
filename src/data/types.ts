@@ -131,6 +131,9 @@ export interface SpeciesDef {
   fact: string;
   /** how the player first gets it */
   source: 'start' | 'supplier' | 'expedition' | 'hitchhiker';
+  /** how it turns up, for the codex, when that is not the usual way for its source (a hitchhiker
+   *  that is bred, not carried in) */
+  found?: string;
   /** aquarium tier needed before the supplier lists it */
   tier: number;
 }
@@ -303,9 +306,11 @@ export interface EquipDef {
   bio?: number;
   /** water turnover in liters per hour */
   lph?: number;
+  /** pumps sized to the tank they serve: tank volumes per hour (up to lph) instead of a fixed lph */
+  turnover?: number;
   /** heating / cooling power in watts */
   watts?: number;
-  /** heaters: the biggest tank (US gallons) it keeps tropical on its own, as printed on the box */
+  /** heaters and chillers: the biggest tank (US gallons) it holds on its own, as printed on the box */
   maxGal?: number;
   /** light intensity at 40 cm depth (PAR-like) */
   par?: number;
@@ -441,7 +446,24 @@ export type RequestCheck =
   | { t: 'symbiosis' }
   | { t: 'night' }
   | { t: 'decor_set'; tag: ItemTag }
-  | { t: 'pests_clear' };
+  | { t: 'pests_clear' }
+  /** asks nothing: a reply, a thank-you or a promise kept (ready as soon as it arrives) */
+  | { t: 'none' }
+  /** a tank with no animals at all, rated this many stars on its plants and stones */
+  | { t: 'no_animals'; stars: number }
+  /** this many expeditions come home */
+  | { t: 'trips'; min: number }
+  /** this many wild-caught animals living in the display tanks */
+  | { t: 'wild'; min: number }
+  /** one tank scoring this much (0-100) on one part of its rating */
+  | { t: 'part'; part: 'wellbeing' | 'habitat' | 'scape' | 'authenticity' | 'spectacle'; min: number }
+  /** this many tank types or species in the codex */
+  | { t: 'codex'; kind: 'archetypes' | 'species'; min: number }
+  /** a conservation project funded this many times (any project when no id) */
+  | { t: 'project'; id?: string; min: number };
+
+/** what a letter does for the shop when it is answered, besides its reward */
+export type LetterEffect = 'name_koi' | 'guide' | 'notebook';
 
 export interface RequestDef {
   id: string;
@@ -449,12 +471,58 @@ export interface RequestDef {
   title: string;
   text: string;
   check: RequestCheck;
-  reward: { coins: number; rep: number; unlock?: string };
+  /** unlock: an upgrade, item, shell or species it brings; spare: animals sent to holding instead
+   *  when the shop already has the unlock (so the promised surprise always comes) */
+  reward: { coins: number; rep: number; unlock?: string; spare?: { sp: string; n: number } };
   tier: number;
   /** sent before any other letter of its tier (Ida's opening letters) */
   first?: boolean;
-  /** only sent once it makes sense: 'pests' waits until some tank has had pest snails */
-  when?: 'pests';
+  /** only sent once it makes sense: 'pests' waits until pest snails have turned up (in a tank or
+   *  caught in the dip); 'finale' waits for the Grand Oceanarium's opening night */
+  when?: 'pests' | 'finale';
+  /** a reply in a correspondent's story: sent only after this letter was answered (a day later) */
+  after?: string;
+  /** the line that opens the letter when the shop already does what it asks */
+  met?: string;
+  /** Pip's thank-you when the plant dip caught the pest snails before any got into a tank */
+  metDip?: string;
+  /** answering it ends the correspondent's story with a keepsake for the shop's shelf */
+  keepsake?: string;
+  effect?: LetterEffect;
+}
+
+/** A conservation or breeding project the aquarium can fund again and again (a coin sink that
+ *  turns coins into reputation, a postcard and something you can see). */
+export interface ProjectDef {
+  id: string;
+  name: string;
+  /** who runs it (a correspondent id), for the stationery and the thank-you line */
+  from: string;
+  tier: number;
+  /** coins and reputation for the first funding; later ones cost more (BAL.projectCostGrowth) */
+  cost: number;
+  rep: number;
+  /** the region whose postcard picture goes on its card */
+  region: RegionId;
+  blurb: string;
+  /** one line per funding, in order (the last repeats) */
+  lines: string[];
+  /** what the shop gets: more visitors per funding, or a species the supplier can now order */
+  effect: { visitors?: number; unlock?: string };
+}
+
+/** A day of the week with something on (src/sim/week.ts). */
+export interface WeekEventDef {
+  /** what changes: wellbeing talked about (bench), spectacle draws (school), crowds and shoppers
+   *  (market), scapes talked about and a rosette (judging) */
+  id: 'bench' | 'school' | 'market' | 'judging';
+  /** 0 Monday .. 6 Sunday */
+  day: number;
+  name: string;
+  /** a correspondent it belongs to */
+  from: string;
+  /** the toast when the shop opens */
+  text: string;
 }
 
 export interface SymbiosisDef {

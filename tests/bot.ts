@@ -1,16 +1,19 @@
 // A scripted player for balance runs (tests/progression.test.ts, scripts/playthrough.ts). It builds
 // the tanks a sensible player would, keeps them fed and clean, answers letters, buys upgrades,
-// stocks a breeding tank and sends expeditions, and logs when each tier arrives in game days and
+// stocks a breeding tank, sends expeditions (to whichever cheap region is least fished), funds
+// conservation projects with what is left over, and logs when each tier arrives in game days and
 // in estimated real minutes of play: 3x speed while the shop is open, 10x while it is closed, plus
 // a few minutes for the tour and for each tank scaped.
 import { equip, item, region, REGIONS, shell, species, TIERS, upgrade } from '../src/data';
+import { PROJECTS } from '../src/data/progression';
 import type { RegionId, Water } from '../src/data/types';
 import * as act from '../src/sim/actions';
 import { BAL } from '../src/sim/balance';
 import { baysUnlocked, shellPrice } from '../src/sim/catalog';
-import { canExpedition } from '../src/sim/expeditions';
+import { canExpedition, freshness } from '../src/sim/expeditions';
 import { Game } from '../src/sim/Game';
 import { newGame } from '../src/sim/newgame';
+import { canFund, fundProject, projectCost, projectRep } from '../src/sim/projects';
 import { isStock } from '../src/sim/sales';
 import { dayOf, hourOf, type Tank } from '../src/sim/state';
 import { cycleProgress } from '../src/sim/water';
@@ -67,7 +70,7 @@ export const DISPLAYS: Template[] = [
     stock: [['koi', 4]],
   },
   {
-    name: 'Touch pool', tier: 3, water: 'marine', shell: 'touch_pool', gear: ['canister_pro', 'chiller_small', 'protein_skimmer', 'led_basic'],
+    name: 'Touch pool', tier: 3, water: 'marine', shell: 'touch_pool', gear: ['canister_pro', 'chiller_large', 'protein_skimmer', 'led_basic'],
     items: [['granite_boulder', 0.3, 1], ['barnacle_rock', 0.7, 1], ['granite_boulder', 0.5, 2]],
     stock: [['ochre_star', 2], ['purple_urchin', 3], ['blueband_hermit', 5], ['tidepool_sculpin', 2]], temp: 15,
   },
@@ -76,7 +79,7 @@ export const DISPLAYS: Template[] = [
     items: [], stock: [['moon_jelly', 6]], temp: 18,
   },
   {
-    name: 'Kelp tower', tier: 4, water: 'marine', shell: 'kelp_tower', gear: ['life_support', 'chiller_large', 'surge_device', 'metal_halide'],
+    name: 'Kelp tower', tier: 4, water: 'marine', shell: 'kelp_tower', gear: ['life_support', 'chiller_exhibit', 'surge_device', 'metal_halide'],
     items: [['giant_kelp', 0.2, 0], ['giant_kelp', 0.5, 0], ['giant_kelp', 0.8, 0], ['bull_kelp', 0.35, 1], ['granite_boulder', 0.6, 2]],
     stock: [['garibaldi', 3], ['blue_rockfish', 2], ['ochre_star', 3], ['purple_urchin', 4]], temp: 15,
   },
@@ -103,8 +106,11 @@ const STOCK_TANK: Template = {
 const UPGRADE_ORDER: [string, number][] = [
   ['test_kits', 1], ['benches', 1], ['auto_feeders', 1], ['quarantine', 1], ['placards', 1], ['seeded_media', 1], ['extra_bays', 1], ['donation_box', 1],
   ['glazier', 1], ['auto_water', 1], ['better_nets', 1], ['benches', 2], ['night_openings', 1], ['gift_shop', 1], ['seeded_media', 2], ['extra_bays', 2], ['donation_box', 2],
-  ['conservation', 1], ['extra_bays', 3], ['faster_boat', 1], ['conservation', 2], ['benches', 3], ['gift_shop', 2], ['extra_bays', 4], ['conservation', 3], ['extra_bays', 5], ['conservation', 4],
+  ['cleaning_crew', 1], ['extra_bays', 3], ['faster_boat', 1], ['cleaning_crew', 2], ['benches', 3], ['gift_shop', 2], ['extra_bays', 4], ['extra_bays', 5],
 ];
+
+/** coins the bot keeps back before funding a project */
+const PROJECT_CUSHION = 400;
 
 export interface Milestone { tier: number; day: number; realMin: number; coins: number; tanks: number }
 
@@ -128,7 +134,7 @@ function templateCost(g: Game, tp: Template): number {
 export function playthrough(seed: number, days: number, untilTier = 99): Run {
   const s = newGame(seed);
   s.tutorial.done = true;
-  s.seen = ['intro', 'town'];
+  s.seen = ['intro', 'town', 'finale'];
   const g = new Game(s);
   const run: Run = { milestones: [{ tier: 0, day: 0, realMin: 0, coins: s.coins, tanks: 0 }], log: [], coins: [], letters: [], expeditions: [], game: g, realMin: 0 };
   // the tour: about six minutes to build, scape and stock the first tank
@@ -246,20 +252,34 @@ export function playthrough(seed: number, days: number, untilTier = 99): Run {
     // upgrades: the first one on the list the tier allows, keeping a cushion for upkeep and, when a
     // bay is waiting, the price of the next tank
     const saving = next && next.tier <= s.tier && displays < baysUnlocked(s, tier.bays) ? templateCost(g, next) : 0;
+    let wanting = false;
     for (const [id, lvl] of UPGRADE_ORDER) {
       const have = s.upgrades[id] ?? 0;
       const nextLvl = upgrade(id).levels[have];
       if (have >= lvl || !nextLvl || nextLvl.tier > s.tier) continue;
+      wanting = true;
       if (s.coins >= nextLvl.cost + 100 + saving && !act.buyUpgrade(g, id)) {
         say(`upgrade ${id} ${have + 1}`);
         realSec += 10;
       }
       break;
     }
-    // expeditions: the cheapest open region, when it leaves a cushion
+    // conservation projects with what is left once the tier's upgrades are bought: the best
+    // reputation for the coins first
+    if (!wanting) {
+      const p = PROJECTS.filter((q) => q.tier <= s.tier).sort((a, b) => projectCost(s, a) / projectRep(s, a) - projectCost(s, b) / projectRep(s, b))[0];
+      if (p && !canFund(s, p) && s.coins >= projectCost(s, p) + saving + PROJECT_CUSHION) {
+        const cost = projectCost(s, p);
+        if (!fundProject(g, p.id)) {
+          say(`project ${p.id} for ${cost}`);
+          realSec += 10;
+        }
+      }
+    }
+    // expeditions: one of the eight cheapest open regions, the least fished lately
     if (s.tier >= 1 && s.expeditions.every((e) => e.finds)) {
-      const open = REGIONS.filter((r) => !canExpedition(s, r.id as RegionId)).sort((a, b) => a.expedition.cost - b.expedition.cost);
-      const r = open[(day * 7) % Math.max(1, Math.min(4, open.length))];
+      const open = REGIONS.filter((r) => !canExpedition(s, r.id as RegionId)).sort((a, b) => a.expedition.cost - b.expedition.cost).slice(0, 8);
+      const r = open.sort((a, b) => freshness(s, b.id as RegionId) - freshness(s, a.id as RegionId))[0];
       if (r && s.coins >= r.expedition.cost + 250 + saving) {
         const cost = r.expedition.cost;
         if (!act.sendExpedition(g, r.id as RegionId)) {

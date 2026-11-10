@@ -1,7 +1,8 @@
 // Archetype recognition: which kind of aquarium a tank is. Hard rules must all pass; soft rules
 // make up the authenticity score and the hints shown on the plaque and in the codex.
-import { ARCHETYPES, item } from '../data';
+import { ARCHETYPES, item, region, species } from '../data';
 import type { ArchetypeDef, Rule } from '../data/types';
+import { BAL } from './balance';
 import { type Facts, focalThirds, oddStones, oneRockType, regionFrac, schoolsOf } from './facts';
 
 function within(v: number, min?: number, max?: number): boolean {
@@ -13,7 +14,8 @@ export function checkRule(r: Rule, f: Facts): boolean {
   const ch = t.chem;
   switch (r.t) {
     case 'water': return t.water === r.is;
-    case 'temp': return within(ch.temp, r.min, r.max);
+    // a reading that shows the rule's number counts (the display rounds to 0.1 C)
+    case 'temp': return within(ch.temp, r.min === undefined ? undefined : r.min - BAL.tempTol, r.max === undefined ? undefined : r.max + BAL.tempTol);
     case 'ph': return within(ch.ph, r.min, r.max);
     case 'gh': return within(ch.gh, r.min, r.max);
     case 'sg': return within(ch.sg, r.min, r.max);
@@ -119,17 +121,65 @@ export interface Classification {
   near: ArchetypeResult[];
 }
 
+/**
+ * About how much it takes to pass a hard rule a tank fails, so the nearest type comes first: a few
+ * more animals or one more species is little (taking some out a little more: they were wanted);
+ * gear, chemistry or rearranging a little more; restocking from one region more again; and other
+ * water, another shell or size is another tank.
+ */
+function reach(r: Rule, f: Facts): number {
+  const gap = (v: number, min?: number, max?: number) => Math.max(0, (min ?? v) - v, (v - (max ?? v)) * 1.5);
+  const sum = (m: Map<string, number>, keys: readonly string[]) => keys.reduce((n, k) => n + (m.get(k) ?? 0), 0);
+  switch (r.t) {
+    case 'water': case 'shell': case 'liters': return 10;
+    case 'region': return 4;
+    case 'species': return gap(f.bySpecies.size, r.min, r.max);
+    // (animals come in groups, so two more is about as far as one more species)
+    case 'animals': return gap(f.animals, r.min, r.max) / 2;
+    case 'has': return gap(sum(f.bySpecies, r.ids), r.min, r.max) / 2;
+    case 'kind': return gap(sum(f.byKind, r.kinds), r.min, r.max) / 2;
+    case 'tag': return gap(f.byTag.get(r.tag) ?? 0, r.min, r.max) / 2;
+    default: return 2;
+  }
+}
+
+/**
+ * Could a tank of this water become that type at all? Not when the type wants another water,
+ * animals that live only in another water or corals in fresh water: a freshwater tank with two
+ * ribbon plants passes the Seahorse Tank's hitching posts, but it will never hold the seahorses.
+ */
+export function couldBecome(def: ArchetypeDef, water: string): boolean {
+  return def.rules.every(({ rule, hard }) => {
+    if (!hard) return true;
+    switch (rule.t) {
+      case 'water': return rule.is === water;
+      case 'has': return rule.ids.some((id) => species(id).water === water);
+      case 'region': return rule.ids.some((id) => region(id).water === water);
+      case 'corals': return (rule.min ?? 0) <= 0 || water === 'marine';
+      default: return true;
+    }
+  });
+}
+
 export function classify(f: Facts): Classification {
   const matches: ArchetypeResult[] = [];
-  const near: ArchetypeResult[] = [];
-  if (f.animals === 0 && f.tank.items.length === 0) return { best: null, matches, near };
+  const near: { r: ArchetypeResult; reach: number }[] = [];
+  if (f.animals === 0 && f.tank.items.length === 0) return { best: null, matches, near: [] };
   for (const def of ARCHETYPES) {
     const r = evaluate(def, f);
     if (r.hardPassed === r.hardTotal) matches.push(r);
-    else if (r.hardTotal > 1 && r.hardPassed >= r.hardTotal - 1) near.push(r);
+    // a near miss only when the tank could really become it (the report card, Ideas, letters)
+    else if (r.hardTotal > 1 && r.hardPassed >= r.hardTotal - 1 && couldBecome(def, f.tank.water)) {
+      const miss = def.rules.find((q) => q.hard && !checkRule(q.rule, f))!;
+      near.push({ r, reach: reach(miss.rule, f) });
+    }
   }
   const rank = (r: ArchetypeResult) => r.def.priority + r.score * 3;
   matches.sort((a, b) => rank(b) - rank(a));
-  near.sort((a, b) => b.def.priority - a.def.priority);
-  return { best: matches[0] ?? null, matches, near: near.slice(0, 4) };
+  // nearest first: the one missing rule easiest to meet and the rest already most true to type
+  // (a betta is one fish away from a Betta Haven, but a neon tank is not much of one), then the
+  // more prestigious
+  const dist = (q: { r: ArchetypeResult; reach: number }) => q.reach + (1 - q.r.score) * 2;
+  near.sort((a, b) => dist(a) - dist(b) || b.r.def.priority - a.r.def.priority);
+  return { best: matches[0] ?? null, matches, near: near.slice(0, 4).map((q) => q.r) };
 }

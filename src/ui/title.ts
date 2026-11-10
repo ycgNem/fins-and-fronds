@@ -27,10 +27,13 @@ export function drawTitle(app: App) {
   drawText(u.ctx, title, tx, ty, PALETTE[C.head], sc, null, 'display');
   u.text(sub, mid, sy + sh - 22, C.textDim, { align: 'center' });
 
-  const ask = 'Start over? Your shop will be lost.';
   const save = app.hasSave();
-  const bw = save && confirming ? Math.max(180, textWidth(ask)) : 180, bx = Math.floor((app.W - bw) / 2);
-  const ch = save ? (confirming ? 92 : 70) : 42;
+  // a save that would not load stays in its slot with a backup copy: say so, never start over on it
+  const broken = save && app.loadError ? 'Your save could not be read. It is kept just as it was, with a backup copy, so nothing is lost.' : '';
+  const ask = broken ? 'Start a new shop? The old save stays backed up.' : 'Start over? Your shop will be lost.';
+  const bw = save && (confirming || broken) ? Math.max(broken ? 240 : 180, textWidth(ask)) : 180, bx = Math.floor((app.W - bw) / 2);
+  const note = broken && !confirming ? u.paraHeight(broken, bw) + 6 : 0;
+  const ch = (save ? (confirming ? 92 : 70) : 42) + note;
   const cy = app.H - ch - 16;
   u.panel(bx - 12, cy, bw + 24, ch, 'chip', false);
   let by = cy + 10;
@@ -45,8 +48,9 @@ export function drawTitle(app: App) {
     if (u.button('keep', bx, by, bw, M.btn + 2, 'No, keep my shop', { style: 'good' })) confirming = false;
     return;
   }
+  if (note) by += u.para(broken, bx, by, bw, C.warn) + 6;
   if (save) {
-    if (u.button('continue', bx, by, bw, M.btn + 2, 'Continue', { style: 'good' })) app.continueSave();
+    if (u.button('continue', bx, by, bw, M.btn + 2, broken ? 'Try again' : 'Continue', { style: 'good' })) app.continueSave();
     by += M.btn + 6;
   }
   if (u.button('newgame', bx, by, bw, M.btn + 2, 'New shop')) {

@@ -67,7 +67,8 @@ export interface Gear {
   lph: number;
   /** liters of tank the heaters are rated for, together */
   heatL: number;
-  chillW: number;
+  /** liters of tank the chillers are rated for, together */
+  chillL: number;
   par: number;
   tint: string;
   lightHeat: number;
@@ -81,7 +82,8 @@ export interface Gear {
 }
 
 export function gear(t: Tank): Gear {
-  const g: Gear = { bio: 0, lph: 0, heatL: 0, chillW: 0, par: 0, tint: 'neutral', lightHeat: 0, co2: 0, co2Steady: 1, air: 0, export: 0, slots: new Map(), ids: new Set(), gentle: true };
+  const liters = litersOf(t);
+  const g: Gear = { bio: 0, lph: 0, heatL: 0, chillL: 0, par: 0, tint: 'neutral', lightHeat: 0, co2: 0, co2Steady: 1, air: 0, export: 0, slots: new Map(), ids: new Set(), gentle: true };
   for (const id of t.equip) {
     const e = equip(id);
     g.ids.add(id);
@@ -90,9 +92,10 @@ export function gear(t: Tank): Gear {
       g.bio += e.bio ?? 0;
       if (!e.gentle) g.gentle = false;
     }
-    g.lph += e.lph ?? 0;
+    // exhibit life support is sized to its exhibit: a deep chamber is not a torrent
+    g.lph += e.turnover ? Math.min(e.lph ?? Infinity, e.turnover * liters) : e.lph ?? 0;
     if (e.slot === 'heater') g.heatL += (e.maxGal ?? 0) * BAL.galL;
-    if (e.slot === 'chiller') g.chillW += e.watts ?? 0;
+    if (e.slot === 'chiller') g.chillL += (e.maxGal ?? 0) * BAL.galL;
     if (e.slot === 'light' && (e.par ?? 0) > g.par) {
       g.par = e.par ?? 0;
       g.tint = e.tint ?? 'neutral';
@@ -223,6 +226,17 @@ export function facts(t: Tank, hour = 12): Facts {
 export function parAt(f: Facts, y: number): number {
   const frac = 1 - Math.max(0, Math.min(1, (y - f.geom.surface) / Math.max(1, f.geom.h - f.geom.surface)));
   return f.par + (f.parTop - f.par) * frac;
+}
+
+/** PAR where a plant's leaves are: halfway up it, floating plants right under the lamp, and kelp
+ *  at its crown. Kelp's gas floats hold its blades up toward the light (giant kelp's at every
+ *  blade, bull kelp's one float with the whole mop of blades on it), so in a kelp tower, where the
+ *  water by the holdfast gets a few percent of the lamp, a young kelp still feeds near the top. */
+export function plantPar(f: Facts, p: Placed): number {
+  const it = item(p.id);
+  if (it.place === 'surface') return f.parTop;
+  const leaves = it.plant?.kind === 'kelp' ? 1 : 0.5;
+  return parAt(f, f.geom.h - p.y - it.h * p.size * leaves);
 }
 
 /** How native a tank is to some regions: each animal species counts once (a big school of the

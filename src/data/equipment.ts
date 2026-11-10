@@ -18,22 +18,27 @@ export const EQUIPMENT: EquipDef[] = [
     blurb: 'A spray bar and screened outflow that drive the circular current without ever trapping a jelly.' },
   { id: 'pond_filter', name: 'Pond Bead Filter', slot: 'filter', bio: 8000, lph: 12000, needsShell: 'pond', price: 900, tier: 3,
     blurb: 'A pressurized bead filter sized for koi, the heaviest bioload of any pet fish.' },
-  { id: 'life_support', name: 'Exhibit Life Support', slot: 'filter', bio: 300000, lph: 200000, needsShell: 'exhibit', export: 0.04, price: 6000, tier: 4,
-    blurb: 'Sand filters, ozone, foam fractionators and pumps the size of a room: what public aquariums run on.' },
+  { id: 'life_support', name: 'Exhibit Life Support', slot: 'filter', bio: 300000, lph: 200000, turnover: 2, needsShell: 'exhibit', export: 0.1, air: 0.4, price: 6000, tier: 4,
+    blurb: 'Sand filters, ozone, foam fractionators and pumps the size of a room, turning the whole exhibit over twice an hour: what public aquariums run on.' },
   // ---------------------------------------------------------------- temperature
   // rated like the boxes in a real shop (RESEARCH.md, section 10): about 3 to 5 W per gallon. A
-  // heater holds its rated tank a few degrees above the room; two heaters' ratings add up.
+  // heater holds its rated tank a few degrees above the room, a chiller several below it (more in
+  // a smaller tank, less in a bigger one); two heaters' ratings add up.
   { id: 'heater_50', name: 'Heater 50 W', slot: 'heater', watts: 50, maxGal: 10, price: 12, tier: 0, blurb: 'For nanos and tanks up to 10 gallons.' },
   { id: 'heater_150', name: 'Heater 150 W', slot: 'heater', watts: 150, maxGal: 30, price: 24, tier: 0, blurb: 'The everyday heater for 20 and 29 gallon tanks.' },
   { id: 'heater_200', name: 'Heater 200 W', slot: 'heater', watts: 200, maxGal: 50, price: 32, tier: 0, blurb: 'For 40 gallon breeders and anything up to 50 gallons.' },
   { id: 'heater_300', name: 'Heater 300 W', slot: 'heater', watts: 300, maxGal: 75, price: 40, tier: 1, blurb: 'For 55 and 75 gallon tanks, or warm-water fish like discus in a smaller one.' },
   { id: 'titanium_heater', name: 'Titanium Heater 1000 W', slot: 'heater', watts: 1000, maxGal: 250, price: 120, tier: 3, blurb: 'Unbreakable titanium for sumps, show tanks and ponds, up to 250 gallons.' },
-  { id: 'chiller_small', name: 'Chiller 1/10 HP', slot: 'chiller', watts: 150, price: 220, tier: 2,
-    blurb: 'Keeps goldfish, axolotls, shrimp and temperate fish cool in a warm hall.' },
-  { id: 'chiller_large', name: 'Chiller 1 HP', slot: 'chiller', watts: 1200, price: 900, tier: 4,
-    blurb: 'The cold heart of kelp forests, tide pools and northern seas.' },
-  { id: 'chiller_exhibit', name: 'Exhibit Chiller Plant', slot: 'chiller', watts: 20000, price: 5000, tier: 5,
-    blurb: 'Industrial chillers for deep-sea and cold-ocean exhibits.' },
+  { id: 'heat_exchanger', name: 'Exhibit Heat Exchanger', slot: 'heater', watts: 60000, maxGal: 60000, needsShell: 'exhibit', price: 2400, tier: 4,
+    blurb: "Hot-water coils from the building's boiler, plumbed into the life support: keeps a whole exhibit tropical, up to 60,000 gallons." },
+  { id: 'chiller_small', name: 'Chiller 1/10 HP', slot: 'chiller', watts: 150, maxGal: 30, price: 220, tier: 1,
+    blurb: 'Keeps sticklebacks, darters, axolotls and goldfish cool in a warm hall, up to 30 gallons.' },
+  { id: 'chiller_quarter', name: 'Chiller 1/4 HP', slot: 'chiller', watts: 350, maxGal: 80, price: 420, tier: 2,
+    blurb: 'For coldwater tanks up to 80 gallons, and for kreisels of sea nettles.' },
+  { id: 'chiller_large', name: 'Chiller 1 HP', slot: 'chiller', watts: 1200, maxGal: 400, price: 900, tier: 3,
+    blurb: 'The cold heart of tide pools, touch tanks and northern seas, up to 400 gallons.' },
+  { id: 'chiller_exhibit', name: 'Exhibit Chiller Plant', slot: 'chiller', watts: 20000, maxGal: 60000, needsShell: 'exhibit', price: 5000, tier: 4,
+    blurb: 'Industrial chillers for kelp forests, deep-sea chambers and cold-ocean exhibits, up to 60,000 gallons.' },
   // ---------------------------------------------------------------- lighting
   { id: 'led_basic', name: 'Basic LED Bar', slot: 'light', par: 40, tint: 'neutral', heat: 0.2, price: 15, tier: 0,
     blurb: 'Enough light to see your fish and grow Anubias, Java fern and moss.' },
@@ -62,7 +67,7 @@ export const EQUIPMENT: EquipDef[] = [
     blurb: 'A directional pump for current-loving fish, hillstream tanks and soft corals.' },
   { id: 'wavemaker', name: 'Wavemaker Pair', slot: 'flow', lph: 6000, price: 120, tier: 3,
     blurb: 'Two pulsing pumps that make random, turbulent reef flow for SPS and tangs.' },
-  { id: 'surge_device', name: 'Surge Device', slot: 'flow', lph: 20000, needsShell: 'exhibit', price: 1500, tier: 4,
+  { id: 'surge_device', name: 'Surge Device', slot: 'flow', lph: 800000, turnover: 4, needsShell: 'exhibit', price: 1500, tier: 4,
     blurb: 'A tipping bucket or wave machine that sweeps the tank like a swell: kelp sways, fish ride the surge.' },
   // ---------------------------------------------------------------- marine support
   { id: 'protein_skimmer', name: 'Protein Skimmer', slot: 'skimmer', export: 0.08, water: ['marine', 'brackish'], price: 140, tier: 3,
@@ -70,7 +75,7 @@ export const EQUIPMENT: EquipDef[] = [
   { id: 'ato', name: 'Auto Top-off', slot: 'ato', price: 60, tier: 2,
     blurb: 'Tops up evaporation with fresh water, so salinity never creeps upward.' },
   { id: 'doser', name: 'Dosing Pump', slot: 'doser', water: ['marine'], price: 160, tier: 3,
-    blurb: 'Drips calcium, alkalinity and magnesium in tiny doses all day, as stony corals use them up.' },
+    blurb: 'Drips calcium, alkalinity and magnesium in tiny doses all day, as stony corals use them up: anyone judging an SPS reef looks for one.' },
   { id: 'refugium', name: 'Refugium', slot: 'refugium', export: 0.06, water: ['marine', 'brackish'], needsShell: 'drilled', price: 120, tier: 3,
     blurb: 'A lit compartment of Chaetomorpha in the sump: exports nitrate and breeds the copepods mandarins live on.' },
   { id: 'uv_sterilizer', name: 'UV Sterilizer', slot: 'uv', price: 70, tier: 1,
@@ -87,5 +92,5 @@ export const EQUIPMENT: EquipDef[] = [
   { id: 'carbon_media', name: 'Activated Carbon', slot: 'media', price: 8, tier: 0,
     blurb: 'Pulls tannins and odors out of the water: crystal clear instead of tea.' },
   { id: 'peat_media', name: 'Peat Media', slot: 'media', price: 8, tier: 0,
-    blurb: 'Filters through peat for soft, tea-stained blackwater.' },
+    blurb: 'Filters through peat: it trades hardness for acid, so tap water turns softer, more acid and tea-stained, the way cardinals, rams and gouramis like it.' },
 ];

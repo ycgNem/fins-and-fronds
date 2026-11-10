@@ -2,6 +2,94 @@
 
 Short records of choices that shape the code. Newest first.
 
+## 2026-11-08 (0.3: the critique and improvement pass)
+
+A full critique (playability, pacing, bugs, the first hour, the late game) found 188 problems.
+Six packages fixed them in parallel; three more review rounds checked the merge and each round of
+fixes, then a real-browser verification. The calls that shape the code:
+
+- **The interface answers "why not?".** A disabled button still shows its tooltip and plays a
+  soft refusal on click; an action that refuses toasts in red (`app.run`). Status text uses
+  darker versions of the status fills (`UI.goodText` and friends), so colorblind-safe mode stays
+  readable, and out-of-range readings carry an arrow.
+- **"Good fit" predicts the water a tank is heading for.** `hints.heading` settles the water at
+  equilibrium with the stones, soil, wood, heater and CO2, counts bagged fish as released, and
+  the reasons name the cause ("the stones will push pH to ~8.2").
+- **Hall news comes from the stats, not new sim events.** Star gains and new tank types get a
+  chime and sparkle, a sharp wellbeing drop a red toast, and hall cards small attention badges.
+- **Every tank the game sells is keepable at the tier that sells it.** Species arrive with the
+  first tank big enough for them; chillers are rated in gallons (`BAL.chillDrop`) with one at
+  every tier that sells cold-water animals; exhibits have a heat exchanger. Reef pH stops at
+  calcite saturation (`BAL.calcitePh`, 8.3), active soil floors pH near 6.2, peat softens, and the
+  thermostat snaps to its set point within `BAL.tempTol`. Tests check that every tank type can
+  reach its temperature.
+- **Breeding fills the room it has, then stops.** A brood needs room for the grown young in the
+  filter and in the water (about 1.2 cm of animal per liter; inverts count 0.3 of their length),
+  none past 150 animals. Fry do not count toward a species' limit; grown young past it go to the
+  holding tank. Non-gentle filters take tiny fry; guarding parents raise one brood at a time.
+  Stock racks keep a breeding group back (`sales.reserveOf`: the keep setting or the school size
+  up to 10, or a pair), and the best animals stay as breeders.
+- **Shoppers arrive as a Poisson stream** at a fixed average rate, so every game speed sells the
+  same. Hunger eases in from 16 h and is real by 48 h: once a day is fine.
+- **A save that will not load is never erased.** Continue keeps it, copies it to
+  `fins-and-fronds/save.bad` and the title says so. Loading fills, repairs or drops every field,
+  including all of 0.3's. Save version 3 turns old Conservation Fund levels into funded
+  projects, dates old wood's soak from the tank's age (no stain notice storm on load) and
+  keeps Pip's snail letter for shops that already cleared their snails.
+- **Near-miss tank types must be reachable.** `archetype.couldBecome` drops a type whose hard
+  rules want another water, animals from another water or corals in fresh water, so a
+  freshwater tank of ribbon plants is never "close to" a Seahorse Tank, on the report card,
+  in the Ideas or in letter progress.
+- **Blackwater stays stained, a handful of leaves does not.** Soaked wood keeps a lasting tint
+  (`BAL.woodTanninFloor` 0.4) and leaf litter stains by its area (`BAL.leafStain`), each patch
+  capped at `BAL.leafStainMax` 0.8 of its strength: one catappa patch tints a tank up to 29 gallons
+  amber (about 0.24) and activated carbon clears it; two patches, or leaves with wood, make
+  blackwater, so Rio Negro and peat-swamp tanks stay recognized with the things their hints ask
+  for. The cap sits below 1 so a single patch never hovers at the 0.3 those types require.
+- **Kelp reads its light at its crown** (`facts.plantPar`): gas floats hold the blades up, so a
+  new kelp in an 8.5 m tower is lit like its top, not its middle. Every other plant still reads
+  halfway up.
+- **Letters remember what answered them.** The tank, species and count are recorded when a
+  letter becomes ready, and replies quote that, with natural fallbacks for older saves.
+  `{k:one|many}` prints a count with its noun.
+- **Letters the shop already answers still arrive**, as thank-yous that can be answered at once
+  (`BAL.letterMetShare`, one open at a time). Correspondents write back a day later and quote the
+  tank; each story ends in a keepsake (`ks:<correspondent>`), kept in the codex and shown on a
+  shelf in the hall where there is room.
+- **Coins turn into reputation through repeatable conservation projects** (`src/sim/projects.ts`),
+  replacing the one-shot Conservation Fund; old fund levels carry over as fundings.
+- **A week with visiting days, and a sleep button** (`src/sim/week.ts`): Tuesday's bench,
+  Friday's school trip, Saturday's market, Sunday's judging. Clicking the Closed sign sleeps to
+  9:00. Stock racks are behind the counter: they draw no visitors and earn only from sales.
+- **Expeditions are for finds, not farming.** A haul is worth about 1.1x its cost, a region fished
+  often gives less until it recovers, and each trip tries to bring something the supplier does
+  not sell.
+- **The Grand Oceanarium has an ending:** a two-shot finale that cannot be skipped, then Ida's
+  last letter. Saves already at tier 5 see it once on load. Every top-tier letter waits for the
+  finale (`state.seen` has it), so a shop that reaches the top overnight hears Ida first; open
+  letters are never held.
+- **Retuned with the scripted player.** Tiers at 0/130/450/2300/5800/13500 reputation,
+  `repPerVisitor` 0.05, tank-type reputation (6 + 8 x tier) x appeal, saltwater animals x1.8 and
+  brackish x1.3, substrate priced by floor area.
+- **Touch and high-DPI screens are first-class.** The canvas is sized in device pixels and the
+  interface scale is a whole number of them. A tap is a click even when the finger lifts off the
+  canvas, one finger drags lists, two pan and pinch, and an upright phone gets a "turn sideways"
+  card. Watch mode is zoom and pan only, with a Back button.
+- **A drag is a preview until release.** Esc, a window, the hall or a tank switch put the piece
+  back; pieces keep 40% of their width inside the glass (`BAL.edgeRoom`); hit tests use drawn
+  pixels in paint order.
+- **What floats over the tank stays in the view.** Coin and tap pops are placed in shares of the
+  glass on a spot no other pop covers and inside `app.viewport()`, rise together (so they never
+  meet), are trimmed at the view's edge and let go when the view or the glass size changes. The
+  brass plaque hides when a zoomed tank's stand leaves the view. Racks and the hall keep their own
+  layouts.
+- **The pixel font keeps the accents it can draw.** `font.addAccents` builds a e i o u with an
+  acute, n with a tilde and u with a diaeresis from the base glyphs (marks on the empty rows 0-1);
+  `clean` keeps those and strips any other accent, so Tomas is Tomás and nothing draws as '?'.
+- **Patch notes live in `src/data/patchnotes.ts`** and `CHANGELOG.md`. The What's new window
+  opens once for a returning player after an update (seen version in localStorage), never for a
+  new shop, never over Ida's tour, and stays under Menu.
+
 ## 2026-10-21 (second play-test pass)
 
 - **Nothing overlaps, and the UI checks itself.** `ui.audit` records every text, button and panel

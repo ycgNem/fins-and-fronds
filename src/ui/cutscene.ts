@@ -116,6 +116,31 @@ export const SCENES: Record<string, Scene> = {
       },
     ],
   },
+  // the Grand Oceanarium: the ocean window's opening night, then dawn on the old shop's step
+  finale: {
+    id: 'finale',
+    title: 'The Grand Oceanarium',
+    shots: [
+      {
+        img: 'cs:finale_window', alt: 'Opening night: the whole town in silhouette against the Ocean Window.',
+        fx: [{ t: 'shimmer', x: 165, y: 20, w: 200, h: 130 }, { t: 'shimmer', x: 40, y: 70, w: 40, h: 60 }, { t: 'flicker', x: 74, y: 91, r: 10 }, { t: 'flicker', x: 112, y: 91, r: 10 }],
+        lines: [
+          { text: 'One tank in a window became a whole aquarium, and then a sea. On a summer night the Ocean Window opened.' },
+          { text: 'The town came in out of the rain one more time. A manta turned slow circles over their heads, and nobody said a word.' },
+          { who: 'Ida Fenwick', text: 'Forty-one years I wanted this town to see the sea. You went and brought it here.' },
+        ],
+      },
+      {
+        img: 'cs:finale_ida', alt: 'Dawn on the old shop\'s step: Ida and you, two cups of tea.',
+        fx: [{ t: 'text', text: 'Fins & Fronds', x: 140, y: 65, color: 39 }, { t: 'shimmer', x: 108, y: 130, w: 54, h: 28 }, { t: 'flicker', x: 372, y: 60, r: 16 }],
+        lines: [
+          { text: 'At dawn the two of you sat on the step of the old shop on the corner, where it all began.' },
+          { who: 'Ida Fenwick', text: 'The window tank still looks good. You never forgot the window.' },
+          { who: 'Ida Fenwick', text: 'Go on, then. There are still waters nobody has kept and fish nobody has met. I will write.' },
+        ],
+      },
+    ],
+  },
 };
 
 const TYPE_SPEED = 55;

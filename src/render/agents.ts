@@ -217,9 +217,16 @@ export class Agents {
     this.puffs = this.puffs.filter((p) => p.life > 0);
     if (this.puffs.length > 120) this.puffs.splice(0, this.puffs.length - 120);
 
-    // per-species school centers for cohesion
+    // per-species school centers for cohesion; a school on the sand (cownose rays) follows its
+    // first member instead, each of the rest keeping its own place behind or beside it
     const centers = new Map<string, { x: number; y: number; vx: number; vy: number; z: number; n: number }>();
+    const sandSchools = new Map<string, Agent[]>();
     for (const a of this.list) {
+      if (a.mode === 'bottom' && a.def.school > 1 && a.def.tags.includes('schooling') && a.inDen === 0 && !a.fry) {
+        const mates = sandSchools.get(a.sp) ?? [];
+        mates.push(a);
+        sandSchools.set(a.sp, mates);
+      }
       if (a.mode !== 'swim') continue;
       const ce = centers.get(a.sp) ?? { x: 0, y: 0, vx: 0, vy: 0, z: 0, n: 0 };
       ce.x += a.x; ce.y += a.y; ce.vx += a.vx; ce.vy += a.vy; ce.z += a.z; ce.n++;
@@ -334,6 +341,8 @@ export class Agents {
           const [y0, y1] = band(s, g);
           if (!chasing && (a.timer <= 0 || Math.hypot(a.tx - a.x, a.ty - a.y) < 4)) {
             a.timer = r.range(1.5, 5);
+            // (a big fish turns before its nose meets the glass)
+            const room = Math.min(Math.max(8, a.len / 2 + 2), waterR / 2);
             if (r.chance(0.35)) a.tz = r.range(0.05, 0.95);
             if (a.mode === 'perch' && c.perches.length) {
               const p = r.pick(c.perches);
@@ -341,10 +350,10 @@ export class Agents {
               a.ty = p.y - r.range(2, 14);
             } else if (asleep) {
               // lights out: settle low among the plants and barely move
-              a.tx = Math.max(8, Math.min(waterR - 8, a.x + r.range(-12, 12)));
+              a.tx = Math.max(room, Math.min(waterR - room, a.x + r.range(-12, 12)));
               a.ty = r.range(y0 + (y1 - y0) * 0.6, y1);
             } else {
-              a.tx = r.range(8, waterR - 8);
+              a.tx = r.range(room, waterR - room);
               a.ty = r.range(y0, y1);
             }
             // never aim into a bank of sand (sloped or sculpted ground rises into the band)
@@ -383,18 +392,36 @@ export class Agents {
           break;
         }
         case 'bottom': {
-          // glide a little, stop and root about, glide again
-          if (!chasing && a.timer <= 0) {
-            a.timer = r.range(1, 4);
-            a.tx = Math.max(6, Math.min(waterR - 6, a.x + r.range(-50, 50)));
+          // glide a little, stop and root about, glide again (rays sweep far across the sand). The
+          // whole body stays inside the glass: a big glider parked at the wall would be cut in half.
+          const ray = s.body === 'ray';
+          const edge = Math.min(Math.max(6, a.len / 2 + 2), waterR / 2);
+          const school = sandSchools.get(a.sp);
+          const lead = school && school.length > 1 && school[0] !== a ? school[0] : null;
+          if (!chasing && lead) {
+            // a loose school: aim for a place trailing the leader's target, a body or so apart, and
+            // spread over the depth rows so they do not stack
+            if (a.timer <= 0) {
+              a.timer = r.range(0.5, 1.5);
+              const k = school!.indexOf(a), dir = Math.sign(lead.tx - lead.x) || lead.face;
+              const back = Math.ceil(k / 2) * a.len * 0.55, side = k % 2 ? 0.25 : -0.25;
+              a.tx = Math.max(edge, Math.min(waterR - edge, lead.tx - dir * back + side * a.len + r.range(-4, 4)));
+              a.layer = ((lead.layer + k) % 3) as 0 | 1 | 2;
+            }
+          } else if (!chasing && a.timer <= 0) {
+            a.timer = ray ? r.range(3, 7) : r.range(1, 4);
+            const reach = ray ? Math.max(50, waterR * 0.4) : 50;
+            a.tx = Math.max(edge, Math.min(waterR - edge, a.x + r.range(-reach, reach)));
             if (r.chance(0.2)) a.layer = r.int(0, 2) as 0 | 1 | 2;
           }
           const dx = a.tx - a.x;
           const crawl = s.kind === 'snail' ? 1.5 : s.kind === 'fish' ? speed * 0.8 : speed * 0.45;
           a.vx = Math.abs(dx) > 1 ? Math.sign(dx) * Math.min(crawl, Math.abs(dx) * 2) : 0;
           a.vy = 0;
-          // follow the sand; moving to another row of a sloped bed it walks up or down, never jumps
-          const gy = groundY(t, g, a.x, a.layer) - Math.max(1, a.len * 0.12);
+          // follow the sand; moving to another row of a sloped bed it walks up or down, never jumps.
+          // A ray glides a body's depth above it and settles onto it when it stops.
+          const lift = ray && a.vx !== 0 ? Math.max(2, a.len * 0.15) : 0;
+          const gy = groundY(t, g, a.x, a.layer) - Math.max(1, a.len * 0.12) - lift;
           a.y = Math.abs(gy - a.y) < 2 ? gy : a.y + (gy - a.y) * Math.min(1, dt * 4);
           a.z += (a.layer / 2 - a.z) * Math.min(1, dt * 2);
           if (a.vx === 0 && s.kind === 'fish' && (s.body === 'cory' || s.tags.includes('scavenger')) && r.chance(dt * 3)) {
@@ -463,7 +490,12 @@ export class Agents {
       // stay in the water and out of the sand: swimmers keep clear of the ground of the plane they
       // are drawn in (on a slope the back rows sit higher), easing up rather than popping
       const minY = a.mode === 'land' ? g.surface - 4 : g.surface + 2;
-      a.x = Math.max(3, Math.min((a.mode === 'land' ? g.w : waterR) - 3, a.x));
+      // (in the water a body stays inside the glass, not just its middle; on land the shore's edge)
+      const edge = a.mode === 'land' ? 3 : Math.min(Math.max(3, a.len / 2), waterR / 2);
+      const cx = Math.max(edge, Math.min((a.mode === 'land' ? g.w : waterR) - edge, a.x));
+      // meeting the glass stops it there (a swimmer would otherwise keep pressing into it)
+      if (cx !== a.x && a.mode !== 'bottom') a.vx = 0;
+      a.x = cx;
       if (a.mode === 'swim' || a.mode === 'perch' || a.mode === 'drift') {
         const floor = groundY(t, g, a.x, planeOf(a.z)) - (a.mode === 'perch' ? 1 : Math.max(2, a.len * 0.25));
         if (a.y > floor) {

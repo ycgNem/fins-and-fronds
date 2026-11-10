@@ -1,5 +1,55 @@
 # Progress log
 
+## 2026-11-08: 0.3, the critique and improvement pass
+
+- A full critique of playability, pacing and bugs (188 findings, from the first click to the late
+  game), then six packages built in parallel and merged, then three review rounds, each fixed in
+  turn: the merge (53 findings), those fixes (11: the leaf-litter stain, old kept letters dated
+  day 1, a rack answering the plants-alone dare, the rack card, codex picture sizes, the keepsake
+  shelf, the new-chapter banner, long names under Net, the tour note's buttons beside a window,
+  coin pops over the plaque), and the last fixes (8: pops and the plaque on a zoomed tank, Ida's
+  peek button on a narrow note, the rack's sick line, the plants-alone progress, the tea-colored
+  notice, display-tank wording, the u's dots).
+- Input and platform: touch taps everywhere, hold for help, one-finger list scrolling,
+  two-finger pan and pinch; a device-pixel canvas for 125% and 150% scaling; a bigger tank on
+  laptops; a "turn sideways" card; watch mode with no accidental edits and a Back button; drags
+  that put the piece back when interrupted and stay inside the glass; pixel-exact picking;
+  browser shortcuts left alone; Tab to switch tanks.
+- The first hour: Ida picks the tank size and the school, the first feeding is never called
+  overfeeding, the pointer goes to the right control, the report card's Ideas point to the
+  nearest tank type, stock tanks get breeding advice, tanks get unique names.
+- Water and exhibits: reef pH capped at calcite saturation, chillers in gallons at every tier,
+  an exhibit heat exchanger, working jelly kreisels, kelp that grows, a calm deep chamber, peat
+  and soil that behave, wood that soaks out, species tiers that match the tanks, and two rays with
+  a Ray Lagoon.
+- Life and saves: breeding within the tank's room, crowding stress, grown young past a limit
+  rehomed, stock racks that keep a breeding group, shoppers at the same rate at every speed,
+  gentle hunger, plants on removed wood kept, and saves that are never wiped.
+- Story and economy: thank-you letters, replies and keepsakes (63 letters from 10
+  correspondents), seven conservation projects, a week of visiting days, sleeping by the Closed
+  sign, a Cleaning Crew, codex milestones and plaques, expeditions for finds, a finale and Ida's
+  last letter; prices and reputation retuned.
+- Feedback: greyed-out buttons say why, honest "good fit" predictions, home regions and a
+  biotope helper, letter progress with How?, hall badges, star celebrations, a scape score while
+  placing, readable colorblind text, a fuller sound mix.
+- Patch notes: a What's new window (Menu, and once after an update) and CHANGELOG.md.
+- Art (47 gens): the blue-spotted ribbontail ray and the cownose ray, ten keepsakes, and the
+  two-shot finale.
+- Late fixes: bull kelp grows in the kelp tower (kelp reads its light at its crown), the
+  Oceanarium's letters wait for its finale, long letters scroll clear of their stamp, and the
+  pixel font draws á é í ó ú ñ ü.
+- Pacing (scripted player, seeds 1-3): tier 1 at 29-44 minutes, tier 2 at 74-100 minutes,
+  saltwater (tier 3) at 2.8-3.3 hours, tier 4 at 3.9-4.5 hours and the Grand Oceanarium at
+  5.1-5.9 hours (6.6-6.7 hours before this pass), with 29-38 letters answered and 6-59k coins
+  after 90 game days.
+- Checks: both typechecks clean; 114 tests in 7 files; the e2e smoke test and reload; the
+  18-tank scale check (hall 3.7-4.2 ms and tank 1.4-1.7 ms a frame on average; in real play no
+  frame over 3.4 ms in 12 s at 1280x720 or 1920x1080, the same as 0.2.1); a real-browser run that
+  clicks through the intro, Ida's 21-step tour and the finale (none can be skipped) and loads a
+  late save, with the overlap audit on 183 screens at 1280x720, 1366x768, 1920x1080 and 800x450
+  (732 checks, no overlaps, no console errors); a fixed-size sweep and a zoom-and-pan sweep (5
+  sizes, normal and Watch) also clean; sound only from the watched tank.
+
 ## 2026-10-21: second play-test pass
 
 - Overlapping text cleaned up everywhere the new UI audit found it: the empty rack and its button,

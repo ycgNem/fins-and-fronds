@@ -30,7 +30,8 @@ export function sp(d: SpeciesIn): SpeciesDef {
     minL: minLitersFor(d.cm),
     flow: [0, 2],
     diet: ['flake'],
-    price: Math.round(2 + rarity * rarity * 3 + d.cm * 0.4 * rarity),
+    // saltwater animals cost more to collect, ship and keep alive on the way
+    price: Math.round((2 + rarity * rarity * 3 + d.cm * 0.4 * rarity) * (d.water === 'marine' ? 1.8 : d.water === 'brackish' ? 1.3 : 1)),
     appeal: 4,
     tags: [],
     needs: [],

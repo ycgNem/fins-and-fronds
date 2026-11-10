@@ -3,13 +3,13 @@
 import { equip, item, region, request, shell, species, substrate, TIERS, upgrade } from '../data';
 import type { RegionId, Water } from '../data/types';
 import { BAL } from './balance';
-import { shellPrice, speciesForSale } from './catalog';
+import { shellPrice, speciesForSale, substratePrice } from './catalog';
 import { canExpedition, startExpedition } from './expeditions';
 import { geom, groundY, litersOf, PROFILE_MAX, turnedH } from './facts';
 import type { Game } from './Game';
-import { applyUnlock } from './letters';
+import { answerVars, applyLetterEffect, applyUnlock } from './letters';
 import { newAnimal } from './life';
-import { emptyTank, place } from './newgame';
+import { emptyTank, freshName, place } from './newgame';
 import type { Placed, Tank, WaterSource } from './state';
 import { SOURCES, waterChange } from './water';
 
@@ -52,10 +52,17 @@ export function buyAnimals(g: Game, t: Tank, sp: string, n: number): string {
 export function placeFromHolding(g: Game, t: Tank, uids: number[]): string {
   const moving = g.state.holding.filter((a) => uids.includes(a.uid));
   if (!moving.length) return 'Not found.';
-  const no = cannotHouse(t, moving[0].sp);
-  if (no) return no;
+  const kinds = [...new Set(moving.map((a) => a.sp))];
+  for (const sp of kinds) {
+    const no = cannotHouse(t, sp);
+    if (no) return no;
+  }
   g.state.holding = g.state.holding.filter((a) => !moving.includes(a));
-  t.bags.push({ sp: moving[0].sp, n: moving.length, until: g.state.time + 20, animals: moving });
+  // a bag per species, so each is greeted (and counted) as it swims out
+  for (const sp of kinds) {
+    const these = moving.filter((a) => a.sp === sp);
+    t.bags.push({ sp, n: these.length, until: g.state.time + 20, animals: these });
+  }
   g.emit({ t: 'sfx', name: 'splash' });
   return '';
 }
@@ -94,13 +101,25 @@ export function canPlace(t: Tank, id: string): string {
   return '';
 }
 
-/** Where an item would sit if dropped at x: on the substrate, on a stone or wood, at the surface or on the land. */
-export function dropSpot(t: Tank, id: string, x: number, layer: 0 | 1 | 2, hostUid?: number): { x: number; y: number; on?: number } {
+/** x kept inside the glass: a piece's center stays BAL.edgeRoom of its width (turned, at this size)
+ *  in from each end, so a big root can poke past the end but never sits half outside it; and off the
+ *  land of a paludarium unless it belongs there. */
+export function clampX(t: Tank, id: string, x: number, size = 1, rot = 0): number {
   const it = item(id);
   const g = geom(t);
-  let cx = Math.max(4, Math.min(g.w - 4, Math.round(x)));
+  const r = (rot * Math.PI) / 180;
+  const w = (Math.abs(it.w * Math.cos(r)) + Math.abs(it.h * Math.sin(r))) * size;
+  const m = Math.min(Math.floor(g.w / 2), Math.max(4, Math.round(w * BAL.edgeRoom)));
+  let cx = Math.max(m, Math.min(g.w - m, Math.round(x)));
   if (it.place === 'land') cx = Math.max(g.landX + 8, Math.min(g.w - 8, cx));
   else if (g.landX < g.w && it.place !== 'hang') cx = Math.min(cx, g.landX - 4);
+  return cx;
+}
+
+/** Where an item would sit if dropped at x: on the substrate, on a stone or wood, at the surface or on the land. */
+export function dropSpot(t: Tank, id: string, x: number, layer: 0 | 1 | 2, hostUid?: number, rot = 0): { x: number; y: number; on?: number } {
+  const it = item(id);
+  const cx = clampX(t, id, x, it.plant ? 0.7 : 1, rot);
   if ((it.place === 'attach' || it.place === 'rock') && hostUid !== undefined) {
     const host = t.items.find((p) => p.uid === hostUid);
     if (host) {
@@ -120,18 +139,26 @@ export function buyItem(g: Game, t: Tank, id: string, x: number, layer: 0 | 1 | 
     g.state.inventory[id]--;
     if (g.state.inventory[id] <= 0) delete g.state.inventory[id];
   } else if (!spend(g, it.price)) return 'Not enough coins.';
-  const spot = dropSpot(t, id, x, layer, hostUid);
+  const spot = dropSpot(t, id, x, layer, hostUid, canTurn(id) ? rot : 0);
   const p = place(g.state, t, id, spot.x, layer, { y: spot.y, on: spot.on, flip: g.rng.chance(0.5), size: it.plant ? 0.7 : 1 });
   if (rot && canTurn(id)) p.rot = turnAngle(rot);
-  // hitchhikers: pest snail eggs on plants, Aiptasia on live rock
+  // hitchhikers: pest snail eggs on plants, Aiptasia on live rock; the dip catches them at the door
   const dipped = (g.state.upgrades['quarantine'] ?? 0) > 0;
-  if (!dipped && !fromInventory) {
+  if (!fromInventory) {
     if (it.cat === 'plant' && t.water !== 'marine' && g.rng.chance(BAL.hitchhikeChance)) {
-      t.pests.snails += 3;
-      t.pests.had = true;
-      g.toast(`Pest snails hitchhiked in on the ${it.name.toLowerCase()}.`, 'info');
+      if (dipped) {
+        // caught in the dip: they still go in the codex (bladder snails first, then trumpets)
+        g.state.dipCaught = (g.state.dipCaught ?? 0) + 1;
+        g.discoverSpecies(g.state.dipCaught > 1 ? 'malaysian_trumpet_snail' : 'bladder_snail');
+        g.toast(`The dip caught pest snails on the ${it.name.toLowerCase()}: none got in.`, 'info');
+      } else {
+        t.pests.snails += 3;
+        t.pests.had = true;
+        t.pests.hadSnails = true;
+        g.toast(`Pest snails hitchhiked in on the ${it.name.toLowerCase()}.`, 'info');
+      }
     }
-    if (it.fx?.pests && g.rng.chance(it.fx.pests)) {
+    if (!dipped && it.fx?.pests && g.rng.chance(it.fx.pests)) {
       t.pests.aiptasia += 2;
       t.pests.had = true;
       g.toast('An Aiptasia anemone came in on the live rock.', 'info');
@@ -143,16 +170,45 @@ export function buyItem(g: Game, t: Tank, id: string, x: number, layer: 0 | 1 | 
   return '';
 }
 
-export function moveItem(g: Game, t: Tank, uid: number, x: number, layer: 0 | 1 | 2, moved = Math.round(x) !== t.items.find((q) => q.uid === uid)?.x || layer !== t.items.find((q) => q.uid === uid)?.layer): string {
+/** Move a piece to x on a layer; what grows on it moves with it and stays on it, inside the glass.
+ *  A rider (an epiphyte, or a coral on rock) shares its host's layer, so giving it another one moves
+ *  the host and everything on it. host re-seats a rider where it was dropped: onto that stone or
+ *  wood, or (null) down on the sand; left out, it keeps to the host it has. */
+export function moveItem(g: Game, t: Tank, uid: number, x: number, layer: 0 | 1 | 2, moved = Math.round(x) !== t.items.find((q) => q.uid === uid)?.x || layer !== t.items.find((q) => q.uid === uid)?.layer, host?: number | null): string {
   const p = t.items.find((q) => q.uid === uid);
   if (!p) return 'Not found.';
-  const dx = Math.round(x) - p.x;
-  p.x = Math.max(4, Math.min(geom(t).w - 4, Math.round(x)));
-  p.layer = layer;
-  // things growing on it move with it
-  for (const q of t.items) if (q.on === uid) {
-    q.x += dx;
-    q.layer = layer;
+  const w = geom(t).w;
+  const it = item(p.id);
+  const parent = p.on !== undefined ? t.items.find((q) => q.uid === p.on) : undefined;
+  if (host !== undefined && (it.place === 'attach' || it.place === 'rock')) {
+    const spot = dropSpot(t, p.id, x, layer, host ?? undefined);
+    const h = spot.on !== undefined ? t.items.find((q) => q.uid === spot.on) : undefined;
+    p.x = spot.x;
+    p.y = spot.y;
+    if (h) {
+      p.on = h.uid;
+      p.layer = h.layer;
+    } else {
+      delete p.on;
+      p.layer = layer;
+    }
+  } else if (parent) {
+    p.x = Math.max(4, Math.min(w - 4, Math.round(x)));
+    if (layer !== parent.layer) {
+      parent.layer = layer;
+      for (const q of t.items) if (q.on === parent.uid) q.layer = layer;
+    }
+    p.layer = parent.layer;
+  } else {
+    const nx = clampX(t, p.id, x, p.size, p.rot);
+    const dx = nx - p.x;
+    p.x = nx;
+    p.layer = layer;
+    // things growing on it move with it
+    for (const q of t.items) if (q.on === uid) {
+      q.x = Math.max(4, Math.min(w - 4, q.x + dx));
+      q.layer = layer;
+    }
   }
   // moving a crypt makes it melt (it grows back)
   if (moved && item(p.id).plant?.kind === 'crypt') p.health = Math.min(p.health, 0.4);
@@ -188,15 +244,42 @@ export function turnItem(g: Game, t: Tank, uid: number, steps: number): string {
   return '';
 }
 
+/** everything growing on an item, and on what grows on it */
+function riders(t: Tank, uid: number): Placed[] {
+  const out: Placed[] = [];
+  for (let i = 0, hosts = [uid]; i < hosts.length; i++) {
+    for (const q of t.items) if (q.on === hosts[i] && !out.includes(q)) {
+      out.push(q);
+      hosts.push(q.uid);
+    }
+  }
+  return out;
+}
+
+function store(g: Game, id: string) {
+  g.state.inventory[id] = (g.state.inventory[id] ?? 0) + 1;
+}
+
+/** "a java fern and 2 anubias" */
+function itemList(ids: string[]): string {
+  const counts = new Map<string, number>();
+  for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const parts = [...counts].map(([id, n]) => (n > 1 ? `${n} ${item(id).name.toLowerCase()}` : `the ${item(id).name.toLowerCase()}`));
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0];
+}
+
 export function removeItem(g: Game, t: Tank, uid: number): string {
   const p = t.items.find((q) => q.uid === uid);
   if (!p) return 'Not found.';
   const it = item(p.id);
-  const gone = new Set([uid, ...t.items.filter((q) => q.on === uid).map((q) => q.uid)]);
-  t.items = t.items.filter((q) => !gone.has(q.uid));
+  const on = riders(t, uid);
+  t.items = t.items.filter((q) => q !== p && !on.includes(q));
   // stones and wood go back to storage; plants and corals are rehomed for a little money
   if (it.cat === 'plant' || it.cat === 'coral') g.state.coins += Math.round(it.price * 0.3);
-  else g.state.inventory[p.id] = (g.state.inventory[p.id] ?? 0) + 1;
+  else store(g, p.id);
+  // what grows on a rock or a log comes off with it, into storage for replanting
+  for (const q of on) store(g, q.id);
+  if (on.length) g.toast(`Into storage with it, for replanting: ${itemList(on.map((q) => q.id))}.`, 'info');
   g.refresh(t);
   return '';
 }
@@ -228,7 +311,7 @@ export function fragCoral(g: Game, t: Tank, uid: number): string {
 export function setSubstrate(g: Game, t: Tank, id: string): string {
   const sub = substrate(id);
   if (!sub.water.includes(t.water)) return 'Wrong substrate for this water.';
-  if (!spend(g, Math.round(sub.price * (litersOf(t) / 60)))) return 'Not enough coins.';
+  if (!spend(g, substratePrice(t, sub))) return 'Not enough coins.';
   t.substrate = id;
   g.refresh(t);
   return '';
@@ -271,6 +354,14 @@ export function removeEquip(g: Game, t: Tank, id: string): string {
   if (i < 0) return 'Not installed.';
   t.equip.splice(i, 1);
   g.state.coins += Math.round(equip(id).price * BAL.sellBack);
+  // most of the nitrifying bacteria live in the filter media: without any filter, only the few on
+  // the glass, gravel and wood are left, and the next filter has to cycle (or be seeded) again
+  const ch = t.chem;
+  if (equip(id).slot === 'filter' && !t.equip.some((e) => equip(e).slot === 'filter') && Math.max(ch.bacA, ch.bacB) > BAL.bacNoFilter) {
+    ch.bacA = Math.min(ch.bacA, BAL.bacNoFilter);
+    ch.bacB = Math.min(ch.bacB, BAL.bacNoFilter);
+    g.toast('Most of the bacteria lived in that filter. The next one will need to cycle, or be seeded from a mature filter.', 'info');
+  }
   g.refresh(t);
   return '';
 }
@@ -323,7 +414,7 @@ export function topOff(g: Game, t: Tank) {
 }
 
 export function feed(g: Game, t: Tank): string {
-  const overfed = g.state.time - t.fedAt < 240;
+  const overfed = g.state.time - t.fedAt < BAL.overfeedMin;
   t.fedAt = g.state.time;
   if (overfed) {
     t.chem.nh3 += 0.08;
@@ -388,18 +479,21 @@ export function buildTank(g: Game, bay: number, shellId: string, water: Water, s
   if (g.state.tanks.some((t) => t.bay === bay)) return 'That bay already has a tank.';
   if (!spend(g, shellPrice(g.state, sh))) return 'Not enough coins.';
   const t = emptyTank(g.state, bay, shellId, water, source);
-  t.name = bay >= BAL.rackBay ? `Stock ${bay - BAL.rackBay + 1}` : `${sh.name}`;
+  t.name = bay >= BAL.rackBay ? `Stock ${bay - BAL.rackBay + 1}` : freshName(g.state, sh.name);
   g.state.tanks.push(t);
   g.emit({ t: 'sfx', name: 'splash' });
-  g.toast(`${sh.name} filled. Add a filter, then let it cycle before adding fish.`, 'info');
+  // (the first tank of Ida's tour has her note to follow, and her sponge skips the cycle)
+  if (g.state.tutorial.done || g.state.tanks.length > 1) g.toast(`${sh.name} filled. Add a filter, then cycle it before adding fish (or seed it from a mature filter, in Water).`, 'info');
   g.refresh(t);
   return '';
 }
 
 export function dismantleTank(g: Game, t: Tank): string {
   if (t.animals.length) return 'Move the animals to holding first.';
+  if (t.bags.length) return 'Let the new arrivals out of their bags first, then move them to holding.';
   g.state.coins += Math.round(shell(t.shell).price * BAL.sellBack);
-  for (const p of t.items) if (item(p.id).cat !== 'plant' && item(p.id).cat !== 'coral') g.state.inventory[p.id] = (g.state.inventory[p.id] ?? 0) + 1;
+  // the stones, wood, plants and corals all go to storage, ready for the next tank
+  for (const p of t.items) store(g, p.id);
   for (const e of t.equip) g.state.coins += Math.round(equip(e).price * BAL.sellBack);
   g.state.tanks = g.state.tanks.filter((x) => x !== t);
   g.stats.delete(t.id);
@@ -449,7 +543,25 @@ export function claimLetter(g: Game, id: string): string {
   s.coins += r.reward.coins;
   s.rep += r.reward.rep;
   let msg = `+${r.reward.coins} coins, +${r.reward.rep} reputation`;
-  if (r.reward.unlock) msg += `, and ${applyUnlock(s, r.reward.unlock)}`;
+  const got = r.reward.unlock ? applyUnlock(s, r.reward.unlock) : '';
+  if (got) msg += `, and ${got}`;
+  else if (r.reward.unlock && r.reward.spare) {
+    // the shop has the unlock already (Pip's dip): the surprise is something else
+    const { sp, n } = r.reward.spare;
+    for (let i = 0; i < n; i++) s.holding.push(newAnimal(s, sp));
+    msg += `, and ${n} ${species(sp).name.toLowerCase()}s in the holding tank`;
+  }
+  // kept to reread, with what answered it (a reply quotes it): noted when it became ready, so a
+  // school sold since still reads as the school that answered
+  const answer = l.answer && Object.keys(l.answer).length ? l.answer : answerVars(r.check, s, g.stats);
+  s.lettersKept = { ...(s.lettersKept ?? {}), [id]: { at: s.time, vars: { ...(l.vars ?? {}), ...answer }, met: l.met, answer } };
+  const fx = applyLetterEffect(s, r, l);
+  if (fx) msg += `. ${fx}`;
+  // the end of a correspondent's story: a keepsake for the codex and the shelf in the hall
+  if (r.keepsake && !(s.keepsakes ?? []).includes(r.from)) {
+    s.keepsakes = [...(s.keepsakes ?? []), r.from];
+    msg += `. ${r.keepsake} joins your keepsakes (Codex, Plaques)`;
+  }
   s.letters = s.letters.filter((x) => x.id !== id);
   s.lettersDone.push(id);
   g.emit({ t: 'sfx', name: 'coin' });

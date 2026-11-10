@@ -29,15 +29,29 @@ export function emptyTank(s: GameState, bay: number, shellId: string, water: Wat
     set: { heater: 25, source: src, salt: defaultSalt(water), lightOn: 9, lightOff: 19, co2: false },
     pests: { snails: 0, aiptasia: 0, bubble: 0, had: false },
     ageDays: 0,
-    fedAt: s.time,
+    // nothing has been fed here yet: count the last feeding as an hour outside the overfeeding
+    // window, so the first pinch for newly arrived fish is not taken for too much
+    fedAt: s.time - BAL.overfeedMin - 60,
     smudge: 0,
     bags: [],
     today: 0,
   };
 }
 
+const NUMERALS = ['', '', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII', 'XIII', 'XIV', 'XV'];
+
+/** A name no other tank has: the shell's own name for the first of its size, then "75 Gallon II",
+ *  "75 Gallon III", so two plaques in the hall never read the same. */
+export function freshName(s: GameState, base: string): string {
+  const taken = new Set(s.tanks.map((t) => t.name));
+  for (let i = 1; ; i++) {
+    const name = i === 1 ? base : `${base} ${NUMERALS[i] ?? i}`;
+    if (!taken.has(name)) return name;
+  }
+}
+
 export function place(s: GameState, t: Tank, id: string, x: number, layer: 0 | 1 | 2, opt: Partial<Placed> = {}): Placed {
-  const p: Placed = { uid: s.nextUid++, id, x, layer, y: 0, size: 1, health: 0.9, flip: false, seed: (s.nextUid * 2654435761) >>> 0, ...opt };
+  const p: Placed = { uid: s.nextUid++, id, x, layer, y: 0, size: 1, health: 0.9, flip: false, since: t.ageDays, seed: (s.nextUid * 2654435761) >>> 0, ...opt };
   t.items.push(p);
   return p;
 }

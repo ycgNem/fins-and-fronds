@@ -1,8 +1,9 @@
 // What the supplier will sell right now. The supplier is never shown: you order from a catalog
 // and the order arrives in a bag floating at the top of the tank.
-import { EQUIPMENT, ITEMS, SHELLS, SPECIES, SUBSTRATES } from '../data';
+import { EQUIPMENT, ITEMS, region, shell, SHELLS, SPECIES, SUBSTRATES, TIERS } from '../data';
 import type { EquipDef, ItemDef, ShellDef, SpeciesDef, SubstrateDef, Water } from '../data/types';
-import type { GameState } from './state';
+import { BAL } from './balance';
+import type { GameState, Tank } from './state';
 
 export function speciesForSale(s: GameState, water?: Water): SpeciesDef[] {
   return SPECIES.filter((sp) => {
@@ -14,13 +15,24 @@ export function speciesForSale(s: GameState, water?: Water): SpeciesDef[] {
   });
 }
 
+/** How a species turns up, for its codex page: in on new plants, only on an expedition, bred in
+ *  the shop, or from the supplier at some tier (and where it lives wild). */
+export function codexHow(sp: SpeciesDef): string {
+  if (sp.found) return sp.found;
+  const where = sp.regions.map((r) => region(r).name).join(', ');
+  if (sp.source === 'hitchhiker') return 'Rides in on new plants.';
+  if (sp.source === 'expedition') return `Only from an expedition: ${where}.`;
+  return `${TIERS[sp.tier].name} supplier list${where ? `; wild in ${where}` : ''}.`;
+}
+
 export function itemsForSale(s: GameState, water?: Water): ItemDef[] {
   return ITEMS.filter((it) => {
     const unlocked = s.unlocked.items.includes(it.id);
     if (!unlocked && (it.source === 'expedition' || it.tier > s.tier)) return false;
     if (water && !it.water.includes(water)) return false;
+    // a decor set's pieces come only with the set
     const set = it.tags?.find((t) => t.startsWith('set_'));
-    if (set && !(s.upgrades[set] ?? 0) && it.tier > 0) return false;
+    if (set && !(s.upgrades[set] ?? 0)) return false;
     return true;
   });
 }
@@ -35,6 +47,13 @@ export function equipForSale(s: GameState, water?: Water): EquipDef[] {
 
 export function substratesForSale(s: GameState, water?: Water): SubstrateDef[] {
   return SUBSTRATES.filter((x) => x.tier <= s.tier && (!water || x.water.includes(water)));
+}
+
+/** a substrate covers the floor, so it is priced by floor area (a 20 gallon long's worth costs about
+ *  1.3x the list price), and never more than a share of what the tank itself costs */
+export function substratePrice(t: Tank, sub: SubstrateDef): number {
+  const sh = shell(t.shell);
+  return Math.max(1, Math.round(Math.min(sub.price * ((sh.cm[0] * sh.cm[1]) / BAL.substrateArea), sh.price * BAL.substrateCap)));
 }
 
 export function shellPrice(s: GameState, sh: ShellDef): number {

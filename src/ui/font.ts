@@ -4,6 +4,7 @@
 // with the baseline on row 10, so the two faces mix on one line. Glyphs PixelLab doesn't make
 // (& < > [ ] | # ~ ^ and the inline icons) are drawn here in the same 2 px style.
 // Glyphs are pre-rendered into an atlas once per face and color.
+import { PALETTE } from '../data/palette';
 import * as DISPLAY from './fonts/display16';
 import * as TEXT from './fonts/text16';
 
@@ -37,7 +38,10 @@ const EXTRA_DISPLAY: Record<string, string> = {
 /** inline icons, drawn in the text color (use via ICON) */
 const ICONS: Record<string, string> = {
   '\u0001': pad(1, ['.##...##.', '####.####', '#########', '#########', '#########', '.#######.', '..#####..', '...###...', '....#....']), // heart
-  '\u0002': pad(1, ['..#####..', '.#######.', '#########', '###...###', '###...###', '###...###', '#########', '.#######.', '..#####..']), // coin
+  // the coin: a rim in the text color with a gold face inlaid (COIN_FACE), and a blank column so a
+  // number never butts against it (a plain ring read as a zero: "Build for 025")
+  '\u0002': pad(1, ['..#####...', '.##...##..', '##.....##.', '#.......#.', '#.......#.', '#.......#.', '##.....##.', '.##...##..', '..#####...']), // coin
+  '\u0018': pad(1, ['..........', '...###....', '..#####...', '.###.###..', '.##.####..', '.#######..', '..#####...', '...###....', '..........']), // coin face
   '\u0003': pad(1, ['....###', '...###.', '..###..', '.######', '#######', '...###.', '..###..', '.###...', '.##....', '.#.....']), // bolt
   '\u0004': pad(1, ['.....#.....', '....###....', '....###....', '###########', '.#########.', '..#######..', '..#######..', '.####.####.', '.###...###.', '.#.......#.']), // star
   '\u0005': pad(1, ['..#####..', '.##...##.', '##..#..##', '#...#...#', '#...###.#', '#.......#', '##.....##', '.##...##.', '..#####..']), // clock
@@ -75,6 +79,9 @@ export const ICON = {
   fish: '\u0010', drop: '\u0011', leaf: '\u0012', temp: '\u0013', letter: '\u0014', sparkle: '\u0015', plus: '\u0016', bubble: '\u0017',
 };
 
+/** the gold face inlaid in every coin glyph, whatever color the text around it */
+const COIN_FACE = { ch: '\u0018', color: PALETTE[18] };
+
 export const FONT_H = 14; // cell height incl. descenders; caps sit on rows 1-10
 export const LINE_H = 15;
 
@@ -91,10 +98,43 @@ function build(src: Record<string, string>, space: number): FaceData {
   return { glyphs, space, atlas: null, tinted: new Map() };
 }
 
+/** accents over lowercase letters, two rows tall on rows 0-1 (empty above the x-height), so names
+ *  like Tomás, Lucía and Señor keep them */
+const MARKS = { acute: ['..##', '.##.'], tilde: ['.###.##', '##.###.'], diaeresis: ['##..##', '##..##'] };
+const ACCENTED: [string, string, keyof typeof MARKS][] = [
+  ['á', 'a', 'acute'], ['é', 'e', 'acute'], ['í', 'i', 'acute'], ['ó', 'o', 'acute'], ['ú', 'u', 'acute'],
+  ['ñ', 'n', 'tilde'], ['ü', 'u', 'diaeresis'],
+];
+
+/** add the accented letters to a face (the accents it cannot fit are left to clean()) */
+function addAccents(g: Record<string, string>): Set<string> {
+  const made = new Set<string>();
+  for (const [ch, base, mark] of ACCENTED) {
+    if (!g[base]) continue;
+    let rows = g[base].split('|');
+    // the dot of an i makes way for its accent, and a narrow i widens to hold it
+    if (base === 'i') rows = rows.map((r, y) => (y < 3 ? '.'.repeat(r.length) : r));
+    const m = MARKS[mark];
+    if (rows[0].length < m[0].length) {
+      const l = Math.floor((m[0].length - rows[0].length) / 2), r = m[0].length - rows[0].length - l;
+      rows = rows.map((row) => '.'.repeat(l) + row + '.'.repeat(r));
+    }
+    if (rows.slice(0, 3).some((r) => r.includes('#'))) continue;
+    const off = Math.floor((rows[0].length - m[0].length) / 2);
+    for (let y = 0; y < m.length; y++) rows[y] = rows[y].slice(0, off) + m[y] + rows[y].slice(off + m[y].length);
+    g[ch] = rows.join('|');
+    made.add(ch);
+  }
+  return made;
+}
+
 const textSrc = { ...TEXT.GLYPHS };
 fixText(textSrc);
 const displaySrc = { ...DISPLAY.GLYPHS };
 fixDisplay(displaySrc);
+const textAccents = addAccents(textSrc), displayAccents = addAccents(displaySrc);
+/** accented letters both faces draw (the rest lose their accent, see clean) */
+const KEEP = new Set([...textAccents].filter((ch) => displayAccents.has(ch)));
 const FACES: Record<Face, FaceData> = {
   text: build({ ...textSrc, ...EXTRA, ...ICONS }, 5),
   // the display face borrows the text face's punctuation and icons where it has none
@@ -111,9 +151,13 @@ export function glyphWidth(ch: string, face: Face = 'text'): number {
   return ch === ' ' ? FACES[face].space : glyph(ch, face).w;
 }
 
-/** strip accents so names like "Tomas" draw with the ASCII glyph set */
-function clean(s: string): string {
-  return /[^\x00-\x7f]/.test(s) ? s.normalize('NFD').replace(/[̀-ͯ]/g, '') : s;
+/** keep the accented letters the faces have (á, ñ...) and strip the accent from any other, so
+ *  everything draws with the glyphs there are */
+export function clean(s: string): string {
+  if (!/[^\x00-\x7f]/.test(s)) return s;
+  let out = '';
+  for (const ch of s.normalize('NFC')) out += ch < '\x80' || KEEP.has(ch) ? ch : ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return out;
 }
 
 export function textWidth(s: string, face: Face = 'text'): number {
@@ -203,11 +247,11 @@ export function drawText(
   face: Face = 'text',
 ): number {
   s = clean(s);
-  if (shadow) drawRaw(ctx, s, x, y + scale, shadow, scale, face);
-  return drawRaw(ctx, s, x, y, color, scale, face);
+  if (shadow) drawRaw(ctx, s, x, y + scale, shadow, scale, face, false);
+  return drawRaw(ctx, s, x, y, color, scale, face, true);
 }
 
-function drawRaw(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, color: string, scale: number, face: Face): number {
+function drawRaw(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, color: string, scale: number, face: Face, inlay: boolean): number {
   const atlas = atlasFor(face, color);
   let cx = x;
   for (let i = 0; i < s.length; i++) {
@@ -217,6 +261,10 @@ function drawRaw(ctx: CanvasRenderingContext2D, s: string, x: number, y: number,
     }
     const g = glyph(s[i], face);
     ctx.drawImage(atlas, g.ax, g.ay, g.w, FONT_H, cx, y, g.w * scale, FONT_H * scale);
+    if (inlay && s[i] === ICON.coin) {
+      const f = glyph(COIN_FACE.ch, face);
+      ctx.drawImage(atlasFor(face, COIN_FACE.color), f.ax, f.ay, f.w, FONT_H, cx, y, f.w * scale, FONT_H * scale);
+    }
     cx += (g.w + 1) * scale;
   }
   return cx - x;

@@ -54,13 +54,14 @@ Ids come from `src/data` (for example `sp:cherry_shrimp:2`, `it:spider_wood`).
 | creatures-1 | species up to 24 px (24 px packs; shrimp and the 16 smallest animals redone at 24) | 64 |
 | creatures-2 | 25-37 px species (36 px pack) | 41 |
 | creatures-3 | 41-61 px species (56 px packs, cleaned) | 33 |
-| creatures-4 | the largest species (Pixen, one each) | 51 |
+| creatures-4 | the largest species (Pixen, one each), the two rays | 53 |
 | scape-1 | hero hardscape and Amazon sword (48 px pack); Ryuoh and Yamaya stone, hornwood and the hollow log (Pixen) | 15 |
 | scape-2, scape-3, scape-4 | small scape (scape-2 redone at 24 px, fittonia and three Euphyllia corals by Pixen), 24 and 40 px (64-slot packs) | 47, 37, 37 |
 | scape-5 | stems, ribbons, kelp, lotus, banks, galleon (Pixen) | 21 |
 | backdrops | far strips for 13 water looks | 13 |
 | equipment | in-tank gear | 12 |
-| cutscenes | the intro (keys, dusty shop, note, morning) and the town opening (cs:) | 8 |
+| cutscenes | the intro (keys, dusty shop, note, morning), the town opening and the finale (cs:) | 10 |
+| keepsakes | one keepsake per correspondent for the codex and the hall shelf (ks:<correspondent>) | 10 |
 | shop | props around the tanks: counter, cat, shelf, plants, poster, buckets, chalkboard, supplies, notice board, OPEN sign (sh:) | 11 |
 | plates | codex plates, one per tank type (pl:<archetype>) | 63 |
 | icons | window and tab icons, coin, reputation, letter stamps, postmark, scroll, title emblem (ui:, st:) | 27 |
@@ -70,11 +71,12 @@ The kuhli loach in creatures-4 is hand-painted (the PixelLab candidates were noi
 the first version read as a ladder). The old one is kept in `art/raw/old/`, as are the 16 px
 creatures-1 and scape-2 sprites that the detail pass replaced.
 
-All 189 species and all 153 scape items have imported art.
+All 191 species and all 157 scape items have imported art.
 
 ## Budget
 
-The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the redesign art used about 600.
+The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the redesign art used about 600;
+the play-test passes and 0.3 brought it to about 685.
 
 | Milestone | Area | Planned | Spent | Status |
 |---|---|---|---|---|
@@ -85,7 +87,8 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the red
 | M8 | Icons and stamps, 63 codex plates, 27 postcards, logo emblem | 150 | 77 (plates 40, icons 10, postcards 27) | done |
 | Redesign | Intro and town cutscenes, shop props, a kuhli retry | (reserve) | 250 (cutscenes 120, shop 120, kuhli 10) | done |
 | Feedback | 16 small animals and 47 small plants and corals at 24 px, 4 new stones and woods; pebbles and mopani redone | (reserve) | 38 | done |
-| | **Total** | **1000** | **about 638** | |
+| 0.3 | Two rays, ten keepsakes, the two-shot finale | 50 | 47 | done |
+| | **Total** | **1000** | **about 685** | |
 
 ## Batch log
 
@@ -108,3 +111,7 @@ The plan's budget was 1000 generations for M4-M8 plus reserve. M4-M8 and the red
 | 2026-10-21 | Detail pass: 24 px scape pack for all 47 scape-2 plants, corals and decor | 10 | fittonia, hammer, torch and frogspawn came back as noise: 4 Pixen redos at 24x24, black outline softened (plants: darkest green) |
 | 2026-10-21 | New hardscape: Ryuoh stone, Yamaya stone, hornwood (Talawa), hollow log; 2 Pixen takes each | 8 | the log snapped to olive like other PixelLab wood: repainted onto the taupe ramp by luminance |
 | 2026-10-21 | Redos: river pebbles (2 Pixen) and mopani (4 Pixen) | 6 | the old pebbles were a tall heap with loose stones and the old mopani crossed firewood. Pebbles: the low row, loose stones dropped. Mopani: a twisted root with an arch, its painted shadow removed and repainted by luminance onto 49-19-20-3-4-63 (it snapped pink) |
+| 2026-11-08 | 0.3: finale, two Pro shots at 400x224 (`cs:finale_window`, `cs:finale_ida`) | | styled on the existing cutscenes so the ending matches the intro |
+| 2026-11-08 | 0.3: rays, four Pixen takes (blue-spotted ribbontail ray 1, cownose ray 3) | | the cownose took three takes, and the chosen one was recolored on the palette |
+| 2026-11-08 | 0.3: keepsakes, one 28 px object pack | | ten picked, one per correspondent (ship in a bottle, lantern, plaque, clay fish and the rest) |
+| 2026-11-08 | 0.3 total | 47 | of the owner's 50 for this pass |

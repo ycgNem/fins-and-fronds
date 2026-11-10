@@ -6,7 +6,7 @@ import { item, species } from '../data';
 import type { Water } from '../data/types';
 import { BAL, bioloadOf } from './balance';
 import type { Facts } from './facts';
-import type { Chem, Tank, WaterSource } from './state';
+import type { Chem, Placed, Tank, WaterSource } from './state';
 
 export interface SourceDef {
   name: string;
@@ -22,7 +22,7 @@ export interface SourceDef {
 
 export const SOURCES: Record<WaterSource, SourceDef> = {
   tap: { name: 'Tap water', water: 'fresh', ph: 7.4, gh: 8, kh: 5, tannin: 0, blurb: 'Dechlorinated tap water: moderately hard, near neutral.' },
-  soft: { name: 'Soft water', water: 'fresh', ph: 6.6, gh: 4, kh: 1, tannin: 0, needs: 'ro_unit',
+  soft: { name: 'Soft water', water: 'fresh', ph: 6.6, gh: 5, kh: 1, tannin: 0, needs: 'ro_unit',
     blurb: 'RO water remineralized with GH only: soft and slightly acidic, for Caridina, discus and blackwater fish.' },
   blackwater: { name: 'Blackwater', water: 'fresh', ph: 5.8, gh: 1, kh: 0, tannin: 0.3, needs: 'ro_unit',
     blurb: 'RO water filtered through peat: very soft, acidic and tea-colored.' },
@@ -59,28 +59,64 @@ export function equilibrium(t: Tank, f: Facts): { ph: number; phBase: number; gh
       gh += (it.fx.gh ?? 0) * w;
       kh += (it.fx.kh ?? 0) * w;
     }
-    tannin += (it.fx.tannin ?? 0) * w;
+    // wood leaches less as it soaks; leaf litter steeps across the floor and keeps the stain up
+    // (keepers top it up as it breaks down), so a handful counts for more than its outline, up to
+    // a light tint per patch however small the tank
+    tannin += (it.fx.tannin ?? 0) * (it.cat === 'wood' ? w * woodLeach(t, p) : it.cat === 'botanical' ? Math.min(BAL.leafStainMax, w * BAL.leafStain) : w);
   }
   // calcite in open water saturates at about pH 8.3 and 8-10 degrees of added hardness
   gh += Math.min(8, rockGh);
   kh += Math.min(8, rockKh);
-  if (rockPh > 0) ph = Math.max(ph, Math.min(8.3, ph + rockPh));
-  const sx = f.sub.fx;
-  ph += sx.ph ?? 0;
+  // carbonate sand dissolves like rock; active soil softens and acidifies
+  const sx = f.sub.fx, subPh = sx.ph ?? 0;
+  if (subPh > 0) rockPh += subPh;
   gh += sx.gh ?? 0;
   kh += sx.kh ?? 0;
   if (f.gear.ids.has('peat_media')) {
+    // peat swaps calcium for acid: softer, lower and tea-stained
     tannin += 0.25;
-    ph -= 0.3;
+    ph -= 0.5;
+    gh -= 2.5;
+    kh -= 1.5;
   }
   if (f.gear.ids.has('carbon_media')) tannin *= 0.3;
   gh = Math.max(0, gh);
   kh = Math.max(0, kh);
-  // low carbonate hardness means a weakly buffered, more acidic tank
-  ph += (Math.min(kh, 10) - src.kh) * 0.04;
+  // more carbonate hardness holds the pH up, less leaves the tank weakly buffered and more acid.
+  // Dissolving carbonate (rock, coral sand, extra KH) lifts it toward calcite saturation and no further.
+  const khShift = (Math.min(kh, 10) - src.kh) * 0.04;
+  const lift = rockPh + Math.max(0, khShift);
+  if (lift > 0) ph = Math.max(ph, Math.min(BAL.calcitePh, ph + lift));
+  ph += Math.min(0, khShift);
+  // active soil buffers toward slightly acid, but never sours water that is already more acid than that
+  if (subPh < 0) ph = Math.min(ph, Math.max(BAL.soilPh, ph + subPh));
   tannin = Math.max(0, Math.min(1, tannin));
   const phBase = Math.max(3.8, Math.min(9.2, ph));
   return { ph: Math.max(3.8, Math.min(9.2, ph - tanninAcid(tannin, kh))), phBase, gh, kh, tannin };
+}
+
+/** How strongly a piece of wood still leaches: fresh wood stains the water, and each
+ *  BAL.woodTanninHalfLife days soaking halves the extra, down to the lasting tint of soaked wood (a
+ *  heavy tannin wood such as mopani or bog oak keeps a tank tea-colored for good). A piece with no
+ *  date counts as long soaked (saves from before 0.3 get the day they were loaded, save.ts). */
+export function woodLeach(t: Tank, p: Placed): number {
+  if (p.since === undefined) return BAL.woodTanninFloor;
+  const days = Math.max(0, t.ageDays - p.since);
+  return BAL.woodTanninFloor + (1 - BAL.woodTanninFloor) * Math.pow(0.5, days / BAL.woodTanninHalfLife);
+}
+
+/** How tannins tint fresh water: clear, tea-colored amber, then blackwater. */
+export function tanninLook(tannin: number): 'clear' | 'amber' | 'blackwater' {
+  return tannin > BAL.tanninBlack ? 'blackwater' : tannin > BAL.tanninAmber ? 'amber' : 'clear';
+}
+
+/** The first time a freshwater tank turns tea-colored on its own, a friendly word on why and what
+ *  clears it (marked on the tank so it is said once). Blackwater on purpose needs no explaining. */
+export function tanninNotice(t: Tank, f: Facts): string | undefined {
+  if (t.toldTannin || t.water !== 'fresh' || tanninLook(t.chem.tannin) === 'clear') return undefined;
+  t.toldTannin = true;
+  if (t.set.source === 'blackwater' || f.gear.ids.has('peat_media')) return undefined;
+  return `${t.name} has turned tea-colored: tannins from its wood or leaves. Blackwater fish love it; activated carbon lightens it. Wood leaches less as it soaks but keeps a tint, as leaves do.`;
 }
 
 /** Humic and tannic acids only pull the pH down in soft water: carbonate hardness soaks them up. */
@@ -92,12 +128,17 @@ export function tanninAcid(tannin: number, kh: number): number {
  *  seawater holds about a fifth less. */
 export function o2Saturation(temp: number, sg = 1): number {
   const fresh = 14.652 - 0.41022 * temp + 0.007991 * temp * temp - 0.000077774 * temp * temp * temp;
-  return fresh * (1 - Math.max(0, sg - 1) * 7.5);
+  return Math.max(0, fresh * (1 - Math.max(0, sg - 1) * 7.5));
 }
 
 /** Degrees above the room that heaters rated for heatL liters can hold a tank of this many liters. */
 export function maxHeatLift(heatL: number, liters: number): number {
   return (BAL.heatLift * heatL) / Math.max(1, liters);
+}
+
+/** Degrees below the room that chillers rated for chillL liters can hold a tank of this many liters. */
+export function maxChillDrop(chillL: number, liters: number): number {
+  return (BAL.chillDrop * chillL) / Math.max(1, liters);
 }
 
 /** The temperature the tank is heading for with its gear and lights. */
@@ -106,7 +147,7 @@ export function targetTemp(t: Tank, f: Facts): number {
   let target = room;
   const set = t.set.heater;
   if (set > room && f.gear.heatL > 0) target = Math.min(set, room + maxHeatLift(f.gear.heatL, f.liters));
-  if (set < room && f.gear.chillW > 0) target = Math.max(set, room - (BAL.chillPerWattPerL * f.gear.chillW) / f.liters);
+  if (set < room && f.gear.chillL > 0) target = Math.max(set, room - maxChillDrop(f.gear.chillL, f.liters));
   return target;
 }
 
@@ -140,14 +181,16 @@ export function stepWater(t: Tank, f: Facts, c: WaterCtx) {
   const khShift = Math.log10(Math.max(0.5, ch.kh) / Math.max(0.5, eq.kh)) * 0.5;
   const phTarget = Math.max(3.8, Math.min(9.2, eq.phBase + khShift - tanninAcid(ch.tannin, ch.kh) + co2Shift));
   ch.ph = approach(ch.ph, phTarget, 1.2, dtH);
-  ch.temp = approach(ch.temp, targetTemp(t, f), BAL.tempRate, dtH);
+  // a thermostat holds its set point exactly once the water gets there (the reading shows 0.1 C)
+  const tt = targetTemp(t, f);
+  ch.temp = Math.abs(tt - ch.temp) < BAL.tempTol ? tt : approach(ch.temp, tt, BAL.tempRate, dtH);
 
-  // salinity creeps up as fresh water evaporates
+  // salinity creeps up as fresh water evaporates, until salt crusts the rim instead
   if (t.water !== 'fresh') {
     if (c.autoTopOff || f.gear.slots.has('ato')) ch.sg = approach(ch.sg, t.set.salt, 0.5, dtH);
     else {
       const evapPerDay = f.openTop ? 0.012 : f.hasLid ? 0.003 : 0.006;
-      ch.sg += (ch.sg - 1) * evapPerDay * (dtH / 24);
+      ch.sg = Math.min(Math.max(BAL.sgMax, t.set.salt), ch.sg + (ch.sg - 1) * evapPerDay * (dtH / 24));
     }
   } else ch.sg = 1.0;
 
@@ -156,7 +199,7 @@ export function stepWater(t: Tank, f: Facts, c: WaterCtx) {
   const photo = f.lightsOn ? f.coverage * 0.08 : -f.coverage * 0.05;
   const aer = 0.8 + 0.05 * Math.min(3, f.flow) + f.gear.air * 0.5 + photo + (f.openTop ? 0.03 : 0);
   const use = Math.min(0.5, (f.bioload / Math.max(1, f.liters)) * 0.3);
-  ch.o2 = approach(ch.o2, sat * Math.max(0.3, Math.min(1.05, aer - use)), 0.6, dtH);
+  ch.o2 = Math.max(0, approach(ch.o2, sat * Math.max(0.3, Math.min(1.05, aer - use)), 0.6, dtH));
 
   // ---- nitrogen cycle
   let waste = 0;
@@ -176,7 +219,7 @@ export function stepWater(t: Tank, f: Facts, c: WaterCtx) {
   ch.no2 += convA;
   const convB = Math.min(ch.no2, ch.bacB * cap * dtH);
   ch.no2 -= convB;
-  ch.no3 += convB;
+  ch.no3 = Math.min(BAL.no3Max, ch.no3 + convB);
   // bacteria grow while they have food, and slowly starve without it
   const foodA = Math.min(1, (ch.nh3 + nh3In) / 0.02);
   const foodB = Math.min(1, (ch.no2 + convA) / 0.02);

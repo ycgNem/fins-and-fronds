@@ -93,6 +93,9 @@ export class UI {
   private drawn: Drawn[] = [];
   private owner = '';
   private inTip = false;
+  /** a list held by the pointer: which one, where the press was and its offset then, and whether
+   *  it is the scrollbar's thumb (dragged the other way, faster) or the list itself */
+  private grab: { id: string; y: number; off: number; thumb: boolean } | null = null;
 
   /** w and h are the UI size in UI pixels (the canvas may be larger and scaled) */
   begin(ctx: CanvasRenderingContext2D, input: Input, dt: number, w: number, h: number) {
@@ -115,6 +118,7 @@ export class UI {
     this.modalPrev = this.modalNow;
     this.modalNow = false;
     this.layer = 0;
+    if (!input.down) this.grab = null;
   }
 
   /** start drawing a window: everything drawn before it stops taking input from next frame */
@@ -140,6 +144,13 @@ export class UI {
   /** the pointer is over UI drawn this frame or last */
   get overUI() {
     return this.captured || this.blocks.some((b) => this.inside(b));
+  }
+
+  /** For a "click again to confirm" button: whether it should stop waiting for the second click.
+   *  The mouse moving off it disarms it; a finger has no hover, so on touch a tap elsewhere does. */
+  disarmed(x: number, y: number, w: number, h: number): boolean {
+    if (this.hover(x, y, w, h)) return false;
+    return !this.input.touch || this.input.pressed;
   }
 
   eat() {
@@ -208,6 +219,8 @@ export class UI {
 
   text(s: string, x: number, y: number, c: number = C.text, opts: { align?: 'left' | 'center' | 'right'; shadow?: number; maxW?: number; face?: Face } = {}) {
     const face = opts.face ?? 'text';
+    // the status colors are fills: text in one is drawn in its darker twin, so it reads on a card
+    c = c === C.good ? C.goodText : c === C.warn ? C.warnText : c === C.bad ? C.badText : c;
     if (opts.maxW) s = ellipsize(s, opts.maxW, face);
     let tx = x;
     if (opts.align === 'center') tx = x - Math.floor(textWidth(s, face) / 2);
@@ -247,10 +260,25 @@ export class UI {
     x = Math.round(x);
     y = Math.round(y);
     this.rects.set(id, { x, y, w, h, layer: this.layer });
+    // a click on a button never reaches the tank behind it (Watch sits over the water); only the
+    // part a scrolling list shows counts
+    let vis: Rect | null = { x, y, w, h };
+    for (const c of this.clips) vis = vis && intersect(vis, c);
+    if (vis) this.block(vis.x, vis.y, vis.w, vis.h);
     if (this.audit) this.drawn.push({ kind: 'button', x, y, w, h, s: id, layer: this.layer, owner: id });
+    if (this.audit && this.clips.length) {
+      // (the part of a button scrolled out of its list is not drawn, so it collides with nothing)
+      const b = this.drawn[this.drawn.length - 1];
+      let r: Rect | null = b;
+      for (const c of this.clips) r = r && intersect(r, c);
+      if (r) Object.assign(b, r);
+      else this.drawn.pop();
+    }
     const outer = this.owner;
     this.owner = id;
-    const hov = this.hover(x, y, w, h) && !opts.disabled;
+    // a disabled button still answers "why not?" with its tip; it just never presses
+    const over = this.hover(x, y, w, h);
+    const hov = over && !opts.disabled;
     const down = hov && this.input.down;
     const st = opts.style ?? 'normal';
     // face, highlight, lip, label
@@ -280,12 +308,13 @@ export class UI {
       this.text(s, x + w - bw / 2 + 4, y - 6, 9, { align: 'center' });
     }
     this.owner = outer;
-    if (hov) {
+    if (over) {
       if (opts.tip) this.tip(typeof opts.tip === 'string' ? [{ text: opts.tip }] : opts.tip);
       if (this.clicked) {
+        // a click on a disabled button stops here (nothing behind it reacts) with a soft refusal
         this.eat();
-        this.sfx('click');
-        return true;
+        this.sfx(opts.disabled ? 'error' : 'click');
+        return !opts.disabled;
       }
     }
     return false;
@@ -379,13 +408,15 @@ export class UI {
     return step * 5;
   }
 
-  /** a minus / value / plus stepper; returns the delta clicked (-1, 0, 1) */
-  stepper(id: string, x: number, y: number, label: string, w = 100): number {
+  /** a minus / value / plus stepper; returns the delta clicked (-1, 0, 1). The tip (what the number
+   *  means) answers a hover anywhere on it. */
+  stepper(id: string, x: number, y: number, label: string, w = 100, tip?: TipLine[] | string): number {
     let d = 0;
     const b = M.btnS;
-    if (this.button(id + ':-', x, y, b, b, '-', { style: 'flat' })) d = -1;
+    if (this.button(id + ':-', x, y, b, b, '-', { style: 'flat', tip })) d = -1;
     this.text(label, x + w / 2, y + 1, C.strong, { align: 'center', maxW: w - b * 2 - 4 });
-    if (this.button(id + ':+', x + w - b, y, b, b, '+', { style: 'flat' })) d = 1;
+    if (this.button(id + ':+', x + w - b, y, b, b, '+', { style: 'flat', tip })) d = 1;
+    if (tip && this.hover(x + b, y, w - b * 2, b)) this.tip(typeof tip === 'string' ? [{ text: tip }] : tip);
     return d;
   }
 
@@ -417,17 +448,27 @@ export class UI {
     drawFit(this.ctx, fr, x, y, w, h);
   }
 
-  /** a scrolling region: returns the offset; draw rows between clip() and unclip() */
+  /** a scrolling region: returns the offset; draw rows between clip() and unclip(). It scrolls with
+   *  the wheel or touchpad, by dragging the list (a finger or the mouse; a drag is never a click on a
+   *  row), and by dragging its scrollbar. */
   scrollArea(id: string, x: number, y: number, w: number, h: number, contentH: number): number {
+    const inp = this.input;
     let off = this.scroll.get(id) ?? 0;
-    if (this.hover(x, y, w, h) && this.input.wheel) {
-      off += this.input.wheel * 30;
-      this.input.wheel = 0;
+    const max = Math.max(0, contentH - h), th = Math.max(14, (h * h) / Math.max(1, contentH));
+    const over = this.hover(x, y, w, h);
+    if (over && inp.wheelPx) {
+      off += inp.wheelPx;
+      inp.wheel = 0;
+      inp.wheelPx = 0;
     }
-    off = Math.max(0, Math.min(Math.max(0, contentH - h), off));
+    if (over && inp.pressed && max > 0) this.grab = { id, y: this.my, off, thumb: this.mx >= x + w - 8 };
+    if (this.grab?.id === id && inp.dragging) {
+      const dy = this.my - this.grab.y;
+      off = this.grab.thumb ? this.grab.off + (dy * max) / Math.max(1, h - th) : this.grab.off - dy;
+    }
+    off = Math.max(0, Math.min(max, off));
     this.scroll.set(id, off);
     if (contentH > h) {
-      const th = Math.max(14, (h * h) / contentH);
       this.rr(x + w - 4, y, 4, h, 2, C.panelLo, 0.7);
       this.rr(x + w - 4, y + (off / (contentH - h)) * (h - th), 4, th, 2, C.accent);
     }
@@ -476,8 +517,11 @@ export class UI {
    */
   overlaps(props: { name: string; x: number; y: number; w: number; h: number }[] = []): string[] {
     const out: string[] = [];
-    // toasts come and go over anything
-    const d = this.drawn.filter((q) => q.owner !== 'toast');
+    // toasts and the new-chapter banner come and go over anything, but never over each other
+    const passing = (q: Drawn) => q.owner === 'toast' || q.owner === 'banner';
+    const notices = this.drawn.filter((q) => passing(q) && q.kind === 'panel');
+    for (const a of notices) for (const b of notices) if (a.owner === 'banner' && b.owner === 'toast' && intersect(a, b)) out.push(`banner at ${a.x},${a.y} ${a.w}x${a.h} over a toast at ${b.x},${b.y} ${b.w}x${b.h}`);
+    const d = this.drawn.filter((q) => !passing(q));
     // decorations must stay clear of the interface: no prop under a chip, card, button or text
     const hud = d.filter((q) => q.layer === 0 && (q.kind !== 'panel' || q.s !== 'inset'));
     for (const p of props) {

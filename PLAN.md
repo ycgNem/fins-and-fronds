@@ -8,18 +8,18 @@ and the visitors, the shop and the people who write to you are felt but never dr
 Design: [DESIGN.md](DESIGN.md). Research behind the content: [RESEARCH.md](RESEARCH.md).
 Art bible: [STYLE.md](STYLE.md). Art pipeline and the PixelLab budget: [art/README.md](art/README.md).
 
-## Where things stand (2026-10-21)
+## Where things stand (2026-11-08, version 0.3)
 
 | | |
 |---|---|
-| Content | 189 species (129 fish, 20 shrimp, 12 snails, 9 crabs, jellies, cephalopods, stars, urchins, amphibians), 153 scape items (66 plants, 38 corals, 19 stones, 12 driftwoods, botanicals, decor, land), 13 substrates, 19 tank shells, 40 pieces of equipment, 27 regions, 63 recognizable tank types, 23 upgrades, 34 letters from 9 correspondents, 9 partnerships |
-| Simulation | Nitrogen cycle with two bacteria populations, pH/GH/KH equilibrium from source water, substrate and hardscape, tannins, salinity and evaporation, oxygen, temperature, algae, glass film; per-species wellbeing; archetype recognition; five-part rating; visitors, coins, reputation and tiers; breeding (incl. Neocaridina color lines and grades); pests (pest snails vs assassin snails, Aiptasia, bubble algae); letters; expeditions; save, export, import and offline income |
-| Story | You open Ida Fenwick's shut fish shop with no tank set up: an intro cutscene (the keys, the dusty shop, her note), Ida's tour through the first tank, a town-opening cutscene at the Town Aquarium tier |
-| Presentation | Title screen, tank view with watch mode, six tank modes, seven windows, a hall that grows to 10 display bays and 8 stock racks, and the shop around them (street window with weather, clock, OPEN sign, chalkboard of offers, corkboard of letters, the cat). Tanks have dens, caves and burrowing animals, three depth planes, shadows and side glass |
-| Economy | Visitors by tank size and rating, running costs, stock tanks that breed and sell, expeditions that pay their way, letters as goals, a conservation fund for late coins. Scripted playthroughs reach tier 1 in about 43 minutes and saltwater in about 3 hours |
+| Content | 191 species (131 fish, shrimp, snails, crabs, rays, jellies, cephalopods, stars, urchins, amphibians), 157 scape items (plants, corals, stones, driftwoods, botanicals, decor, land), 13 substrates, 28 tank shells and racks, 43 pieces of equipment, 27 regions, 63 recognizable tank types, 24 upgrades, 7 conservation projects, 63 letters from 10 correspondents with replies and keepsakes, 9 partnerships |
+| Simulation | Nitrogen cycle with two bacteria populations, pH/GH/KH equilibrium from source water, substrate and hardscape, tannins, salinity and evaporation, oxygen, temperature, algae, glass film; per-species wellbeing; archetype recognition; five-part rating; visitors, coins, reputation and tiers; breeding (incl. Neocaridina color lines and grades); pests (pest snails vs assassin snails, Aiptasia, bubble algae); letters with replies; a week of visiting days; conservation projects; expeditions with overfishing; save, export, import (damaged saves kept and backed up) and offline income |
+| Story | You open Ida Fenwick's shut fish shop with no tank set up: an intro cutscene (the keys, the dusty shop, her note), Ida's tour through the first tank, a town-opening cutscene at the Town Aquarium tier, and a two-shot finale and Ida's last letter at the Grand Oceanarium |
+| Presentation | Title screen, tank view with watch mode, six tank modes, eight windows (with What's new), a hall that grows to 10 display bays and 8 stock racks, and the shop around them (street window with weather, clock, OPEN sign, chalkboard of offers, corkboard of letters, the cat). Tanks have dens, caves and burrowing animals, three depth planes, shadows and side glass |
+| Economy | Visitors by display size and rating, running costs, stock racks behind the counter that breed and sell, expeditions for finds, letters as goals, repeatable conservation projects for late coins. Scripted playthroughs reach tier 1 in 30 to 45 minutes, saltwater in about 3 hours and the Grand Oceanarium in 5.1 to 5.9 hours |
 | Sound | Synthesized ambience that follows the tank on screen (filter trickle, pump hum, surge, visitor babble, rain, bubbles, the door bell) and remade effects |
-| Art | About 600 of 1000 planned PixelLab generations used. Imported art for all 189 species, 153 scape items, 13 water backdrops, 12 pieces of gear, 8 cutscene paintings, 11 shop props, 63 codex plates, 27 postcards and 27 icons and stamps |
-| Checks | `npm run typecheck` clean, `npm test` 29/29 (including `tests/progression.test.ts`), `npm run e2e` smoke test (build, stock, save, reload), `e2e/scale.ts` (18 tanks), `e2e/windows.ts` (screenshots) |
+| Art | About 685 of 1000 planned PixelLab generations used. Imported art for all 191 species, 157 scape items, 13 water backdrops, 12 pieces of gear, 10 cutscene paintings, 11 shop props, 10 keepsakes, 63 codex plates, 27 postcards and 27 icons and stamps |
+| Checks | `npm run typecheck` clean, `npm test` 114 tests in 7 files (including `tests/progression.test.ts`, `tests/save.test.ts`, `tests/life.test.ts`), `npm run e2e` smoke test (build, stock, save, reload), `e2e/scale.ts` (18 tanks), `e2e/windows.ts` (screenshots) |
 | Live | https://ycgnem.github.io/fins-and-fronds/ (GitHub Pages from `master`) |
 
 ## Milestones
@@ -125,6 +125,18 @@ tier 1 by playing only.
 - `e2e/smoke.ts` builds, scapes and stocks, scrapes, saves, reloads and continues.
 - Deployed to GitHub Pages from `master` (no itch.io page until the owner asks).
 
+### Play-test passes 0.2 and 0.2.1 - done (38 gens)
+The owner's feedback: calmer backdrops, a tour and cutscenes that cannot be skipped, no
+overlapping text (with the UI audit), rated heaters, tilting rocks and wood, sharper small art.
+
+### 0.3 Critique and improvement pass - done (47 gens)
+A full critique of playability, pacing and bugs, then six packages: input and platform (touch,
+high-DPI, watch mode, drags), onboarding (the tour, ideas, first-hour fixes), water and exhibits
+(reef pH, chillers, kelp, kreisels, rays), life and saves (breeding room, stock reserves, safe
+saves), economy and story (letter replies, keepsakes, projects, the week, the finale) and
+feedback (why-not tooltips, predictions, hall badges, celebrations). A second review of the merge
+and its fixes, patch notes in the game and CHANGELOG.md.
+
 ## Gen budget
 
 | Area | Planned | Spent |
@@ -135,7 +147,9 @@ tier 1 by playing only.
 | M7 tanks, equipment, backdrops | 100 | 29 |
 | M8 UI, codex, letters, postcards, logo | 150 | 77 |
 | Redesign: cutscenes, shop props, kuhli retry | (reserve) | 250 |
-| **Total** | **1000** | **about 600** |
+| Play-test passes: small art at 24 px, new stones and woods, redos | (reserve) | 38 |
+| 0.3: rays, keepsakes, the finale | 50 | 47 |
+| **Total** | **1000** | **about 685** |
 
 Batch packs of 64 candidates per call made creatures and small scape far cheaper than planned;
 the savings can go to M8 or to animated hero cycles. Batch log: art/README.md.

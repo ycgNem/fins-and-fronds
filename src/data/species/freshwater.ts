@@ -39,12 +39,12 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'discus', name: 'Discus', sci: 'Symphysodon discus', regions: ['rio_negro', 'amazon'], cm: 15, body: 'disc', temp: [28, 31], ph: [5.0, 7.0],
       look: { body: 'orange', accent: 'blue', pattern: 'marble', fin: 'orange' }, temper: 'peaceful', zone: 'mid', school: 5, minL: 250, flow: [0, 1],
-      diet: ['frozen', 'pellet'], rarity: 3, appeal: 9, tags: ['iconic', 'colorful', 'sensitive'], needs: ['soft_water'], breed: { type: 'pair', ease: 2 },
+      diet: ['frozen', 'pellet'], rarity: 3, appeal: 9, tags: ['iconic', 'colorful', 'sensitive'], needs: ['soft_water'], breed: { type: 'pair', ease: 2 }, tier: 2,
       fact: 'Discus parents feed their fry on a mucus they secrete from their own skin for the first weeks of life.',
     },
     {
       id: 'altum_angelfish', name: 'Altum Angelfish', sci: 'Pterophyllum altum', cm: 18, body: 'angel', temp: [28, 31], ph: [4.5, 6.5],
-      look: { body: 'silver', pattern: 'bars', accent: 'red', fin: 'pearl' }, temper: 'semi', zone: 'mid', school: 4, minL: 300, flow: [0, 1],
+      look: { body: 'silver', pattern: 'bars', accent: 'red', fin: 'pearl' }, temper: 'semi', zone: 'mid', school: 4, minL: 250, flow: [0, 1],
       diet: ['frozen', 'flake'], rarity: 4, appeal: 9, tags: ['iconic', 'eats_small'], needs: ['wood', 'soft_water'], source: 'expedition', tier: 2,
       fact: 'The tallest angelfish: its fins can span 30 cm top to bottom, made for slipping between vertical roots in the Orinoco and upper Rio Negro.',
     },
@@ -71,7 +71,7 @@ export const FRESHWATER: SpeciesDef[] = [
     },
     {
       id: 'angelfish', name: 'Angelfish', sci: 'Pterophyllum scalare', cm: 15, body: 'angel', temp: [24, 30],
-      look: { body: 'silver', pattern: 'bars', fin: 'pearl' }, temper: 'semi', zone: 'mid', minL: 150, flow: [0, 1], diet: ['flake', 'frozen'],
+      look: { body: 'silver', pattern: 'bars', fin: 'pearl' }, temper: 'semi', zone: 'mid', minL: 110, flow: [0, 1], diet: ['flake', 'frozen'],
       rarity: 2, appeal: 7, tags: ['iconic', 'eats_small'], needs: ['plants'], breed: { type: 'pair', ease: 3 },
       fact: 'Angelfish spawn on broad leaves or slate and fan their eggs; grown angels will happily eat any neon small enough to swallow.',
     },
@@ -106,7 +106,7 @@ export const FRESHWATER: SpeciesDef[] = [
       fact: 'Bristlenoses rasp driftwood for fiber, and males grow branching bristles on their snouts.',
     },
     {
-      id: 'german_blue_ram', name: 'German Blue Ram', sci: 'Mikrogeophagus ramirezi', regions: [], cm: 6, body: 'cichlid', temp: [27, 30], ph: [5.0, 7.0], gh: [0, 6],
+      id: 'german_blue_ram', name: 'German Blue Ram', sci: 'Mikrogeophagus ramirezi', regions: ['amazon'], cm: 6, body: 'cichlid', temp: [27, 30], ph: [5.0, 7.0], gh: [0, 6],
       look: { body: 'gold', accent: 'blue', pattern: 'spots', fin: 'red' }, temper: 'peaceful', zone: 'bottom', max: 4, rarity: 2, appeal: 8,
       tags: ['colorful', 'sensitive'], needs: ['soft_water', 'plants'], breed: { type: 'pair', ease: 2 },
       fact: 'Rams come from the warm, soft llanos of the Orinoco basin; pairs dig little pits in the sand to keep their fry together.',
@@ -114,7 +114,7 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'oscar', name: 'Oscar', sci: 'Astronotus ocellatus', cm: 33, body: 'cichlid', temp: [22, 28],
       look: { body: 'black', accent: 'orange', pattern: 'spots' }, temper: 'predator', zone: 'mid', minL: 350, diet: ['pellet', 'frozen'],
-      rarity: 2, appeal: 8, tags: ['iconic', 'big', 'eats_small'], needs: ['swim_space'], breed: { type: 'pair', ease: 2 }, tier: 1,
+      rarity: 2, appeal: 8, tags: ['iconic', 'big', 'eats_small'], needs: ['swim_space'], breed: { type: 'pair', ease: 2 }, tier: 3,
       fact: 'Oscars recognize the people who feed them, begging at the glass and sulking when the decor is rearranged.',
     },
     {
@@ -132,19 +132,19 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'black_ghost_knifefish', name: 'Black Ghost Knifefish', sci: 'Apteronotus albifrons', cm: 45, body: 'knife', temp: [23, 28],
       look: { body: 'black', accent: 'pearl', pattern: 'band' }, temper: 'semi', zone: 'bottom', minL: 400, diet: ['frozen', 'live'], rarity: 3, appeal: 7,
-      tags: ['nocturnal', 'oddball', 'eats_small'], needs: ['caves', 'dim'], tier: 2,
+      tags: ['nocturnal', 'oddball', 'eats_small'], needs: ['caves', 'dim'], tier: 3,
       fact: 'Black ghosts swim forwards or backwards on one long rippling fin and "see" with a weak electric field.',
     },
     {
       id: 'red_bellied_piranha', name: 'Red-bellied Piranha', sci: 'Pygocentrus nattereri', cm: 28, body: 'deep', temp: [24, 28],
       look: { body: 'silver', belly: 'red', pattern: 'dots' }, temper: 'predator', zone: 'mid', school: 5, minL: 400, diet: ['frozen', 'carnivore'], rarity: 3, appeal: 8,
-      tags: ['iconic', 'schooling', 'eats_small'], needs: ['swim_space', 'plants'], tier: 2,
+      tags: ['iconic', 'schooling', 'eats_small'], needs: ['swim_space', 'plants'], tier: 3,
       fact: 'Despite the legend, red-bellies are nervous fish that school for safety and mostly scavenge; a group in a big tank is surprisingly shy.',
     },
     {
       id: 'silver_dollar', name: 'Silver Dollar', sci: 'Metynnis argenteus', cm: 15, body: 'disc', temp: [24, 28],
-      look: { body: 'silver', fin: 'red' }, temper: 'peaceful', zone: 'mid', school: 5, minL: 300, diet: ['veg', 'flake'], appeal: 5,
-      tags: ['schooling', 'plant_eater'], needs: ['swim_space'],
+      look: { body: 'silver', fin: 'red' }, temper: 'peaceful', zone: 'mid', school: 5, minL: 280, diet: ['veg', 'flake'], appeal: 5,
+      tags: ['schooling', 'plant_eater'], needs: ['swim_space'], tier: 3,
       fact: 'Vegetarian cousins of piranhas, silver dollars will mow a planted tank down to stubs.',
     },
     {
@@ -156,7 +156,7 @@ export const FRESHWATER: SpeciesDef[] = [
   // ---------------------------------------------------------------- Central America and the Caribbean islands
   ...group({ ...fish, regions: ['central_america'], temp: [22, 28], ph: [7.0, 8.2], gh: [8, 20] }, [
     {
-      id: 'guppy', name: 'Guppy', sci: 'Poecilia reticulata', cm: 4, body: 'torpedo', look: { body: 'silver', fin: 'magenta', accent: 'blue', pattern: 'calico' },
+      id: 'guppy', name: 'Guppy', sci: 'Poecilia reticulata', cm: 4, body: 'torpedo', sg: [1.000, 1.008], look: { body: 'silver', fin: 'magenta', accent: 'blue', pattern: 'calico' },
       temper: 'peaceful', zone: 'top', school: 3, appeal: 5, tags: ['livebearer', 'colorful', 'long_fin', 'brackish_ok'],
       breed: { type: 'livebearer', ease: 5 }, source: 'start',
       fact: 'Named after Robert Guppy, who sent them from Trinidad in 1866. A female can store sperm and drop several broods from one mating.',
@@ -177,27 +177,27 @@ export const FRESHWATER: SpeciesDef[] = [
       breed: { type: 'livebearer', ease: 4 }, fact: 'Only males grow the sword, an extension of the lower tail; females prefer males with longer swords.',
     },
     {
-      id: 'black_molly', name: 'Black Molly', sci: 'Poecilia sphenops', cm: 8, body: 'torpedo', temp: [24, 28], ph: [7.5, 8.5], gh: [10, 25],
+      id: 'black_molly', name: 'Black Molly', sci: 'Poecilia sphenops', cm: 8, body: 'torpedo', temp: [24, 28], ph: [7.5, 8.5], gh: [10, 25], sg: [1.000, 1.015],
       look: { body: 'black', fin: 'black' }, temper: 'peaceful', zone: 'top', school: 3, diet: ['flake', 'algae'],
       tags: ['livebearer', 'algae', 'brackish_ok'], breed: { type: 'livebearer', ease: 4 },
       fact: 'Mollies are happiest in hard water; in the wild they range from freshwater streams into brackish lagoons.',
     },
     {
       id: 'convict_cichlid', name: 'Convict Cichlid', sci: 'Amatitlania nigrofasciata', cm: 12, body: 'cichlid', ph: [6.5, 8.0],
-      look: { body: 'pearl', pattern: 'bars', accent: 'ink' }, temper: 'aggressive', zone: 'bottom', max: 2, minL: 120, appeal: 5,
+      look: { body: 'pearl', pattern: 'bars', accent: 'ink' }, temper: 'aggressive', zone: 'bottom', max: 2, minL: 110, appeal: 5,
       tags: ['territorial'], needs: ['caves', 'rocks'], breed: { type: 'cave', ease: 5 },
       fact: 'The classic first cichlid to breed: a pair will dig, defend a cave and herd a cloud of fry around the tank.',
     },
     {
       id: 'firemouth', name: 'Firemouth Cichlid', sci: 'Thorichthys meeki', cm: 15, body: 'cichlid', temp: [24, 30], ph: [6.5, 8.0],
       look: { body: 'slate', belly: 'red', pattern: 'spots', accent: 'red' }, temper: 'semi', zone: 'bottom', max: 2, minL: 150, appeal: 6,
-      tags: ['territorial', 'colorful'], needs: ['caves', 'sand'], breed: { type: 'cave', ease: 3 },
+      tags: ['territorial', 'colorful'], needs: ['caves', 'sand'], breed: { type: 'cave', ease: 3 }, tier: 1,
       fact: 'Firemouths flare their throat pouch to show off the red, a bluff that usually settles disputes without a fight.',
     },
     {
       id: 'jack_dempsey', name: 'Jack Dempsey', sci: 'Rocio octofasciata', cm: 25, body: 'cichlid', temp: [22, 30], ph: [6.5, 8.0],
-      look: { body: 'black', accent: 'teal', pattern: 'spots' }, temper: 'aggressive', zone: 'mid', max: 1, minL: 300, diet: ['pellet', 'frozen'], rarity: 2, appeal: 7,
-      tags: ['territorial', 'big', 'eats_small'], needs: ['caves', 'rocks'], breed: { type: 'cave', ease: 3 }, tier: 1,
+      look: { body: 'black', accent: 'teal', pattern: 'spots' }, temper: 'aggressive', zone: 'mid', max: 1, minL: 280, diet: ['pellet', 'frozen'], rarity: 2, appeal: 7,
+      tags: ['territorial', 'big', 'eats_small'], needs: ['caves', 'rocks'], breed: { type: 'cave', ease: 3 }, tier: 2,
       fact: 'Named in the 1920s after the heavyweight boxer for its pugnacious face, though it is calmer than its reputation.',
     },
     {
@@ -251,7 +251,7 @@ export const FRESHWATER: SpeciesDef[] = [
     },
     {
       id: 'senegal_bichir', name: 'Senegal Bichir', sci: 'Polypterus senegalus', cm: 30, body: 'eel', ph: [6.0, 8.0], temp: [24, 29],
-      look: { body: 'olive', belly: 'sand' }, temper: 'predator', zone: 'bottom', minL: 300, diet: ['frozen', 'pellet'], rarity: 2, appeal: 7,
+      look: { body: 'olive', belly: 'sand' }, temper: 'predator', zone: 'bottom', minL: 200, diet: ['frozen', 'pellet'], rarity: 2, appeal: 7,
       tags: ['oddball', 'eats_small', 'jumper'], needs: ['lid', 'caves'], tier: 1,
       fact: 'Bichirs breathe air with paired lungs and have barely changed in tens of millions of years; visitors call them dinosaur eels.',
     },
@@ -307,7 +307,7 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'frontosa', name: 'Frontosa', sci: 'Cyphotilapia frontosa', cm: 33, body: 'cichlid', look: { body: 'blue', pattern: 'bars', accent: 'pearl' },
       temper: 'predator', zone: 'mid', school: 4, minL: 500, diet: ['frozen', 'pellet'], rarity: 3, appeal: 9, tags: ['big', 'eats_small', 'mouthbrooder'],
-      needs: ['rocks', 'hard_water', 'swim_space'], breed: { type: 'mouthbrooder', ease: 1 }, tier: 2,
+      needs: ['rocks', 'hard_water', 'swim_space'], breed: { type: 'mouthbrooder', ease: 1 }, tier: 3,
       fact: 'Frontosas live in deep water and grow a big fatty hump on the forehead; slow and stately, they eat any fish that fits.',
     },
     {
@@ -325,7 +325,7 @@ export const FRESHWATER: SpeciesDef[] = [
   // ---------------------------------------------------------------- Southeast Asia: peat swamps
   ...group({ ...fish, regions: ['se_asia_peat'], temp: [24, 29], ph: [4.5, 7.0], gh: [0, 6] }, [
     {
-      id: 'harlequin_rasbora', name: 'Harlequin Rasbora', sci: 'Trigonostigma heteromorpha', cm: 4.5, body: 'torpedo', temp: [22, 28], ph: [6.0, 7.8], gh: [2, 12],
+      id: 'harlequin_rasbora', name: 'Harlequin Rasbora', sci: 'Trigonostigma heteromorpha', cm: 4.5, body: 'torpedo', temp: [22, 28], ph: [5.0, 7.8], gh: [2, 12],
       look: { body: 'peach', accent: 'ink', pattern: 'split' }, temper: 'peaceful', zone: 'mid', school: 8, appeal: 5, tags: ['schooling', 'colorful'],
       breed: { type: 'scatter', ease: 1 }, source: 'start',
       fact: 'Harlequins lay their eggs upside down on the underside of broad leaves, often Cryptocoryne.',
@@ -376,7 +376,7 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'clown_loach', name: 'Clown Loach', sci: 'Chromobotia macracanthus', cm: 25, body: 'loach', temp: [25, 30],
       look: { body: 'orange', pattern: 'bars', accent: 'ink', fin: 'red' }, temper: 'peaceful', zone: 'bottom', school: 5, minL: 400,
-      diet: ['pellet', 'snails'], rarity: 2, appeal: 7, tags: ['shoaling', 'eats_snails', 'colorful'], needs: ['caves', 'sand'], tier: 1,
+      diet: ['pellet', 'snails'], rarity: 2, appeal: 7, tags: ['shoaling', 'eats_snails', 'colorful'], needs: ['caves', 'sand'], tier: 3,
       fact: 'Clown loaches click audibly, sleep lying on their sides (which alarms new keepers) and hunt pest snails with relish.',
     },
     {
@@ -460,18 +460,18 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'celebes_rainbow', name: 'Celebes Rainbowfish', sci: 'Marosatherina ladigesi', kind: 'fish', cm: 7, body: 'torpedo', temp: [24, 28], ph: [7.0, 8.0],
       look: { body: 'gold', fin: 'yellow', accent: 'teal', pattern: 'stripe' }, temper: 'peaceful', zone: 'top', school: 6, rarity: 2, appeal: 6,
-      tags: ['schooling', 'colorful', 'long_fin'], needs: ['hard_water'],
+      tags: ['schooling', 'colorful', 'long_fin'],
       fact: 'Males sport yellow-and-black edged sail fins; in the wild they live only in streams of southern Sulawesi.',
     },
     {
-      id: 'cardinal_shrimp', name: 'Sulawesi Cardinal Shrimp', sci: 'Caridina dennerli', kind: 'shrimp', cm: 2, body: 'shrimp',
+      id: 'cardinal_shrimp', name: 'Sulawesi Cardinal Shrimp', sci: 'Caridina dennerli', kind: 'shrimp', cm: 2, body: 'shrimp', ph: [7.2, 8.5],
       look: { body: 'red', pattern: 'dots', accent: 'pearl' }, temper: 'peaceful', zone: 'rock', school: 6, diet: ['algae', 'detritus'], rarity: 4, appeal: 8,
       tags: ['tiny', 'sensitive', 'endangered', 'colorful'], needs: ['rocks', 'mature'], breed: { type: 'colony', ease: 1 },
       fact: 'From Lake Matano: warm, soft but alkaline water. Critically endangered in the wild; aquarium strains keep the line alive.',
     },
     {
-      id: 'rabbit_snail', name: 'Rabbit Snail', sci: 'Tylomelania sp.', kind: 'snail', cm: 8, body: 'snail', look: { body: 'brown', accent: 'gold' },
-      temper: 'peaceful', zone: 'bottom', diet: ['detritus', 'algae'], rarity: 3, appeal: 7, tags: ['scavenger', 'oddball'], needs: ['hard_water'],
+      id: 'rabbit_snail', name: 'Rabbit Snail', sci: 'Tylomelania sp.', kind: 'snail', cm: 8, body: 'snail', ph: [7.2, 8.5], look: { body: 'brown', accent: 'gold' },
+      temper: 'peaceful', zone: 'bottom', diet: ['detritus', 'algae'], rarity: 3, appeal: 7, tags: ['scavenger', 'oddball'],
       breed: { type: 'colony', ease: 1 },
       fact: "Rabbit snails from Sulawesi's ancient lakes have long ear-like tentacles and give birth to one big baby at a time.",
     },
@@ -507,13 +507,13 @@ export const FRESHWATER: SpeciesDef[] = [
     {
       id: 'comet_goldfish', name: 'Comet Goldfish', sci: 'Carassius auratus', cm: 30, body: 'torpedo', look: { body: 'orange', fin: 'orange' },
       temper: 'peaceful', zone: 'mid', school: 3, minL: 300, flow: [1, 2], diet: ['flake', 'veg'], appeal: 5,
-      tags: ['cold', 'big', 'iconic', 'plant_eater'], needs: ['swim_space'], breed: { type: 'scatter', ease: 2 },
+      tags: ['cold', 'big', 'iconic', 'plant_eater'], needs: ['swim_space'], breed: { type: 'scatter', ease: 2 }, tier: 3,
       fact: 'The goldfish-in-a-bowl is a myth worth breaking: comets grow to 30 cm and belong in big tanks or ponds.',
     },
     {
       id: 'oranda', name: 'Oranda Goldfish', sci: 'Carassius auratus', cm: 18, body: 'fancy', temp: [16, 24],
       look: { body: 'orange', fin: 'pearl', accent: 'red', pattern: 'calico' }, temper: 'peaceful', zone: 'mid', school: 2, minL: 150, flow: [0, 1],
-      diet: ['pellet', 'veg'], rarity: 2, appeal: 8, tags: ['cold', 'iconic', 'long_fin'], breed: { type: 'scatter', ease: 2 },
+      diet: ['pellet', 'veg'], rarity: 2, appeal: 8, tags: ['cold', 'iconic', 'long_fin'], breed: { type: 'scatter', ease: 2 }, tier: 1,
       fact: "Fancy goldfish were bred in China over a thousand years; the oranda's raspberry-like wen takes years to grow.",
     },
     {
@@ -523,14 +523,14 @@ export const FRESHWATER: SpeciesDef[] = [
       fact: 'Nishikigoi, "brocaded carp", were developed by rice farmers in Niigata, Japan, and can live well over 50 years.',
     },
     {
-      id: 'medaka', name: 'Medaka', sci: 'Oryzias latipes', cm: 4, body: 'torpedo', temp: [10, 28], look: { body: 'gold', fin: 'pearl' },
+      id: 'medaka', name: 'Medaka', sci: 'Oryzias latipes', cm: 4, body: 'torpedo', temp: [10, 28], sg: [1.000, 1.010], look: { body: 'gold', fin: 'pearl' },
       temper: 'peaceful', zone: 'top', school: 6, tags: ['cold', 'schooling', 'brackish_ok'], breed: { type: 'scatter', ease: 4 },
       fact: 'Japanese rice fish carry their egg clusters on their bellies for a few hours; medaka have even bred in orbit.',
     },
     {
       id: 'weather_loach', name: 'Weather Loach', sci: 'Misgurnus anguillicaudatus', cm: 20, body: 'loach', temp: [5, 25],
       look: { body: 'olive', pattern: 'dots', belly: 'sand' }, temper: 'peaceful', zone: 'substrate', school: 3, minL: 150, diet: ['pellet', 'detritus'], appeal: 5,
-      tags: ['cold', 'burrower', 'scavenger', 'eats_snails'], needs: ['sand'],
+      tags: ['cold', 'burrower', 'scavenger', 'eats_snails'], needs: ['sand'], tier: 1,
       fact: 'Weather loaches grow restless before storms, sensing falling air pressure: a living barometer.',
     },
     {
@@ -573,6 +573,7 @@ export const FRESHWATER: SpeciesDef[] = [
       id: 'wild_neocaridina', name: 'Wild-type Neocaridina', sci: 'Neocaridina davidi', kind: 'shrimp', cm: 2.5, body: 'shrimp', temp: [18, 28],
       look: { body: 'brown', pattern: 'dots' }, temper: 'peaceful', zone: 'bottom', school: 10, diet: ['algae', 'detritus'], price: 1, appeal: 2,
       tags: ['algae', 'scavenger', 'tiny'], needs: ['moss'], breed: { type: 'colony', ease: 5 }, source: 'hitchhiker',
+      found: 'Born in a tank where two Neocaridina colors breed together: their young drift back to wild brown.',
       fact: 'What every Neocaridina color line drifts back to when colors are mixed: the speckled brown camouflage of wild Taiwanese shrimp.',
     },
     {
@@ -659,7 +660,7 @@ export const FRESHWATER: SpeciesDef[] = [
       fact: "Female bitterlings lay eggs inside living freshwater mussels with a long ovipositor; the mussel's larvae ride on the fish in return.",
     },
     {
-      id: 'stickleback', name: 'Three-spined Stickleback', sci: 'Gasterosteus aculeatus', regions: ['temperate_eu', 'temperate_na'], cm: 6, body: 'torpedo', temp: [4, 20],
+      id: 'stickleback', name: 'Three-spined Stickleback', sci: 'Gasterosteus aculeatus', regions: ['temperate_eu', 'temperate_na'], cm: 6, body: 'torpedo', temp: [4, 20], sg: [1.000, 1.010],
       look: { body: 'olive', belly: 'red' }, temper: 'semi', zone: 'mid', diet: ['frozen', 'live'], appeal: 5, tags: ['cold', 'brackish_ok', 'territorial'],
       needs: ['plants', 'chill'], breed: { type: 'nest', ease: 3 },
       fact: 'Male sticklebacks glue a tunnel nest from plant bits, then zigzag-dance to lead a female inside.',

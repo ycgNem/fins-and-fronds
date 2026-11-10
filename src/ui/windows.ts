@@ -2,20 +2,25 @@
 // the new-tank order. Correspondents and the captain are never drawn; their letters are.
 // A window is a sea-glass card with a teal title ribbon; letters and postcards are paper.
 import type { App, WindowId } from '../app/app';
-import { ARCHETYPES, correspondent, item, REGIONS, request, species, SPECIES, SYMBIOSES, TIERS, UPGRADES } from '../data';
+import { ARCHETYPES, correspondent, CORRESPONDENTS, item, REGIONS, request, REQUESTS, species, SPECIES, SYMBIOSES, TIERS, UPGRADES } from '../data';
+import { CODEX_MILESTONES, PROJECTS } from '../data/progression';
 import { RAMP, setCalmColors, UI as C } from '../data/palette';
-import type { Family, RegionId, RequestCheck, UpgradeTrack, Water } from '../data/types';
-import { creatureFrame, itemFrame } from '../render/art/sprites';
+import { markNotesSeen, PATCH_NOTES } from '../data/patchnotes';
+import type { Family, RegionId, RequestCheck, RequestDef, ShellDef, SpeciesDef, UpgradeTrack, Water } from '../data/types';
+import { creatureFrame, drawAt, importedFrame, itemFrame } from '../render/art/sprites';
 import * as act from '../sim/actions';
-import { canExpedition, expeditionHours, expeditionSlots } from '../sim/expeditions';
-import { shellPrice, shellsForSale, watersAvailable } from '../sim/catalog';
+import { canExpedition, catchable, expeditionHours, expeditionSlots, freshness, orderable } from '../sim/expeditions';
+import { letterText } from '../sim/letters';
+import { canFund, funded, fundProject, projectCost, projectLine, projectRep } from '../sim/projects';
+import { codexHow, shellPrice, shellsForSale, watersAvailable } from '../sim/catalog';
 import { BAL } from '../sim/balance';
 import { deserialize, serialize } from '../sim/save';
 import { clockText, dayOf } from '../sim/state';
 import { drawIcon, drawPicture, hasArt } from '../render/icons';
 import { TOOLBAR_H, TOP_H, WIN_ICON } from './hud';
+import { homeChip, homeLine, letterProgress } from './hints';
 import { tourShowing } from './tutorial';
-import { ICON, M, type UI } from './ui';
+import { ICON, M, type UI, wrapText } from './ui';
 
 const heights = new Map<string, number>();
 
@@ -28,7 +33,7 @@ function column(u: UI, id: string, x: number, y: number, w: number, h: number, d
 }
 
 const TITLES: Record<WindowId, string> = {
-  codex: 'Codex', letters: 'Letters', trips: 'Expeditions', upgrades: 'Upgrades', guestbook: 'Guestbook', menu: 'Menu', newtank: 'A new tank',
+  codex: 'Codex', letters: 'Letters', trips: 'Expeditions', upgrades: 'Upgrades', guestbook: 'Guestbook', menu: 'Menu', newtank: 'A new tank', news: "What's new",
 };
 
 const RIBBON = 30;
@@ -64,7 +69,34 @@ export function drawWindow(app: App) {
     case 'guestbook': guestbook(app, ix, iy, iw, ih); break;
     case 'menu': menu(app, ix, iy, iw, ih); break;
     case 'newtank': newTank(app, ix, iy, iw, ih); break;
+    case 'news': news(app, ix, iy, iw, ih); break;
   }
+}
+
+// ---------------------------------------------------------------- what's new
+
+/** the patch notes, newest first; reading them counts as seen */
+function news(app: App, x: number, y: number, w: number, h: number) {
+  const u = app.ui;
+  markNotesSeen();
+  column(u, 'news', x, y, w, h - M.btn - 10, (x, y, w) => {
+    for (const n of PATCH_NOTES) {
+      u.head(`${n.version}: ${n.title}`, x, y, C.head, { maxW: w - 90 });
+      u.text(n.date, x + w, y + 1, C.textMute, { align: 'right' });
+      y += M.row + 4;
+      for (const sec of n.sections) {
+        if (sec.head) {
+          u.text(sec.head, x, y, C.accent);
+          y += M.row;
+        }
+        for (const line of sec.lines) y += u.para(`${ICON.right} ${line}`, x + 4, y, w - 4, C.text) + 3;
+        y += 4;
+      }
+      y += 10;
+    }
+    return y;
+  });
+  if (u.button('newsok', x + w - 150, y + h - M.btn - 2, 150, M.btn + 2, 'Back to the shop', { style: 'good' })) app.window = null;
 }
 
 // ---------------------------------------------------------------- codex
@@ -75,11 +107,13 @@ function codex(app: App, x: number, y: number, w: number, h: number) {
   const u = app.ui;
   const s = app.state;
   const found = s.codex;
-  app.panel.codexTab = u.tabs('codextab', x, y, [`Tank types ${found.archetypes.length}/${ARCHETYPES.length}`, `Species ${found.species.length}/${SPECIES.length}`, `Partners ${found.symbioses.length}/${SYMBIOSES.length}`], app.panel.codexTab);
+  const plaques = plaqueList();
+  app.panel.codexTab = u.tabs('codextab', x, y, [`Tank types ${found.archetypes.length}/${ARCHETYPES.length}`, `Species ${found.species.length}/${SPECIES.length}`, `Partners ${found.symbioses.length}/${SYMBIOSES.length}`, `Plaques ${plaques.filter((p) => (s.milestones ?? []).includes(p.id)).length}/${plaques.length}`], app.panel.codexTab);
   y += 26;
   h -= 26;
   const lw = Math.floor(w * 0.42);
-  u.panel(x, y, lw, h, 'inset', false);
+  // tank types and species are a list beside a page; partners and plaques are one list, full width
+  u.panel(x, y, app.panel.codexTab <= 1 ? lw : w, h, 'inset', false);
   const dx = x + lw + 14, dw = w - lw - 14;
   if (app.panel.codexTab === 0) {
     column(u, 'cx-arch', x + 6, y + 6, lw - 8, h - 12, (x, y, w) => {
@@ -125,23 +159,45 @@ function codex(app: App, x: number, y: number, w: number, h: number) {
       return y + M.row;
     });
   } else if (app.panel.codexTab === 1) {
-    const list = SPECIES.filter((sp) => found.species.includes(sp.id));
+    // every species: the ones not met yet as dark shapes, so a full codex has a map
+    const got = (sp: SpeciesDef) => found.species.includes(sp.id);
+    const list = [...SPECIES.filter(got), ...SPECIES.filter((sp) => !got(sp))];
+    const notes = (s.story ?? []).includes('notebook');
+    const top = y, bottom = y + h;
     column(u, 'cx-sp', x + 6, y + 6, lw - 8, h - 12, (x, y, w) => {
-      if (!list.length) y += u.para('Species appear here as they arrive in your tanks.', x, y, w, C.textDim);
+      if (!found.species.length) y += u.para('Species appear here as they arrive in your tanks.', x, y, w, C.textDim) + 6;
       for (const sp of list) {
+        const known = got(sp);
+        // (189 rows: only the ones in view are drawn)
+        if (y + M.item < top || y > bottom) {
+          y += M.item;
+          continue;
+        }
         if (u.row(x - 3, y - 2, w + 6, M.item, app.panel.codexSel === sp.id)) app.panel.codexSel = sp.id;
-        u.sprite(creatureFrame(sp.id, 0), x, y, 32, 22);
-        u.text(sp.name, x + 38, y + 4, C.strong, { maxW: w - 40 });
+        silhouette(u.ctx, !known, () => u.sprite(creatureFrame(sp.id, 0), x, y, 32, 22));
+        u.text(known ? sp.name : '?', x + 38, y + 4, known ? C.strong : C.textMute, { maxW: w - 120 });
+        // where it comes from, the way the order list shows it; for one not met yet that is what
+        // Reyes's notebooks add, so it waits for them
+        if (known || notes) u.text(homeChip(sp), x + w, y + 4, C.textDim, { align: 'right', maxW: 76 });
         y += M.item;
       }
       return y;
     });
-    const sp = list.find((q) => q.id === app.panel.codexSel) ?? list[0];
-    if (sp) {
+    const sel = list.find((q) => q.id === app.panel.codexSel);
+    if (sel && !got(sel)) {
+      // not met yet: where to look (from Reyes's notebooks), or a nudge toward them
       column(u, 'cx-spd', dx, y, dw, h, (x, y, w) => {
-        u.panel(x, y, w, 90, 'inset', false);
-        u.sprite(creatureFrame(sp.id, Math.floor(u.time * 3) % 4), x + 4, y + 4, w - 8, 82);
-        y += 98;
+        y += codexPicture(u, sel.id, x, y, w, true) + 8;
+        u.head('Not yet in your codex', x, y, C.head, { maxW: w });
+        y += M.row + 4;
+        y += u.para(notes ? `${sel.name}. ${codexHow(sel)}` : 'Dr. Reyes keeps field notebooks on every animal she has met. Perhaps she would share them.', x, y, w, C.textDim);
+        return y + M.row;
+      });
+    }
+    const sp = sel && got(sel) ? sel : list.find(got);
+    if (sp && (!sel || got(sel))) {
+      column(u, 'cx-spd', dx, y, dw, h, (x, y, w) => {
+        y += codexPicture(u, sp.id, x, y, w, false) + 8;
         u.head(sp.name, x, y, C.head, { maxW: w });
         y += M.row + 2;
         u.text(sp.sci, x, y, C.textDim, { maxW: w });
@@ -156,9 +212,43 @@ function codex(app: App, x: number, y: number, w: number, h: number) {
           u.text(v, x + 70, y, C.strong, { maxW: w - 70 });
           y += M.row;
         }
+        // where it lives in the wild: the biotope tank types ask for these places
+        u.text('Home', x, y, C.textDim);
+        y += u.para(homeLine(sp), x + 70, y, w - 70, C.strong) + 2;
         return y;
       });
     }
+  } else if (app.panel.codexTab === 3) {
+    // the keepsakes every finished story left (the hall's shelf shows as many as its wall has room
+    // for; all of them are here), then the plaques: milestones for filling the codex, and one for
+    // every family of tank types
+    column(u, 'cx-plq', x + 6, y + 6, w - 12, h - 12, (x, y, w) => {
+      const all = CORRESPONDENTS.filter((c) => REQUESTS.some((r) => r.from === c.id && r.keepsake));
+      const earned = [...(s.keepsakes ?? [])].reverse().filter((id) => all.some((c) => c.id === id));
+      u.head(`Keepsakes ${earned.length}/${all.length}`, x, y, C.head, { maxW: w });
+      y += M.row + 4;
+      for (const id of earned) {
+        const who = correspondent(id), what = REQUESTS.find((r) => r.from === id && r.keepsake)?.keepsake ?? 'A keepsake';
+        const fr = importedFrame(`ks:${id}`);
+        if (fr) u.sprite(fr, x, y, 30, 28);
+        u.text(what, x + 38, y + 1, C.strong, { maxW: w - 40 });
+        u.text(`From ${who.name}, at the end of their story`, x + 38, y + 15, C.textDim, { maxW: w - 40 });
+        y += 32;
+      }
+      const left = all.length - earned.length;
+      if (left) y += u.para(earned.length ? `${left} more to come: each correspondent's story ends with one.` : 'Every correspondent\'s story ends with a keepsake for the shop. They are kept here, and stand on the shelf in the hall when the screen has room.', x, y, w, C.textDim);
+      y += 12;
+      u.head('Plaques', x, y, C.head);
+      y += M.row + 4;
+      for (const p of plaques) {
+        const got = (s.milestones ?? []).includes(p.id);
+        u.text(got ? ICON.star : '-', x, y, got ? C.coin : C.textMute);
+        u.text(p.name, x + 16, y, got ? C.strong : C.textDim, { maxW: w - 200 });
+        u.text(p.reward, x + w, y, got ? C.good : C.textMute, { align: 'right', maxW: 180 });
+        y += M.row + 2;
+      }
+      return y;
+    });
   } else {
     column(u, 'cx-sym', x + 6, y + 6, w - 12, h - 12, (x, y, w) => {
       for (const sy of SYMBIOSES) {
@@ -194,7 +284,62 @@ function describe(c: RequestCheck): string {
     case 'night': return 'A moonlit tank with night creatures';
     case 'decor_set': return 'The complete decor set';
     case 'pests_clear': return 'A tank cleared of pest snails';
+    case 'none': return 'Nothing: just read it and reply';
+    case 'no_animals': return `A tank with no animals at all, 3 plants or more, rated ${c.stars} stars`;
+    case 'trips': return `${c.min} expeditions home`;
+    case 'wild': return `${c.min} wild-caught animals on show`;
+    case 'part': return `One tank scoring ${c.min} on ${c.part}`;
+    case 'codex': return `${c.min} ${c.kind === 'archetypes' ? 'tank types' : 'species'} in the codex`;
+    case 'project': return c.id ? `Fund ${PROJECTS.find((p) => p.id === c.id)?.name ?? 'the project'}` : 'Fund a conservation project';
   }
+}
+
+/** the codex plaques: milestones, then one per family of tank types */
+function plaqueList(): { id: string; name: string; reward: string }[] {
+  return [
+    ...CODEX_MILESTONES.map((m) => ({ id: m.id, name: m.name, reward: `${ICON.coin} ${m.coins}  ${ICON.sparkle} ${m.rep}` })),
+    ...FAMILIES.map((f) => {
+      const n = ARCHETYPES.filter((a) => a.family === f).length;
+      return { id: `fam:${f}`, name: `Every ${f} tank (${n})`, reward: `${ICON.sparkle} ${BAL.familyPlaqueRep * n}` };
+    }),
+  ];
+}
+
+/** the tallest picture a codex page gives a creature */
+const CODEX_PIC_H = 136;
+
+/**
+ * The zoom a codex picture draws art of fw x fh at, in a box w x h: 2x, as the tanks show them, or
+ * when that does not fit, the largest zoom that does, however uneven. A whole-number step down
+ * (2x to 1x) drew the 38 cm lionfish (90x84) smaller than the 15 cm discus (50x53) at 2x; this way
+ * bigger art fills the box in the direction it is cut short, so it never comes out smaller than art
+ * that is smaller in both directions.
+ */
+export function codexZoom(fw: number, fh: number, w: number, h: number): number {
+  return Math.min(2, w / fw, h / fh);
+}
+
+/**
+ * A creature's codex picture, on an inset as tall as it needs, at codexZoom (the same 2x for every
+ * species that fits, so the pages keep the sizes the tanks show: fitting each one to the box drew
+ * the 35 cm stingray at 2x and the 80 cm cownose ray beside it at 1x). Returns the height used.
+ */
+function codexPicture(u: UI, sp: string, x: number, y: number, w: number, dark: boolean): number {
+  const fr = creatureFrame(sp, dark ? 0 : Math.floor(u.time * 3) % 4);
+  const z = codexZoom(fr.w, fr.h, w - 8, CODEX_PIC_H);
+  const dw = Math.round(fr.w * z), dh = Math.round(fr.h * z), h = Math.max(48, dh + 8);
+  u.panel(x, y, w, h, 'inset', false);
+  silhouette(u.ctx, dark, () => drawAt(u.ctx, fr, x + Math.floor((w - dw) / 2), y + Math.floor((h - dh) / 2), dw, dh));
+  return h;
+}
+
+/** draw something as a dark shape (an animal not met yet) */
+function silhouette(ctx: CanvasRenderingContext2D, on: boolean, draw: () => void) {
+  if (!on) return draw();
+  const f = ctx.filter;
+  ctx.filter = 'brightness(0) opacity(0.45)';
+  draw();
+  ctx.filter = f;
 }
 
 const STAMPS = ['frond', 'fish', 'lighthouse', 'shell', 'shrimp', 'cichlid', 'ship', 'coral', 'lily'];
@@ -205,10 +350,39 @@ function hashOf(s: string) {
   return h;
 }
 
+/** the room a line beside the stamp leaves it (the postmark reaches 44 px in, then some air), and
+ *  how far down the pair reaches from the letter's top */
+const STAMP_W = 64;
+const STAMP_H = 36;
+
+/**
+ * A stamp, with the postmark over its corner, at the top right of a letter or a postcard. It is
+ * drawn on the sheet inside the scrolling column (right, top: the column's top right corner, as
+ * scrolled), so it scrolls away with the first lines like a real letter would: drawn fixed under
+ * the column, the text scrolled up across it. Returns how far down it reaches (0 without the art);
+ * lines beside it stay STAMP_W short of the edge, and full-width lines start below it.
+ */
+function stamp(u: UI, name: string, right: number, top: number): number {
+  if (!drawIcon(u.ctx, `st:${name}`, right - 28, top - 2, 32)) return 0;
+  drawIcon(u.ctx, 'ui:postmark', right - 46, top + 6, 32, 0.7);
+  return STAMP_H;
+}
+
+/** the letters window's tab (open letters or kept ones) and the kept letter being reread */
+let letterTab = 0;
+let keptSel = '';
+
 function letters(app: App, x: number, y: number, w: number, h: number) {
   const u = app.ui;
   const s = app.state;
   const lw = 230;
+  const kept = Object.entries(s.lettersKept ?? {}).sort((a, b) => b[1].at - a[1].at);
+  if (kept.length) {
+    letterTab = u.tabs('lettab', x, y, [`Open ${s.letters.length}`, `Kept ${kept.length}`], letterTab);
+    y += 26;
+    h -= 26;
+    if (letterTab === 1) return keptLetters(app, kept, x, y, w, h);
+  }
   if (!s.letters.length) {
     const used = u.para('No letters right now. People write when they have something to ask; keep the aquarium open and they will.', x, y, w, C.textDim);
     u.text(`Answered so far: ${s.lettersDone.length}`, x, y + used + 10, C.textMute);
@@ -230,30 +404,80 @@ function letters(app: App, x: number, y: number, w: number, h: number) {
     }
     ly += 44;
   }
-  u.text(`Answered: ${s.lettersDone.length}`, x, y + h - M.line, C.textMute);
+  if (!kept.length) u.text(`Answered: ${s.lettersDone.length}`, x, y + h - M.line, C.textMute);
   const l = s.letters.find((q) => q.id === app.panel.letterSel) ?? s.letters[0];
   const r = request(l.id);
+  paper(app, r, l, x + lw + 14, y, w - lw - 14, h - 40);
+  // a letter not ready yet says what it is waiting for (the same words as the paper's last lines)
+  const bx = x + w - 140, by = y + h - 32;
+  const why = !l.ready && u.hover(bx, by, 126, M.btn + 2) ? [{ text: 'Not ready yet' }, { text: `Wanted: ${describe(r.check)}`, color: C.textDim }, { text: letterProgress(r.check, s, app.game!.stats).text, color: C.textDim }] : undefined;
+  if (u.button('claim', bx, by, 126, M.btn + 2, l.ready ? 'Send reply' : 'Not yet', { style: l.ready ? 'good' : 'paper', disabled: !l.ready, tip: l.ready ? 'Send your reply and collect the reward' : why })) app.run(act.claimLetter(app.game!, l.id));
+}
+
+/** one letter on its stationery: the text, the signature, and what it asks for */
+function paper(app: App, r: RequestDef, l: { vars?: Record<string, string>; met?: boolean; ready?: boolean; answered?: number }, px: number, y: number, pw: number, h: number) {
+  const u = app.ui;
   const who = correspondent(r.from);
-  const px = x + lw + 14, pw = w - lw - 14;
-  u.panel(px, y, pw, h, 'paper', false);
+  u.panel(px, y, pw, h + 40, 'paper', false);
+  // an open letter shows how close the aquarium is (kept letters were answered)
+  const progress = l.ready === false ? letterProgress(r.check, app.state, app.game!.stats) : undefined;
   const ramp = RAMP[who.stationery];
   u.fill(px + 2, y + 2, pw - 4, 6, ramp[ramp.length - 2]);
-  const stamp = STAMPS[hashOf(who.name) % STAMPS.length];
-  const stamped = drawIcon(u.ctx, `st:${stamp}`, px + pw - 46, y + 14, 32);
-  if (stamped) drawIcon(u.ctx, 'ui:postmark', px + pw - 64, y + 22, 32, 0.7);
-  column(u, 'letter', px + 14, y + 18, pw - 24, h - 56, (x, y, w) => {
-    u.head(r.title, x, y, C.paperInk, { maxW: w - (stamped ? 64 : 0) });
-    y += M.row + 6 + (stamped ? 16 : 0);
-    y += u.para(r.text, x, y, w, C.paperInk) + 10;
+  column(u, 'letter', px + 14, y + 18, pw - 24, h - 16, (x, y, w) => {
+    const top = y;
+    const sh = stamp(u, STAMPS[hashOf(who.name) % STAMPS.length], x + w, y);
+    // the title wraps beside the stamp rather than being cut short (beside Ida's note the paper is narrow)
+    const tw = w - (sh ? STAMP_W : 0);
+    const title = wrapText(r.title, tw, 'display');
+    title.forEach((t, i) => u.head(t, x, y + i * M.row, C.paperInk, { maxW: tw }));
+    y = Math.max(y + title.length * M.row + 6, top + sh + 3);
+    y += u.para(letterText(r, l), x, y, w, C.paperInk) + 10;
     u.text(who.signoff, x + w, y, C.paperInk, { align: 'right' });
     y += M.row + 4;
     y += u.para(`(${who.name}: ${who.role})`, x, y, w, 3) + 8;
-    u.text(`Wanted: ${describe(r.check)}`, x, y, l.ready ? 30 : 19, { maxW: w });
-    y += M.row;
-    u.text(`Reward: ${ICON.coin} ${r.reward.coins}   ${ICON.sparkle} ${r.reward.rep}${r.reward.unlock ? '   + a surprise' : ''}`, x, y, C.paperInk, { maxW: w });
-    return y + M.row;
+    // a thank-you or a reply asks for nothing more; a kept letter was answered, and says when
+    if (r.check.t !== 'none' && !l.met) {
+      if (l.ready === undefined) y += u.para(`Answered${l.answered !== undefined ? ` on day ${dayOf(l.answered)}` : ''}: ${describe(r.check)}`, x, y, w, 3) + 2;
+      else {
+        y += u.para(`Wanted: ${describe(r.check)}`, x, y, w, l.ready ? C.good : 19) + 2;
+        // how close the aquarium is, from the tank that comes closest
+        if (progress) y += u.para(progress.text, x, y, w, 3) + 2;
+      }
+    }
+    // (wrapped: beside Ida's note the paper is narrow, and a keepsake makes it long)
+    if (l.ready !== undefined) y += u.para(`Reward: ${ICON.coin} ${r.reward.coins} and ${r.reward.rep} reputation${r.reward.unlock ? ', and a surprise' : ''}${r.keepsake ? ', and a keepsake' : ''}`, x, y, w, C.paperInk) + 2;
+    return y;
   });
-  if (u.button('claim', px + pw - 140, y + h - 32, 126, M.btn + 2, l.ready ? 'Send reply' : 'Not yet', { style: l.ready ? 'good' : 'paper', disabled: !l.ready })) app.run(act.claimLetter(app.game!, l.id));
+  // the codex page that explains how
+  if (progress?.codex && u.button('lhow', px + 14, y + h + 8, 70, M.btn + 2, 'How?', { style: 'paper', tip: 'Open the codex where it says how' })) {
+    app.window = 'codex';
+    app.panel.codexTab = progress.codex.tab;
+    if (progress.codex.sel) app.panel.codexSel = progress.codex.sel;
+  }
+}
+
+/** letters already answered, newest first, to read again */
+function keptLetters(app: App, kept: [string, { at: number; vars: Record<string, string>; met?: boolean }][], x: number, y: number, w: number, h: number) {
+  const u = app.ui;
+  const lw = 230;
+  u.panel(x, y, lw, h, 'inset', false);
+  column(u, 'kept', x + 4, y + 4, lw - 8, h - 8, (x, y, w) => {
+    for (const [id, k] of kept) {
+      const r = request(id);
+      const who = correspondent(r.from);
+      if (u.row(x - 2, y - 1, w + 4, 36, keptSel === id || (!keptSel && id === kept[0][0]))) keptSel = id;
+      const ramp = RAMP[who.stationery];
+      u.rr(x + 2, y + 3, 5, 28, 2, ramp[ramp.length - 2]);
+      u.text(who.name, x + 12, y + 2, C.strong, { maxW: w - 70 });
+      // (one answered before letters were kept, in a save from before 0.3, has no day: at 0)
+      if (k.at > 0) u.text(`day ${dayOf(k.at)}`, x + w, y + 2, C.textMute, { align: 'right' });
+      u.text(r.title, x + 12, y + 18, C.textDim, { maxW: w - 14 });
+      y += 38;
+    }
+    return y;
+  });
+  const sel = kept.find(([id]) => id === keptSel) ?? kept[0];
+  paper(app, request(sel[0]), { vars: sel[1].vars, met: sel[1].met, answered: sel[1].at > 0 ? sel[1].at : undefined }, x + lw + 14, y, w - lw - 14, h - 40);
 }
 
 // ---------------------------------------------------------------- expeditions
@@ -268,13 +492,14 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
     const reg = REGIONS.find((r) => r.id === back.region)!;
     u.panel(x, y, w, h, 'paper', false);
     u.fill(x + 2, y + 2, w - 4, 6, 40);
-    const stamped = drawIcon(u.ctx, `st:${STAMPS[hashOf(reg.id) % STAMPS.length]}`, x + w - 46, y + 14, 32);
-    if (stamped) drawIcon(u.ctx, 'ui:postmark', x + w - 64, y + 22, 32, 0.7);
     column(u, 'postcard', x + 16, y + 18, w - 32, h - 56, (x, y, w) => {
+      const top = y;
+      const sh = stamp(u, STAMPS[hashOf(reg.id) % STAMPS.length], x + w, y);
+      // the picture stays left of the stamp; the words start below whichever is taller
       const ph = drawPicture(u.ctx, `pc:${reg.id}`, x, y, Math.min(w - 70, 300), 180);
       if (ph) y += ph + 10;
-      u.head(`A postcard from the ${reg.name}`, x, y, C.paperInk, { maxW: w - (ph ? 0 : 64) });
-      y += M.row + 6;
+      u.head(`A postcard from the ${reg.name}`, x, y, C.paperInk, { maxW: w - (y < top + sh ? STAMP_W : 0) });
+      y = Math.max(y + M.row + 6, top + sh + 3);
       y += u.para(back.postcard ?? '', x, y, w, C.paperInk) + 10;
       u.text('Fair winds, Wren', x + w, y, C.paperInk, { align: 'right' });
       y += M.row + 6;
@@ -283,7 +508,7 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
       for (const f of back.finds!) {
         if (f.kind === 'species') {
           u.sprite(creatureFrame(f.id, 0), x, y, 32, 22);
-          u.text(`${f.n} x ${species(f.id).name} (to holding)`, x + 38, y + 4, C.paperInk, { maxW: w - 40 });
+          u.text(`${f.n} x ${species(f.id).name} (to holding)${f.first ? '  new!' : ''}`, x + 38, y + 4, C.paperInk, { maxW: w - 40 });
         } else {
           u.sprite(itemFrame(f.id, 1, 1, 0), x, y, 32, 22);
           u.text(`${item(f.id).name} (to storage)`, x + 38, y + 4, C.paperInk, { maxW: w - 40 });
@@ -310,11 +535,15 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
   const lw = Math.floor(w * 0.45);
   u.panel(x, top, lw, listH, 'inset', false);
   const regions = REGIONS.filter((r) => r.expedition.tier <= s.tier + 1);
+  // regions holding an animal an open letter asks for get a letter mark
+  const wanted = new Set(s.letters.map((l) => request(l.id).check).flatMap((c) => (c.t === 'species' ? species(c.id).regions : [])));
   column(u, 'regions', x + 6, top + 6, lw - 8, listH - 12, (x, y, w) => {
     for (const r of regions) {
       const locked = r.expedition.tier > s.tier;
       if (u.row(x - 3, y - 1, w + 6, M.row, app.panel.tripSel === r.id)) app.panel.tripSel = r.id;
-      u.text(r.name, x, y, locked ? C.textMute : C.strong, { maxW: w - 64 });
+      const mark = wanted.has(r.id as RegionId) ? 16 : 0;
+      if (mark) u.text(ICON.letter, x, y, C.accent);
+      u.text(r.name, x + mark, y, locked ? C.textMute : C.strong, { maxW: w - 64 - mark });
       u.text(`${ICON.coin} ${r.expedition.cost}`, x + w, y, locked ? C.textMute : C.gold, { align: 'right' });
       y += M.row;
     }
@@ -339,6 +568,31 @@ function trips(app: App, x: number, y: number, w: number, h: number) {
     y += M.row + 4;
     y += u.para(`A faithful biotope: ${r.scape}`, x, y, w, C.textDim) + 8;
     u.text(`${expeditionHours(s, r.id as RegionId).toFixed(1)} game hours away`, x, y, C.textDim);
+    y += M.row;
+    const fresh = freshness(s, r.id as RegionId);
+    if (fresh < 1) {
+      y += u.para(`Fished lately: the nets would come up ${Math.round((1 - fresh) * 100)}% lighter. It recovers in a few days.`, x, y, w, C.warn);
+    }
+    y += 6;
+    // what the crew can bring back: dark shapes for animals not in the codex yet, a star for
+    // finds no supplier sells
+    const { animals, items } = catchable(s, r.id as RegionId);
+    u.head('What the nets might bring', x, y);
+    y += M.row + 2;
+    for (const sp of animals) {
+      const known = s.codex.species.includes(sp.id);
+      silhouette(u.ctx, !known, () => u.sprite(creatureFrame(sp.id, 0), x, y, 32, 22));
+      const only = !orderable(s, sp);
+      u.text(`${known ? sp.name : 'Not in your codex yet'}${only ? `  ${ICON.star}` : ''}`, x + 38, y + 4, known ? C.strong : C.textDim, { maxW: w - 40 });
+      y += M.item;
+    }
+    for (const it of items) {
+      u.sprite(itemFrame(it.id, 1, 1, 0), x, y, 32, 22);
+      const only = it.source === 'expedition' && !s.unlocked.items.includes(it.id);
+      u.text(`${it.name}${only ? `  ${ICON.star}` : ''}`, x + 38, y + 4, C.strong, { maxW: w - 40 });
+      y += M.item;
+    }
+    y += u.para(`${ICON.star} not sold by the supplier: only a trip brings it home.`, x, y + 2, w, C.textMute);
     return y + M.row;
   });
   if (why) u.para(why, dx, top + listH - whyH, dw - 190, C.warn);
@@ -354,9 +608,10 @@ const TRACKS: { id: UpgradeTrack; label: string }[] = [
 function upgrades(app: App, x: number, y: number, w: number, h: number) {
   const u = app.ui;
   const s = app.state;
-  app.panel.upgradeTab = u.tabs('uptab', x, y, TRACKS.map((t) => t.label), app.panel.upgradeTab);
+  app.panel.upgradeTab = u.tabs('uptab', x, y, [...TRACKS.map((t) => t.label), 'Projects'], app.panel.upgradeTab);
   y += 26;
   h -= 26;
+  if (app.panel.upgradeTab >= TRACKS.length) return projects(app, x, y, w, h);
   const track = TRACKS[app.panel.upgradeTab].id;
   column(u, 'ups', x, y, w, h, (x, y, w) => {
     for (const up of UPGRADES.filter((q) => q.track === track)) {
@@ -368,9 +623,43 @@ function upgrades(app: App, x: number, y: number, w: number, h: number) {
       const text = next ? next.text : up.levels[up.levels.length - 1].text;
       u.text(text, x + 10, y + 23, next ? C.textDim : C.good, { maxW: w - 160 });
       if (next) {
-        const locked = next.tier > s.tier;
-        if (u.button(`up${up.id}`, x + w - 138, y + 12, 128, M.btn + 2, locked ? 'Locked' : `${ICON.coin} ${next.cost}`, { style: locked ? 'flat' : 'good', disabled: locked || s.coins < next.cost, tip: locked ? `Needs the ${TIERS[next.tier].name} tier` : next.text })) app.run(act.buyUpgrade(app.game!, up.id));
+        const locked = next.tier > s.tier, short = s.coins < next.cost;
+        const tip = locked ? `Needs the ${TIERS[next.tier].name} tier` : short ? [{ text: `Not enough coins: ${next.cost} needed` }, { text: next.text, color: C.textDim }] : next.text;
+        if (u.button(`up${up.id}`, x + w - 138, y + 12, 128, M.btn + 2, locked ? 'Locked' : `${ICON.coin} ${next.cost}`, { style: locked ? 'flat' : 'good', disabled: locked || short, tip })) app.run(act.buyUpgrade(app.game!, up.id));
       } else u.text('Done', x + w - 14, y + 15, C.good, { align: 'right' });
+      y += ch + 6;
+    }
+    return y;
+  });
+}
+
+/** conservation and breeding projects: fund one again and again, for more each time */
+function projects(app: App, x: number, y: number, w: number, h: number) {
+  const u = app.ui;
+  const s = app.state;
+  column(u, 'projects', x, y, w, h, (x, y, w) => {
+    y += u.para('Put the takings to work outside the walls. Every project can be funded again for a little more; each funding earns reputation and brings a few more visitors (up to three times each).', x, y, w, C.textDim) + 8;
+    for (const p of PROJECTS) {
+      const n = funded(s, p.id);
+      const locked = p.tier > s.tier;
+      const text = n ? `"${projectLine(p, n)}"` : p.blurb;
+      const tw = w - 166;
+      const ch = Math.max(52, 26 + u.paraHeight(text, tw) + 6);
+      // an inset card, drawn by hand: the list scrolls, and a card half out of view is clipped
+      // (the audit cuts text to the scroll area, but not panels)
+      u.rr(x, y, w, ch, 3, C.panelLo, 0.55);
+      u.fill(x + 3, y, w - 6, 1, C.panelLo);
+      const ramp = RAMP[correspondent(p.from).stationery];
+      u.rr(x + 4, y + 5, 4, ch - 10, 2, ramp[ramp.length - 2]);
+      u.text(`${p.name}${n ? `  funded ${n}x` : ''}`, x + 14, y + 5, C.strong, { maxW: tw });
+      u.para(text, x + 14, y + 23, tw, n ? C.good : C.textDim);
+      const cost = projectCost(s, p);
+      const why = canFund(s, p);
+      const what = `Fund it: +${projectRep(s, p)} reputation${p.effect.unlock ? `, and ${species(p.effect.unlock).name} for the supplier's list` : ''}`;
+      // a greyed-out button says why first (the tier, or the coins short), then what it would do
+      const tip = locked ? `Opens at the ${TIERS[p.tier].name} tier` : why ? [{ text: s.coins < cost ? `Not enough coins: ${cost} needed` : why }, { text: what, color: C.textDim }] : what;
+      if (u.button(`fund${p.id}`, x + w - 138, y + 8, 128, M.btn + 2, locked ? 'Locked' : `${ICON.coin} ${cost}`, { style: locked ? 'flat' : 'good', disabled: !!why, tip })) app.run(fundProject(app.game!, p.id));
+      if (!locked) u.text(`${ICON.sparkle} +${projectRep(s, p)}`, x + w - 74, y + 12 + M.btn, C.accent, { align: 'center' });
       y += ch + 6;
     }
     return y;
@@ -388,7 +677,8 @@ function guestbook(app: App, x: number, y: number, w: number, h: number) {
     for (const e of s.guestbook) {
       const t = s.tanks.find((q) => q.id === e.tank);
       y += u.para(`"${e.text}"`, x, y, w, C.paperInk);
-      u.text(`${e.who}${t ? `, at ${t.name}` : ''}, day ${dayOf(e.time)}`, x + w, y, 3, { align: 'right', maxW: w });
+      // (no comma after "first visit!")
+      u.text(`${e.who}${t ? `${/[!?]$/.test(e.who) ? '' : ','} at ${t.name}` : ''}, day ${dayOf(e.time)}`, x + w, y, 3, { align: 'right', maxW: w });
       y += M.row + 8;
     }
     return y;
@@ -424,6 +714,8 @@ function menuGame(app: App, x: number, y: number, w: number): number {
     app.window = null;
     app.playScene('intro', true);
   }
+  y += M.btn + 6;
+  if (u.button('whatsnew', x, y, w, M.btn, "What's new", { tip: 'What changed in each update' })) app.window = 'news';
   y += M.btn + 10;
   if (u.button('savenow', x, y, hw, M.btn, 'Save')) {
     app.save();
@@ -469,9 +761,9 @@ function menuGame(app: App, x: number, y: number, w: number): number {
       app.startNew();
     } else app.panel.confirmNew = 1;
   }
-  if (!u.hover(x, y, w, M.btn)) app.panel.confirmNew = 0;
+  if (u.disarmed(x, y, w, M.btn)) app.panel.confirmNew = 0;
   y += M.btn + 12;
-  y += u.para('Keys: 1-6 modes, Space pause, F feed, H hall, V watch, [ ] tanks, Q W E depth, Esc. On a touchscreen: pinch to zoom, two fingers to pan, hold for help.', x, y, w, C.textDim);
+  y += u.para('Keys: 1-6 modes, Space pause, F feed, H hall, V watch, [ ] or Tab tanks, Q W E depth, R / Shift+R tilt, Esc. On a touchscreen: pinch to zoom, two fingers to pan, hold for help.', x, y, w, C.textDim);
   return y;
 }
 
@@ -518,17 +810,35 @@ function menuSettings(app: App, x: number, y: number, w: number): number {
 
 // ---------------------------------------------------------------- new tank
 
+/** the size Ida would start someone on: a 20 gallon long for the window, a 10 gallon for the rack */
+const suggestedShell = (app: App) => (app.newTankBay >= BAL.rackBay ? 'std_10' : 'std_20l');
+
+/** the size the new-tank window shows: the one picked, else the suggested one */
+export function pickedShell(app: App): ShellDef {
+  const shells = shellsForSale(app.state);
+  return shells.find((q) => q.id === app.panel.shellSel) ?? shells.find((q) => q.id === suggestedShell(app)) ?? shells[0];
+}
+
+/** u.time when the new-tank window was last drawn, to tell when it has just opened */
+let newTankDrawn = -1;
+
 function newTank(app: App, x: number, y: number, w: number, h: number) {
   const u = app.ui;
   const s = app.state;
+  // while Ida's tour runs, each time the window opens it starts on the size her note recommends
+  if (newTankDrawn < u.time - u.dt - 1e-4 && tourShowing(app)) app.panel.shellSel = suggestedShell(app);
+  newTankDrawn = u.time;
   const shells = shellsForSale(s);
+  const cur = pickedShell(app);
   const lw = Math.floor(w * 0.5);
   u.panel(x, y, lw, h, 'inset', false);
   u.mark('shells', x, y, lw, h);
   column(u, 'shells', x + 6, y + 6, lw - 8, h - 12, (x, y, w) => {
     for (const sh of shells) {
       const rh = M.line * 2 + 6;
-      if (u.row(x - 3, y - 2, w + 6, rh, app.panel.shellSel === sh.id)) app.panel.shellSel = sh.id;
+      // (every row is marked, so the tour can point at one size)
+      u.mark(`shell:${sh.id}`, x - 3, y - 2, w + 6, rh);
+      if (u.row(x - 3, y - 2, w + 6, rh, sh === cur)) app.panel.shellSel = sh.id;
       u.text(sh.name, x, y, C.strong, { maxW: w - 70 });
       u.text(`${sh.gal ? `${sh.gal} gal, ` : `${Math.round(sh.liters / 3.785)} gal, `}${sh.liters} L, ${sh.cm[0]}x${sh.cm[1]}x${sh.cm[2]} cm`, x, y + M.line, C.textDim, { maxW: w - 70 });
       u.text(`${ICON.coin} ${shellPrice(s, sh)}`, x + w, y, C.gold, { align: 'right' });
@@ -536,7 +846,7 @@ function newTank(app: App, x: number, y: number, w: number, h: number) {
     }
     return y;
   });
-  const sh = shells.find((q) => q.id === app.panel.shellSel) ?? shells[0];
+  const sh = pickedShell(app);
   const dx = x + lw + 14, dw = w - lw - 14;
   let dy = y;
   u.head(sh.name, dx, dy, C.head, { maxW: dw });
@@ -555,14 +865,18 @@ function newTank(app: App, x: number, y: number, w: number, h: number) {
   for (const wt of ['fresh', 'brackish', 'marine'] as Water[]) {
     const ok = waters.includes(wt);
     const bw = Math.floor((dw - 6) / 3);
-    if (u.button(`water${wt}`, bx, dy, bw, M.btn, wt, { active: app.panel.waterSel === wt, disabled: !ok, style: 'flat', tip: ok ? undefined : wt === 'brackish' ? 'Brackish opens at the Aquarium Store tier' : 'Saltwater opens at the Town Aquarium tier' })) app.panel.waterSel = wt;
+    // why a water is greyed out: this tank does not take it, else the tier has not opened it yet
+    const opens = TIERS.findIndex((_, i) => watersAvailable({ ...s, tier: i }).includes(wt));
+    const why = ok ? undefined : sh.water && !sh.water.includes(wt) ? `The ${sh.name} only takes ${sh.water.join(' or ')} water`
+      : `${wt === 'brackish' ? 'Brackish' : 'Saltwater'} opens at the ${TIERS[Math.max(0, opens)].name} tier`;
+    if (u.button(`water${wt}`, bx, dy, bw, M.btn, wt, { active: app.panel.waterSel === wt, disabled: !ok, style: 'flat', tip: why })) app.panel.waterSel = wt;
     bx += bw + 3;
   }
   dy += M.btn + 10;
   const cost = shellPrice(s, sh);
   const rack = app.newTankBay >= BAL.rackBay;
   u.para(rack ? 'A stock tank for the back room. Breed fish and grow plants in it; customers buy the healthy adults (above the breeders you keep) and the cuttings.' : 'It arrives filled and empty. Add a filter, let the nitrogen cycle establish, then scape and stock it.', dx, dy, dw, rack ? C.accent : C.textDim);
-  if (u.button('build', dx, y + h - M.btn - 4, dw, M.btn + 4, `Build for ${ICON.coin}${cost}`, { style: 'good', disabled: s.coins < cost })) {
+  if (u.button('build', dx, y + h - M.btn - 4, dw, M.btn + 4, `Build for ${ICON.coin}${cost}`, { style: 'good', disabled: s.coins < cost, tip: s.coins < cost ? `Not enough coins: ${cost} needed` : undefined })) {
     const msg = act.buildTank(app.game!, app.newTankBay, sh.id, app.panel.waterSel);
     if (msg) app.toast(msg, 'bad');
     else {

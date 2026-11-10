@@ -11,8 +11,8 @@ const marine = ['marine'] as ItemDef['water'];
 export const ROCKS: ItemDef[] = [
   {
     id: 'seiryu_stone', name: 'Seiryu Stone', cat: 'rock', water: freshBrack, price: 18, tier: 0, w: 40, h: 30, place: 'ground', shape: 'veined',
-    colors: ['slate', 'pearl'], fx: { ph: 0.3, gh: 1.5, kh: 1.5 }, tags: ['stone', 'buffer'],
-    blurb: 'Blue-grey stone laced with white calcite. The Iwagumi classic, but it slowly hardens the water: keep it away from soft-water shrimp.',
+    colors: ['slate', 'pearl'], fx: { ph: 0.15, gh: 0.7, kh: 0.7 }, tags: ['stone', 'buffer'],
+    blurb: 'Blue-grey stone laced with white calcite. The Iwagumi classic, but it slowly hardens the water a little: keep it away from soft-water shrimp.',
   },
   {
     id: 'dragon_stone', name: 'Dragon Stone (Ohko)', cat: 'rock', water: all, price: 16, tier: 0, w: 36, h: 28, place: 'ground', shape: 'holey',
@@ -61,8 +61,8 @@ export const ROCKS: ItemDef[] = [
   },
   {
     id: 'frodo_stone', name: 'Frodo Stone', cat: 'rock', water: fresh, price: 16, tier: 1, w: 34, h: 26, place: 'ground', shape: 'boulder',
-    colors: ['brown', 'gold_sand'], tags: ['stone'],
-    blurb: 'Smooth brown stone with gentle lines, an inert alternative to Seiryu for soft-water Iwagumi.',
+    colors: ['brown', 'gold_sand'], tags: ['stone'], source: 'expedition',
+    blurb: 'Smooth brown stone with gentle lines, an inert alternative to Seiryu for soft-water Iwagumi. No shop sells it: the Driftwood Club keeps a pile.',
   },
   {
     id: 'petrified_wood', name: 'Petrified Wood', cat: 'rock', water: all, price: 22, tier: 1, w: 30, h: 30, place: 'ground', shape: 'banded',
@@ -76,7 +76,7 @@ export const ROCKS: ItemDef[] = [
   },
   {
     id: 'pale_volcanic', name: 'Pale Volcanic Rock', cat: 'rock', water: fresh, price: 18, tier: 2, w: 32, h: 24, place: 'ground', shape: 'porous',
-    colors: ['pearl', 'taupe'], regions: ['sulawesi'], tags: ['stone', 'cave'],
+    colors: ['pearl', 'taupe'], regions: ['sulawesi'], tags: ['stone', 'cave'], source: 'expedition',
     blurb: 'Light, porous rock like the iron-stained shores of the Malili Lakes, home of cardinal shrimp.',
   },
   {
@@ -119,8 +119,8 @@ export const ROCKS: ItemDef[] = [
 export const WOODS: ItemDef[] = [
   {
     id: 'spider_wood', name: 'Spider Wood', cat: 'wood', water: freshBrack, price: 16, tier: 0, w: 46, h: 44, place: 'ground', shape: 'twiggy',
-    colors: ['pale_wood'], fx: { tannin: 0.25, ph: -0.1 }, tags: ['floats', 'biofilm', 'epiphyte_mount', 'moss_tree'],
-    blurb: 'Azalea root with a hundred thin twisting branches. It floats until soaked and grows a harmless white biofilm the first weeks, which shrimp love.',
+    colors: ['pale_wood'], fx: { tannin: 0.12, ph: -0.05 }, tags: ['floats', 'biofilm', 'epiphyte_mount', 'moss_tree'],
+    blurb: 'Azalea root with a hundred thin twisting branches. It floats until soaked, tints the water only faintly and grows a harmless white biofilm the first weeks, which shrimp love.',
   },
   {
     id: 'manzanita', name: 'Manzanita', cat: 'wood', water: freshBrack, price: 18, tier: 0, w: 44, h: 46, place: 'ground', shape: 'branchy',
@@ -164,7 +164,7 @@ export const WOODS: ItemDef[] = [
   },
   {
     id: 'mangrove_root', name: 'Mangrove Roots', cat: 'wood', water: freshBrack, price: 22, tier: 2, w: 54, h: 60, place: 'ground', shape: 'arch',
-    colors: ['wood', 'black'], regions: ['mangrove'], fx: { tannin: 0.2 }, tags: ['hitch', 'cave'],
+    colors: ['wood', 'black'], regions: ['mangrove'], fx: { tannin: 0.2 }, tags: ['hitch', 'cave'], source: 'expedition',
     blurb: 'Arching prop roots rising out of the water: the architecture of every estuary.',
   },
   {

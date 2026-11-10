@@ -243,6 +243,15 @@ export function drawFit(ctx: CanvasRenderingContext2D, fr: Frame, x: number, y: 
   ctx.imageSmoothingEnabled = smooth;
 }
 
+/** a frame drawn dw x dh with its top-left at x, y, at any zoom (a fraction too): nearest neighbour
+ *  from 1x up, smoothed below it (drawFit keeps to whole-number zooms) */
+export function drawAt(ctx: CanvasRenderingContext2D, fr: Frame, x: number, y: number, dw: number, dh: number) {
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = dw < fr.w;
+  ctx.drawImage(fr.img, fr.sx, fr.sy, fr.w, fr.h, Math.round(x), Math.round(y), Math.round(dw), Math.round(dh));
+  ctx.imageSmoothingEnabled = smooth;
+}
+
 export function clearSpriteCache() {
   cache.clear();
 }

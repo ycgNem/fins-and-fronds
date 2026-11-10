@@ -8,6 +8,7 @@
 //   murmur   visitors talking, rising with traffic (closed at night)
 //   rain     on the street window on rainy days
 // plus scheduled one-shots: airstone and sponge-filter bubbles, rain drips and the shop's door bell.
+// The mix is built quiet and lifted as a whole on the master bus, through a gentle limiter.
 
 export type Sfx = 'click' | 'coin' | 'place' | 'splash' | 'bubble' | 'letter' | 'chime' | 'error' | 'scrape' | 'feed' | 'door' | 'fry';
 
@@ -36,6 +37,12 @@ interface Layer {
   level: number;
 }
 
+/** The layers are mixed far below full scale (ambience around -45 dBFS, effects peaking near
+ *  -25), about 20 dB under most web audio, so players turned the system up and other apps then
+ *  blared. The master lifts it all by 12 dB (14 with the limiter's own makeup), keeping the mix,
+ *  and the limiter only catches the loudest moments, when several effects land at once. */
+const MAKEUP = 4;
+
 export class Audio {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -46,6 +53,9 @@ export class Audio {
   private layers = new Map<string, Layer>();
   /** seconds until the next scheduled one-shot of each kind */
   private next = { bubble: 1, drip: 0.5, door: 8 };
+  /** when each effect last started: the same one twice in a blink plays once (a refused purchase
+   *  sounds its error from the game and from the button) */
+  private last = new Map<Sfx, number>();
   volume = 0.6;
   ambience = 0.7;
 
@@ -60,7 +70,13 @@ export class Audio {
       this.ctx = ctx;
       this.master = ctx.createGain();
       this.master.gain.value = this.volume;
-      this.master.connect(ctx.destination);
+      const limiter = ctx.createDynamicsCompressor();
+      limiter.threshold.value = -4;
+      limiter.knee.value = 2;
+      limiter.ratio.value = 20;
+      limiter.attack.value = 0.002;
+      limiter.release.value = 0.2;
+      this.master.connect(gainOf(ctx, MAKEUP)).connect(limiter).connect(ctx.destination);
       this.sfxBus = ctx.createGain();
       this.sfxBus.connect(this.master);
       this.ambBus = ctx.createGain();
@@ -95,7 +111,8 @@ export class Audio {
     this.fade('trickle', 0.2 * trickle * n * quiet);
     this.fade('hum', 0.06 * scene.hum * (0.5 + 0.5 * n));
     this.fade('surge', 0.09 * scene.surge * n);
-    this.fade('murmur', scene.night ? 0 : 0.35 * Math.sqrt(scene.crowd));
+    // the visitors' chatter is the hall's sound: at a tank's glass it steps back behind its filter
+    this.fade('murmur', scene.night ? 0 : 0.35 * Math.sqrt(scene.crowd) * (1.3 - 0.8 * n));
     this.fade('rain', 0.05 * scene.rain);
     // one-shots
     const rate = {
@@ -167,19 +184,21 @@ export class Audio {
       lfo(ctx, 0.11, 250).connect(f.frequency);
       add('surge', chain(this.loop(this.brown!), f, swell));
     }
-    // murmur: three wandering formant bands over noise, chopped into syllables
+    // murmur: three wandering formant bands over noise, chopped into syllables. Like the trickle,
+    // all of it drifts at random over loops of odd lengths (two fixed LFOs at 3.7 and 5.3 Hz lined up
+    // again every ten seconds, and the chatter was heard to repeat)
     {
       const mix = ctx.createGain();
       const src = this.loop(this.white!);
-      for (const [hz, rate] of [[520, 0.41], [1150, 0.63], [2300, 0.29]] as const) {
+      for (const [hz, secs, rate] of [[520, 19.3, 0.4], [1150, 23.9, 0.6], [2300, 31.1, 0.3]] as const) {
         const f = biquad(ctx, 'bandpass', hz, 4);
-        lfo(ctx, rate, hz * 0.3).connect(f.frequency);
+        this.loop(drift(ctx, secs, rate)).connect(gainOf(ctx, hz * 0.3)).connect(f.frequency);
         src.connect(f).connect(mix);
       }
       const syll = ctx.createGain();
       syll.gain.value = 0.6;
-      lfo(ctx, 3.7, 0.3).connect(syll.gain);
-      lfo(ctx, 5.3, 0.2).connect(syll.gain);
+      this.loop(drift(ctx, 7.3, 5)).connect(gainOf(ctx, 0.3)).connect(syll.gain);
+      this.loop(drift(ctx, 11.9, 3)).connect(gainOf(ctx, 0.2)).connect(syll.gain);
       add('murmur', chain(mix, biquad(ctx, 'lowpass', 2600, 0.7), syll));
     }
     // rain: a hiss on the glass
@@ -248,6 +267,10 @@ export class Audio {
     const ctx = this.ctx;
     if (!ctx || !this.sfxBus) return;
     const t = ctx.currentTime;
+    if (!ambient) {
+      if (t - (this.last.get(s) ?? -1) < 0.06) return;
+      this.last.set(s, t);
+    }
     const out = ambient ? this.ambBus! : this.sfxBus;
     switch (s) {
       case 'click':

@@ -1,0 +1,16 @@
+{
+  "sheet": "keepsakes",
+  "clean": true,
+  "sprites": {
+    "ks:ida": "art/raw/keepsakes/ida.png",
+    "ks:reyes": "art/raw/keepsakes/reyes.png",
+    "ks:okafor": "art/raw/keepsakes/okafor.png",
+    "ks:driftwood": "art/raw/keepsakes/driftwood.png",
+    "ks:wren": "art/raw/keepsakes/wren.png",
+    "ks:tomas": "art/raw/keepsakes/tomas.png",
+    "ks:nwosu": "art/raw/keepsakes/nwosu.png",
+    "ks:junie": "art/raw/keepsakes/junie.png",
+    "ks:abe": { "src": "art/raw/keepsakes/abe.png", "crop": [0, 1, 28, 27] },
+    "ks:pip": "art/raw/keepsakes/pip.png"
+  }
+}

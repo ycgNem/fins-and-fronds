@@ -1,7 +1,7 @@
 {
   "name": "fins-and-fronds",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "A cozy pixel-art aquarium tycoon: build every kind of real aquarium, from Iwagumi scapes to kelp towers.",
   "author": "jacksonwalley",

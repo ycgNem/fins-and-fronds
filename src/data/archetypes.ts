@@ -321,7 +321,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     rules: [
       H(fresh, 'The Rio Negro is freshwater.'),
       H({ t: 'region', ids: ['rio_negro'], frac: 0.8 }, 'Stock fish from the Rio Negro.'),
-      H({ t: 'tannin', min: 0.3 }, 'Stain the water: driftwood, leaves or peat.'),
+      H({ t: 'tannin', min: 0.3 }, 'Stain the water: tannin-rich wood, leaf litter, peat or blackwater.'),
       S({ t: 'ph', max: 6.5 }, 'Soft, acidic water (pH 6.5 or less).', 2),
       S({ t: 'items', tag: 'leaf_litter', min: 1 }, 'A bed of leaf litter.'),
       S({ t: 'items', cat: 'wood', min: 1 }, 'Roots and branches.'),
@@ -381,7 +381,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     real: 'Peat swamps of Borneo and Sumatra are extremely soft and acidic (pH 4-6), stained amber. Few plants survive besides Cryptocoryne.',
     rules: [
       H({ t: 'region', ids: ['se_asia_peat'], frac: 0.8 }, 'Stock fish from the peat swamps.'),
-      H({ t: 'tannin', min: 0.3 }, 'Stain the water amber.'),
+      H({ t: 'tannin', min: 0.3 }, 'Stain the water amber: catappa leaves, peat or blackwater.'),
       S({ t: 'ph', max: 6 }, 'Very acidic (pH 6 or less).', 2),
       S({ t: 'plants', kinds: ['crypt', 'rosette'], min: 1 }, 'Cryptocorynes.'),
       S({ t: 'items', tag: 'leaf_litter', min: 1 }, 'Catappa leaves.'),
@@ -466,7 +466,7 @@ export const ARCHETYPES: ArchetypeDef[] = [
     ],
   },
   {
-    id: 'goldfish', name: 'Fancy Goldfish Display', family: 'Coldwater', priority: 7, tier: 0, appeal: 1.2,
+    id: 'goldfish', name: 'Fancy Goldfish Display', family: 'Coldwater', priority: 7, tier: 1, appeal: 1.2,
     blurb: 'Orandas and comets in a big, cool, well-aerated tank with sturdy plants.',
     real: 'Goldfish produce a lot of waste and grow large; they thrive at 18-22 C with strong filtration, big water changes, soft sand and plants they cannot destroy (Anubias, Java fern).',
     rules: [
@@ -734,12 +734,14 @@ export const ARCHETYPES: ArchetypeDef[] = [
   },
   {
     id: 'shark_lagoon', name: 'Shark & Ray Lagoon', family: 'Public Exhibit', priority: 9, tier: 4, appeal: 1.6,
-    blurb: 'Sharks gliding over open sand.',
-    real: 'Shark exhibits need wide swimming space, smooth walls and sand; small bottom-dwelling sharks breed readily in aquaria.',
+    blurb: 'Sharks and rays gliding over open sand.',
+    real: 'Shark and ray exhibits need wide swimming space, smooth walls and sand; small bottom-dwelling sharks breed readily in aquaria, and cownose rays are the stars of shallow touch lagoons.',
     rules: [
-      H({ t: 'has', ids: ['bamboo_shark', 'leopard_shark', 'chain_catshark'], min: 1 }, 'Keep a shark.'),
+      H({ t: 'has', ids: ['bamboo_shark', 'leopard_shark', 'chain_catshark', 'blue_spotted_stingray', 'cownose_ray'], min: 1 }, 'Keep sharks or rays.'),
       H({ t: 'liters', min: 2000 }, 'A big tank (2,000 L+).'),
       S({ t: 'substrate', grains: ['sand', 'fine_sand'] }, 'Sand to rest on.'),
+      S({ t: 'has', ids: ['bamboo_shark', 'leopard_shark', 'chain_catshark'], min: 1 }, 'A shark or two.'),
+      S({ t: 'has', ids: ['blue_spotted_stingray', 'cownose_ray'], min: 1 }, 'Rays gliding over the sand.'),
     ],
   },
   {

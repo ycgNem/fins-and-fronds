@@ -2,7 +2,7 @@
 // oxygen) multiplied by a weighted average of soft ones (school size, space, tankmates, habitat
 // needs, food). Individual health drifts toward the mood. Gentle mode never lets an animal die.
 import { item, species, SYMBIOSES } from '../data';
-import type { Need, Range, SpeciesDef } from '../data/types';
+import type { Kind, Need, Range, SpeciesDef } from '../data/types';
 import { BAL } from './balance';
 import type { Facts } from './facts';
 import type { Tank } from './state';
@@ -74,7 +74,7 @@ function needMet(n: Need, s: SpeciesDef, t: Tank, f: Facts): boolean {
     case 'floating': return f.floatCover > 0.08;
     case 'mussel': return f.bySpecies.has('swan_mussel');
     case 'kreisel': return f.geom.shell.tags.includes('kreisel');
-    case 'chill': return ch.temp <= s.temp[1];
+    case 'chill': return ch.temp <= s.temp[1] + BAL.tempTol;
     case 'soft_water': return ch.gh <= 6;
     case 'hard_water': return ch.gh >= 10;
     case 'moss': return (f.plantKinds.get('moss') ?? 0) >= 1;
@@ -95,10 +95,35 @@ export function hunts(o: SpeciesDef, s: SpeciesDef): boolean {
   return eatsFish || eatsInvert || isPreySnail(s, o);
 }
 
+/** bottom crawlers live on the glass, rock and sand and take little of the water */
+const CRAWLERS = new Set<Kind>(['shrimp', 'snail', 'crab', 'star', 'urchin', 'slug', 'isopod', 'bivalve']);
+
+/** Centimeters of animal in the tank, the old rule of thumb for crowding (the report card uses it
+ *  too, src/sim/rating.ts): crawlers count BAL.crawlerRoom of their length, fry a third until they
+ *  grow, or in full with `grown` (what the tank will hold once they do). */
+export function stockCm(t: Tank, grown = false): number {
+  let cm = 0;
+  for (const a of t.animals) {
+    const s = species(a.sp);
+    cm += s.cm * (CRAWLERS.has(s.kind) ? BAL.crawlerRoom : 1) * (a.fry && !grown ? 0.3 : 1);
+  }
+  return cm;
+}
+
+/** how much the fish want feeding, 1 (fed) to 0.6 (hungry), easing in from BAL.peckishH */
+export function fedFactor(hours: number): number {
+  return 1 - 0.4 * Math.max(0, Math.min(1, (hours - BAL.peckishH) / (BAL.hungryH - BAL.peckishH)));
+}
+
 export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, SpeciesMood> {
   const out = new Map<string, SpeciesMood>();
   const ch = t.chem;
   const present = [...f.bySpecies.keys()].map((id) => species(id));
+  // fry grow up beside their parents before they count as rivals
+  const grownUp = new Map<string, number>();
+  for (const a of t.animals) if (!a.fry) grownUp.set(a.sp, (grownUp.get(a.sp) ?? 0) + 1);
+  const crowd = stockCm(t) / Math.max(1, f.liters);
+  const hungryH = ctx.hungryH ?? (ctx.fedRecently ? 0 : BAL.hungryH);
   for (const s of present) {
     const n = f.bySpecies.get(s.id) ?? 0;
     const reasons: Reason[] = [];
@@ -108,12 +133,13 @@ export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, Speci
     let hard = 1;
     const okWater =
       s.water === t.water ||
-      (s.tags.includes('brackish_ok') && ((s.water === 'fresh' && t.water === 'brackish' && ch.sg <= 1.006) || (s.water === 'brackish' && t.water === 'fresh')));
+      (s.tags.includes('brackish_ok') && ((s.water === 'fresh' && t.water === 'brackish' && ch.sg <= (s.sg ? s.sg[1] + 0.006 : 1.006)) || (s.water === 'brackish' && t.water === 'fresh')));
     if (!okWater) {
       hard *= 0.1;
       bad(`needs ${s.water} water`);
     }
-    const tf = fit(ch.temp, s.temp, 4);
+    // a thermostat set on the species' limit counts as inside it (the display rounds to 0.1 C)
+    const tf = fit(ch.temp, [s.temp[0] - BAL.tempTol, s.temp[1] + BAL.tempTol], 4);
     if (tf < 1) bad(ch.temp < s.temp[0] ? 'too cold' : 'too warm');
     const pf = fit(ch.ph, s.ph, 0.8);
     if (pf < 1) bad(ch.ph < s.ph[0] ? 'water too acidic' : 'water too alkaline');
@@ -158,9 +184,14 @@ export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, Speci
         bad(`only ${n} of a group of ${s.school}+`);
       }
     }
-    if (s.max && n > s.max) {
+    if (s.max && (grownUp.get(s.id) ?? 0) > s.max) {
       add(0.5);
       bad('too many of its own kind');
+    }
+    // fish feel a crowded tank (shrimp, snails and crabs hardly notice)
+    if (crowd > BAL.crowdCm && (s.kind === 'fish' || s.kind === 'cephalopod' || s.kind === 'amphibian')) {
+      add(Math.max(0.35, 1 - (crowd - BAL.crowdCm) * 0.5), 1.5);
+      bad('crowded: too many animals for the water');
     }
     if (f.liters < s.minL) {
       add(Math.max(0.3, Math.pow(f.liters / s.minL, 0.6)), 1.5);
@@ -206,12 +237,13 @@ export function speciesMoods(t: Tank, f: Facts, ctx: MoodCtx): Map<string, Speci
       if (needMet(need, s, t, f)) continue;
       const sev = need === 'kreisel' ? 0.15 : need === 'land' && s.tags.includes('amphibious') ? 0.4 : need === 'host' ? 0.9 : 0.75;
       add(sev);
-      bad(NEED_TEXT[need]);
+      bad(need === 'lid' && s.tags.includes('jumper') ? 'could jump out without a lid' : need === 'lid' && s.tags.includes('escape_artist') ? 'could climb out without a lid' : NEED_TEXT[need]);
     }
-    // food
-    if (!ctx.fedRecently) {
-      add(0.6, 1.5);
-      bad('hungry');
+    // food: hunger eases in a day after a feeding, so once a day is fine and twice is best
+    const fed = fedFactor(hungryH);
+    if (fed < 1) {
+      add(fed, 1.5);
+      bad(hungryH < 30 ? 'ready for the next feeding' : 'hungry');
     }
     if (!ctx.fedRecently && s.diet.length === 1 && s.diet[0] === 'algae' && ch.algae < 0.05 && ch.glass < 0.08) {
       add(0.8);

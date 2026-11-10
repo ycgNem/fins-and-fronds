@@ -15,6 +15,7 @@ import { itemBase } from '../sim/actions';
 import { type Geom, geom, groundY } from '../sim/facts';
 import type { TankStats } from '../sim/Game';
 import type { Tank } from '../sim/state';
+import { tanninLook } from '../sim/water';
 import { type Agent, Agents, BURIED, type Cave, type SceneCtx } from './agents';
 import { bayer, ctx2d, makeCanvas, Pix, shadeOf } from './art/pix';
 import { creatureFrame, creatureLength, drawFrame, type Frame, importedFrame, itemFrame, placedFrame, turnedFrame } from './art/sprites';
@@ -38,6 +39,31 @@ function silhouetteOf(fr: Frame): Frame {
   s = { img: cv, sx: 0, sy: 0, w: fr.w, h: fr.h, ax: fr.ax, ay: fr.ay };
   silhouettes.set(fr, s);
   return s;
+}
+
+/** a pest snail: a 4 px shell with a dark rim and a pale glint, so it reads on any water */
+function snail(c: CanvasRenderingContext2D, x: number, y: number, shell: number) {
+  c.fillStyle = rgba(1, 1);
+  c.fillRect(x + 1, y, 2, 1);
+  c.fillRect(x, y + 1, 1, 2);
+  c.fillRect(x + 3, y + 1, 1, 2);
+  c.fillRect(x + 1, y + 3, 3, 1);
+  c.fillStyle = rgba(shell, 1);
+  c.fillRect(x + 1, y + 1, 2, 2);
+  c.fillStyle = rgba(4, 1);
+  c.fillRect(x + 1, y + 1, 1, 1);
+}
+
+/** soft living light as a pixel dither (a solid core, a checkered rim), not a smooth disc */
+function glowDither(c: CanvasRenderingContext2D, x: number, y: number, r: number, a: number) {
+  c.fillStyle = `rgba(140,255,230,${a.toFixed(3)})`;
+  for (let dy = -r; dy <= r; dy++) {
+    for (let dx = -r; dx <= r; dx++) {
+      const d = dx * dx + dy * dy;
+      if (d > r * r || (d > (r * r) / 4 && (dx + dy) & 1)) continue;
+      c.fillRect(x + dx, y + dy, 1, 1);
+    }
+  }
 }
 
 /** backdrop gradient (top to bottom), the far silhouette tone and the depth haze tone */
@@ -85,8 +111,8 @@ export function waterLook(t: Tank, st?: TankStats): WaterLook {
     return st && st.facts.coralTotal > 0 ? 'reef' : 'lagoon';
   }
   if (t.water === 'brackish') return 'brackish';
-  if (t.chem.tannin > 0.3) return 'blackwater';
-  if (t.chem.tannin > 0.15) return 'amber';
+  const tea = tanninLook(t.chem.tannin);
+  if (tea !== 'clear') return tea;
   if (top === 'lake_malawi' || top === 'lake_tanganyika') return 'rift';
   if (top === 'mexico_karst') return 'cave';
   if (top === 'temperate_na' || top === 'temperate_eu' || top === 'east_asia') return 'cold';
@@ -107,6 +133,31 @@ interface Rect {
   y: number;
   w: number;
   h: number;
+  /** the frame drawn there (hit tests read its pixels), mirrored or not */
+  f: Frame;
+  flip: boolean;
+  /** when it is painted, in the order draw() goes: layer L at 2L + 1, the land at 6, the surface at 7 */
+  slot: number;
+}
+
+/** each frame's opaque pixels, for hit tests (frames are cached, so this is built once per frame) */
+const masks = new WeakMap<object, Map<string, Uint8Array>>();
+
+function maskOf(f: Frame): Uint8Array {
+  let byImg = masks.get(f.img as object);
+  if (!byImg) masks.set(f.img as object, (byImg = new Map()));
+  const key = `${f.sx},${f.sy},${f.w},${f.h}`;
+  let m = byImg.get(key);
+  if (!m) {
+    const c = makeCanvas(f.w, f.h);
+    const cx = ctx2d(c);
+    cx.drawImage(f.img, f.sx, f.sy, f.w, f.h, 0, 0, f.w, f.h);
+    const px = cx.getImageData(0, 0, f.w, f.h).data;
+    m = new Uint8Array(f.w * f.h);
+    for (let i = 0; i < m.length; i++) m[i] = px[i * 4 + 3] > 40 ? 1 : 0;
+    byImg.set(key, m);
+  }
+  return m;
 }
 
 export interface DrawOpts {
@@ -174,9 +225,12 @@ export class TankView {
     this.glassCanvas = makeCanvas(this.g.w, this.g.h);
     // start the films where the sim says they are, patchy rather than even
     for (let i = 0; i < this.glassCells.length; i++) this.glassCells[i] = Math.min(1, t.chem.glass * (0.4 + hash2(i, 1, t.id) * 1.2));
+    // (prints sit in the band at nose and hand height, about 55% of the rows, at 0.75 on average:
+    // seeded at this rate they add up to the saved smudge level, so a reload shows what was there)
+    const printed = t.smudge / (0.55 * 0.75 * SMUDGE_GAIN);
     for (let i = 0; i < this.smudgeCells.length; i++) {
       const y = Math.floor(i / this.sw) / this.sh;
-      this.smudgeCells[i] = y > 0.3 && y < 0.85 && hash2(i, 2, t.id) < t.smudge * 0.3 ? 0.5 + hash2(i, 3, t.id) * 0.5 : 0;
+      this.smudgeCells[i] = y > 0.3 && y < 0.85 && hash2(i, 2, t.id) < printed ? 0.5 + hash2(i, 3, t.id) * 0.5 : 0;
     }
   }
 
@@ -219,9 +273,11 @@ export class TankView {
     const target = t.chem.glass;
     const m = this.mean(this.glassCells);
     if (m < target - 0.01) {
-      for (let k = 0; k < 3; k++) {
+      // a little at a time in many places: a long frame (a busy machine, a tab coming back) spreads
+      // its growth over more cells rather than filling a few into solid squares
+      for (let k = Math.max(1, Math.round(dt * 180)); k > 0; k--) {
         const i = Math.floor(this.rng.next() * this.glassCells.length);
-        this.glassCells[i] = Math.min(1, this.glassCells[i] + dt * 3);
+        this.glassCells[i] = Math.min(1, this.glassCells[i] + 0.05);
       }
       this.glassDirty = true;
     } else if (m > target + 0.03) {
@@ -267,7 +323,8 @@ export class TankView {
           d[i] = 230;
           d[i + 1] = 236;
           d[i + 2] = 240;
-          d[i + 3] = Math.max(d[i + 3], (nose ? 14 : 20) * s + 8);
+          // (strong enough to see at a glance, and for the cloth to have something to wipe)
+          d[i + 3] = Math.max(d[i + 3], (nose ? 40 : 60) * s + 40);
         }
       }
     }
@@ -479,6 +536,66 @@ export class TankView {
       if (m.x > wx) m.x = 0;
       if (m.x < 0) m.x = wx;
     }
+  }
+
+  // ---------------------------------------------------------------- hit tests
+
+  /** The front-most piece with a drawn pixel within r of (x, y) in tank pixels (a tilted log is
+   *  picked by its wood, not by the water in its box); keep can pass over some pieces. */
+  itemAt(x: number, y: number, r = 1, keep?: (uid: number, slot: number) => boolean): number | undefined {
+    for (let i = this.itemRects.length - 1; i >= 0; i--) {
+      const q = this.itemRects[i];
+      const x0 = Math.round(q.x), y0 = Math.round(q.y);
+      if (x < x0 - r || y < y0 - r || x >= x0 + q.w + r || y >= y0 + q.h + r) continue;
+      if (keep && !keep(q.uid, q.slot)) continue;
+      const m = maskOf(q.f);
+      const cx = Math.floor(x) - x0, cy = Math.floor(y) - y0;
+      let hit = false;
+      for (let dy = -r; dy <= r && !hit; dy++) {
+        const py = cy + dy;
+        if (py < 0 || py >= q.h) continue;
+        for (let dx = -r; dx <= r; dx++) {
+          const px = cx + dx;
+          if (px < 0 || px >= q.w) continue;
+          if (m[py * q.w + (q.flip ? q.w - 1 - px : px)]) {
+            hit = true;
+            break;
+          }
+        }
+      }
+      if (hit) return q.uid;
+    }
+    return undefined;
+  }
+
+  /** where a creature is painted among the pieces, in itemRects' slots: in a den just before its
+   *  den's layer, a swimmer just after the layer of its depth band, then the land, then the glass */
+  private agentSlot(a: Agent): number {
+    if (a.mode === 'glass') return 8;
+    if (a.mode === 'land') return 6.5;
+    const den = a.inDen > 0.5 ? this.itemRects.find((q) => q.uid === a.den) : undefined;
+    if (den) return den.slot - 0.5;
+    const band = a.mode === 'bottom' ? a.layer : a.z < 0.34 ? 0 : a.z < 0.67 ? 1 : 2;
+    return band * 2 + 1.5;
+  }
+
+  /** The creature under a point (tank pixels), the front-most by how they are painted, unless a
+   *  piece painted over it covers that very pixel (a neon behind a front stone stays behind it). */
+  agentAt(x: number, y: number): Agent | null {
+    let best: Agent | null = null, slot = -1;
+    for (const a of this.agents.list) {
+      // the same generous box as Agents.pick, so small fish stay easy to click
+      const hw = Math.max(4, a.len / 2 + 1), hh = Math.max(3, a.len * 0.3);
+      if (Math.abs(x - a.x) > hw || Math.abs(y - a.y) > hh) continue;
+      const s = this.agentSlot(a);
+      if (s >= slot) {
+        best = a;
+        slot = s;
+      }
+    }
+    if (!best) return null;
+    const cover = this.itemAt(x, y, 0, (_uid, s) => s > slot);
+    return cover === undefined ? best : null;
   }
 
   // ---------------------------------------------------------------- draw
@@ -821,7 +938,8 @@ export class TankView {
     }
     drawFrame(c, f, base.x, by, p.flip);
     const rx = base.x - f.ax, ry = by - f.ay;
-    this.itemRects.push({ uid: p.uid, x: rx, y: ry, w: f.w, h: f.h });
+    const slot = it.place === 'surface' || it.place === 'hang' ? 7 : it.place === 'land' ? 6 : p.layer * 2 + 1;
+    this.itemRects.push({ uid: p.uid, x: rx, y: ry, w: f.w, h: f.h, f, flip: p.flip, slot });
     // algae dusting on hard surfaces when the tank is out of balance
     if (t.chem.algae > 0.3 && (it.cat === 'rock' || it.cat === 'wood' || it.cat === 'decor')) {
       c.fillStyle = rgba(31, Math.min(0.6, (t.chem.algae - 0.3) * 1.2));
@@ -846,8 +964,19 @@ export class TankView {
   }
 
   private bracket(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col: number) {
-    c.fillStyle = rgba(col, 1);
-    const k = 3, x1 = Math.round(x) - 1, y1 = Math.round(y) - 1, x2 = Math.round(x + w), y2 = Math.round(y + h);
+    // the selected one (gold) gets a dark shadow and a slow pulse to white, so it stays visible on
+    // tea-colored or green water; hover and the ghost keep the plain thin corners
+    if (col === 18) {
+      this.corners(c, x + 1, y + 1, w, h, 0, 4, 0.7);
+      this.corners(c, x, y, w, h, Math.sin(this.time * 5) > 0 ? 18 : 9, 4, 1);
+      return;
+    }
+    this.corners(c, x, y, w, h, col, 3, 1);
+  }
+
+  private corners(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col: number, k: number, a: number) {
+    c.fillStyle = rgba(col, a);
+    const x1 = Math.round(x) - 1, y1 = Math.round(y) - 1, x2 = Math.round(x + w), y2 = Math.round(y + h);
     c.fillRect(x1, y1, k, 1);
     c.fillRect(x1, y1, 1, k);
     c.fillRect(x2 - k + 1, y1, k, 1);
@@ -978,17 +1107,13 @@ export class TankView {
         if (i % 3 === 0) continue;
         const x = (hash2(i, t.id, 1) * Math.min(this.g.w, this.g.landX) + this.time * 0.4 * (hash2(i, 2, 3) - 0.5)) % this.g.w;
         const y = this.g.surface + 6 + hash2(i, t.id, 2) * (this.g.h - this.g.surface - 20) + Math.sin(this.time * 0.05 + i) * 4;
-        c.fillStyle = rgba(i % 2 ? 3 : 20, 1);
-        c.fillRect(Math.round(x), Math.round(y), 2, 2);
-        c.fillStyle = rgba(4, 1);
-        c.fillRect(Math.round(x), Math.round(y), 1, 1);
+        snail(c, Math.round(x), Math.round(y), i % 2 ? 3 : 20);
       }
     } else {
       for (let i = 0; i < n; i += 3) {
         const x = Math.floor(hash2(i, t.id, 5) * Math.min(this.g.w, this.g.landX));
         const y = groundY(t, this.g, x, 2);
-        c.fillStyle = rgba(3, 1);
-        c.fillRect(x, y - 2, 2, 2);
+        snail(c, x, y - 4, 3);
       }
       // aiptasia and bubble algae on the rock
       const rocks = t.items.filter((p) => item(p.id).cat === 'rock');
@@ -1037,16 +1162,18 @@ export class TankView {
     if (moon && night) a = 0.48;
     c.fillStyle = moon && night ? `rgba(18,28,80,${a})` : `rgba(12,10,32,${a})`;
     c.fillRect(0, 0, w, h);
-    // glowing things shine through the dark: lanternfish, flashlight fish, fluorescent corals
+    // living light shines through the dark: flashlight fish, pinecone fish, fluorescent corals.
+    // Neons and cardinals only reflect light (their stripe dims at night), so they stay dark.
+    // A glow in front of the scape redraws the animal; one further back is only its light, so it
+    // never jumps in front of the stones; one in a den stays hidden.
     for (const ag of this.agents.list) {
-      const s = ag.def;
-      if (!s.tags.includes('glow') && !s.tags.includes('bioluminescent')) continue;
+      if (!ag.def.tags.includes('bioluminescent') || ag.inDen > 0.5 || ag.mode === 'burrow') continue;
       const pulse = 0.5 + 0.5 * Math.sin(this.time * 2 + ag.uid);
-      c.fillStyle = `rgba(140,255,230,${(0.12 + pulse * 0.12).toFixed(3)})`;
-      c.beginPath();
-      c.arc(ag.x, ag.y, 3 + ag.len * 0.25, 0, Math.PI * 2);
-      c.fill();
-      drawFrame(c, creatureFrame(ag.sp, Math.floor(ag.phase) % 4, ag.len), ag.x, ag.y, ag.face < 0, 0.75);
+      const front = ag.mode === 'glass' || (ag.mode === 'bottom' ? ag.layer === 2 : ag.z >= 0.67);
+      const depth = ag.mode === 'swim' || ag.mode === 'perch' || ag.mode === 'drift' ? 0.8 + 0.2 * ag.z : 1;
+      const len = Math.max(3, Math.round(ag.len * depth));
+      glowDither(c, Math.round(ag.x), Math.round(ag.y), Math.round(2 + len * 0.3), (front ? 0.3 : 0.2) + pulse * 0.15);
+      if (front) drawFrame(c, creatureFrame(ag.sp, Math.floor(ag.phase) % 4, len), ag.x, ag.y, ag.face < 0, 0.75);
     }
     if (moon) for (const p of t.items) {
       const it = item(p.id);

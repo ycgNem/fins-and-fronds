@@ -14,11 +14,14 @@ TypeScript (strict) + Vite, one Canvas 2D, no engine.
 - Double-click `Play.bat`, or
 - `npm install` then `npm run dev` and open http://localhost:5180
 
-Controls: mouse for everything. Keys: `1`-`6` tank modes, `Space` pause, `F` feed, `H` hall,
-`V` watch a tank full screen, `[` `]` switch tanks, `Q` `W` `E` depth layer while placing,
-`R` / `Shift+R` tilt a rock or wood (while placing it, or once it is selected), right-drag to pan a zoomed tank, mouse wheel to zoom, `Esc` cancel / menu. Touch: tap, pinch to
-zoom, two fingers to pan, hold for help. The menu has a larger interface and colorblind-safe
-colors.
+Controls: mouse for everything. Keys: `1`-`6` tank modes, `Space` pause (and resume your last
+speed), `F` feed the tank on screen, `H` hall, `V` watch a tank full screen, `[` `]` or `Tab` /
+`Shift+Tab` switch tanks, `Q` `W` `E` depth layer while placing, `R` / `Shift+R` tilt a rock or
+wood (while placing it, or once it is selected), right-drag to pan a zoomed tank, mouse wheel to
+zoom, `Esc` cancel / menu. Click the Closed sign in the top bar to sleep until opening time.
+Touch: tap, hold for help, drag a list to scroll, pinch to zoom, two fingers to pan; watch mode
+has a Back button; hold a phone sideways. The menu has a larger interface, colorblind-safe
+colors and What's new (the patch notes, also in [CHANGELOG.md](CHANGELOG.md)).
 
 ## Scripts
 
@@ -39,8 +42,8 @@ colors.
 
 | Path | What |
 |---|---|
-| `src/data/` | all content as typed records: species, plants, corals, hardscape, substrates, shells, equipment, regions, tank types, progression, guestbook |
-| `src/sim/` | the headless simulation: water chemistry, wellbeing, tank-type recognition, rating, life, visitors, upkeep, sales, letters, expeditions, saves, player actions; every tuning number in `balance.ts` |
+| `src/data/` | all content as typed records: species, plants, corals, hardscape, substrates, shells, equipment, regions, tank types, progression, guestbook, patch notes |
+| `src/sim/` | the headless simulation: water chemistry, wellbeing, tank-type recognition, rating, life, visitors, upkeep, sales, letters, expeditions, the week, conservation projects, the report card's ideas, saves, player actions; every tuning number in `balance.ts` |
 | `src/render/` | the tank view, creature behavior, procedural sprite generators, sprite cache |
 | `src/ui/` | immediate-mode UI: HUD and hall, mode panels, windows, title, cutscenes, Ida's tour |
 | `src/app/` | the app shell: input routing, camera, events, autosave |
@@ -56,4 +59,4 @@ colors.
 [PLAN.md](PLAN.md) milestones and status · [DESIGN.md](DESIGN.md) pillars and systems ·
 [RESEARCH.md](RESEARCH.md) the aquarium research behind the content · [STYLE.md](STYLE.md)
 art bible · [art/README.md](art/README.md) art pipeline · [DECISIONS.md](DECISIONS.md) ·
-[PROGRESS.md](PROGRESS.md)
+[PROGRESS.md](PROGRESS.md) · [CHANGELOG.md](CHANGELOG.md) patch notes

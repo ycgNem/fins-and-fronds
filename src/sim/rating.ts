@@ -2,10 +2,12 @@
 //   wellbeing (happy, healthy animals), habitat (clean, stable water and fitting gear),
 //   scape (composition), authenticity (how true it is to its archetype) and spectacle (appeal).
 import { item, species, SYMBIOSES } from '../data';
+import type { ArchetypeDef } from '../data/types';
 import type { Classification } from './archetype';
-import { type Facts, itemArea, parAt, turnedH } from './facts';
+import { BAL } from './balance';
+import { type Facts, itemArea, parAt, plantPar, turnedH } from './facts';
 import type { Tank } from './state';
-import { partnerPresent, type SpeciesMood } from './wellbeing';
+import { partnerPresent, type SpeciesMood, stockCm } from './wellbeing';
 
 export interface RatingParts {
   wellbeing: number;
@@ -21,6 +23,8 @@ export interface Rating {
   parts: RatingParts;
   /** the most useful thing to fix, per part */
   notes: Partial<Record<keyof RatingParts, string>>;
+  /** every habitat problem, the most pressing first (notes.habitat is the first) */
+  habitatIssues: string[];
 }
 
 export const PART_NAMES: Record<keyof RatingParts, string> = {
@@ -49,14 +53,17 @@ export function rate(t: Tank, f: Facts, moods: Map<string, SpeciesMood>, cls: Cl
 
   // ---- habitat
   let habitat = 100;
-  const pen = (v: number, note: string) => {
+  // the advice names the worst problem; anything that harms the animals (toxins, no filter, no
+  // air) outranks the cosmetic ones, so poisoned water never says "scrape the glass"
+  const issues: { v: number; note: string; urgent: boolean }[] = [];
+  const pen = (v: number, note: string, urgent = false) => {
     if (v > 0.5) {
       habitat -= v;
-      if (!notes.habitat || v > 8) notes.habitat = note;
+      issues.push({ v, note, urgent: urgent && v > 2 });
     }
   };
-  pen(Math.min(40, Math.max(0, ch.nh3 - 0.02) * 80), 'Ammonia is present: is the tank cycled?');
-  pen(Math.min(30, Math.max(0, ch.no2 - 0.02) * 60), 'Nitrite is present: the cycle is not finished.');
+  pen(Math.min(40, Math.max(0, ch.nh3 - 0.02) * 80), 'Ammonia is present: is the tank cycled?', true);
+  pen(Math.min(30, Math.max(0, ch.no2 - 0.02) * 60), 'Nitrite is present: the cycle is not finished.', true);
   pen(Math.min(30, Math.max(0, ch.no3 - 15) * 1.2), 'Nitrate is building up: change some water.');
   pen(ch.cloud * 30, 'The water is cloudy.');
   pen(ch.algae * 30, 'Algae is spreading on the scape.');
@@ -66,17 +73,16 @@ export function rate(t: Tank, f: Facts, moods: Map<string, SpeciesMood>, cls: Cl
   const load = f.bioload / Math.max(0.5, f.bioCap);
   pen(Math.max(0, load - 1) * 40, 'Overstocked for the filter.');
   // crowding, by the old rule of thumb of about a centimeter of fish per liter
-  let bodyCm = 0;
-  for (const a of t.animals) bodyCm += species(a.sp).cm * (a.fry ? 0.3 : 1);
+  const bodyCm = stockCm(t);
   pen(Math.min(40, Math.max(0, bodyCm / Math.max(1, f.liters) - 1.3) * 30), 'Overcrowded: sell, rehome or move some.');
-  pen(Math.max(0, 5 - ch.o2) * 10, 'Oxygen is low: add aeration.');
-  if (t.animals.length && f.bioCap <= 0) pen(30, 'No filter!');
+  pen(Math.max(0, 5 - ch.o2) * 10, 'Oxygen is low: add aeration.', true);
+  if (t.animals.length && f.bioCap <= 0) pen(30, 'No filter!', true);
   let lightMiss = 0;
   for (const p of t.items) {
     const it = item(p.id);
     if (it.plant && !it.plant.emersed) {
       const need = it.plant.light === 1 ? 20 : it.plant.light === 2 ? 50 : 100;
-      if (f.par < need * 0.7) lightMiss++;
+      if (plantPar(f, p) < need * 0.7) lightMiss++;
     }
     if (it.coral && !it.coral.fed) {
       const par = parAt(f, f.geom.h - p.y - 10);
@@ -85,9 +91,12 @@ export function rate(t: Tank, f: Facts, moods: Map<string, SpeciesMood>, cls: Cl
   }
   pen(Math.min(20, lightMiss * 4), 'Some plants or corals want different light.');
   habitat = clamp(habitat);
+  issues.sort((a, b) => Number(b.urgent) - Number(a.urgent) || b.v - a.v);
+  const habitatIssues = issues.map((q) => q.note);
+  if (habitatIssues.length) notes.habitat = habitatIssues[0];
 
   // ---- scape
-  const sc = scapeScore(t, f);
+  const sc = scapeScore(t, f, cls.matches.map((m) => m.def));
   const scape = clamp(sc.score + (cls.best ? 8 : 0));
   if (sc.note) notes.scape = sc.note;
 
@@ -96,7 +105,8 @@ export function rate(t: Tank, f: Facts, moods: Map<string, SpeciesMood>, cls: Cl
   const prestige = cls.best ? 0.5 + Math.min(10, cls.best.def.priority) / 20 : 0;
   const authenticity = cls.best ? clamp((20 + cls.best.score * 80) * prestige) : 0;
   if (cls.best && cls.best.hints.length) notes.authenticity = cls.best.hints[0];
-  else if (!cls.best) notes.authenticity = cls.near[0] ? `Close to ${cls.near[0].def.name}: ${cls.near[0].hints[0]}` : 'Build toward a recognized tank type.';
+  // (said the way the report card's Ideas name a near miss, so the same advice is never listed twice)
+  else if (!cls.best) notes.authenticity = cls.near[0] ? `${cls.near[0].def.name}: ${cls.near[0].hints[0]}` : 'Build toward a recognized tank type.';
 
   // ---- spectacle
   let spectacle = 0;
@@ -125,7 +135,7 @@ export function rate(t: Tank, f: Facts, moods: Map<string, SpeciesMood>, cls: Cl
   let total = 0;
   for (const k of Object.keys(W) as (keyof RatingParts)[]) total += parts[k] * W[k];
   if (t.animals.length === 0 && t.items.length === 0) total = 0;
-  return { total, stars: starsFor(total), parts, notes };
+  return { total, stars: starsFor(total), parts, notes, habitatIssues };
 }
 
 export function starsFor(total: number): number {
@@ -137,8 +147,36 @@ function avg(xs: number[]): number {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
 
-/** Composition: fill, layering, focal point, variety, slope, open water, tidiness. */
-export function scapeScore(t: Tank, f: Facts): { score: number; note?: string } {
+/** A scape the Driftwood Club will judge: built from at least BAL.judgedPieces stones, roots,
+ *  plants or corals, with something living in it. Open blue water rates high where its tank type
+ *  wants it (a kreisel, the ocean window), but there is no scape in it to judge. */
+export function judgedScape(t: Tank): boolean {
+  const pieces = t.items.filter((p) => JUDGED.has(item(p.id).cat)).length;
+  return pieces >= BAL.judgedPieces && (t.animals.length > 0 || t.items.some((p) => item(p.id).plant));
+}
+
+const JUDGED = new Set(['rock', 'wood', 'plant', 'coral', 'botanical']);
+
+/** The most items a tank may hold and still count as open water: a kreisel holds none, and a
+ *  recognized type that asks for (almost) nothing in the water says how much. */
+function openWaterMax(f: Facts, types: ArchetypeDef[]): number | undefined {
+  if (f.geom.shell.tags.includes('kreisel')) return 0;
+  let most: number | undefined;
+  for (const a of types) for (const { rule } of a.rules) {
+    if (rule.t === 'items' && !rule.cat && !rule.tag && !rule.ids && rule.max !== undefined) most = Math.max(most ?? 0, rule.max);
+  }
+  return most;
+}
+
+/** Composition: fill, layering, focal point, variety, slope, open water, tidiness. The types the
+ *  tank is recognized as have their say: empty blue water is the whole scape of a kreisel or an
+ *  open-ocean tank, and a treasure tank is meant to hold ornaments. */
+export function scapeScore(t: Tank, f: Facts, types: ArchetypeDef[] = []): { score: number; note?: string } {
+  const open = openWaterMax(f, types);
+  if (open !== undefined && t.items.length <= open) {
+    const murk = Math.max(t.chem.glass, t.chem.cloud, t.chem.algae * 0.5);
+    return { score: 75 + 25 * (1 - murk), note: murk > 0.3 ? 'Open water is the whole view: keep the glass and the water spotless.' : undefined };
+  }
   if (!t.items.length) return { score: 10, note: 'Add stones, wood or plants.' };
   const g = f.geom;
   const waterArea = g.w * (g.h - g.surface);
@@ -197,7 +235,8 @@ export function scapeScore(t: Tank, f: Facts): { score: number; note?: string } 
   score += ph.length ? avg(ph.map((p) => p.health)) * 12 : 6;
   if (ph.length && avg(ph.map((p) => p.health)) < 0.6 && !note) note = 'The plants look unhappy: check light, CO2 and nutrients.';
   score += Math.min(8, f.plantSpecies * 1.5);
-  score -= Math.max(0, whimsy - 2) * 8;
+  const ornamental = types.some((a) => a.rules.some(({ rule }) => rule.t === 'items' && rule.tag === 'whimsy' && (rule.min ?? 0) > 0));
+  if (!ornamental) score -= Math.max(0, whimsy - 2) * 8;
   score -= overgrown * 3;
   if (overgrown > 1 && !note) note = 'Some plants are overgrown: trim them.';
   return { score: Math.max(0, Math.min(100, score)), note };

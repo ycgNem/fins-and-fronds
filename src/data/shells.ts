@@ -88,8 +88,8 @@ export const SHELLS: ShellDef[] = [
     blurb: 'An open tank with planters hanging on the rim: emersed plants above, their roots and fish below.',
   },
   {
-    id: 'mangrove_100', name: 'Mangrove Shelf', liters: 150, cm: [100, 50, 50], w: 360, h: 180, shape: 'paludarium', tags: ['land', 'open_top'], land: 0.35, fill: 0.55,
-    water: ['brackish', 'fresh'], price: 260, tier: 2,
+    id: 'mangrove_100', name: 'Mangrove Shelf', liters: 440, cm: [150, 60, 55], w: 360, h: 180, shape: 'paludarium', tags: ['land', 'open_top'], land: 0.35, fill: 0.55,
+    water: ['brackish', 'fresh'], price: 480, tier: 2,
     blurb: 'A low tidal tank with a mudflat shelf and an open top for mangrove leaves, archerfish shots and mudskipper displays.',
   },
   {
@@ -110,6 +110,11 @@ export const SHELLS: ShellDef[] = [
     id: 'touch_pool', name: 'Touch Pool', liters: 1500, cm: [240, 120, 40], w: 700, h: 110, shape: 'pool', tags: ['open_top', 'touch', 'shallow', 'exhibit'],
     water: ['marine'], price: 1800, tier: 3,
     blurb: 'A shallow cold pool at hand height where visitors may gently touch sea stars, urchins and anemones with two fingers.',
+  },
+  {
+    id: 'ray_lagoon', name: 'Ray Lagoon', liters: 12000, cm: [600, 400, 60], w: 760, h: 150, shape: 'pool', tags: ['open_top', 'shallow', 'exhibit'], water: ['marine'],
+    price: 7000, tier: 4,
+    blurb: "A wide, waist-high lagoon of warm water over a deep sand floor: rays glide past at arm's length and small sharks rest on the sand.",
   },
   {
     id: 'kelp_tower', name: 'Kelp Tower', liters: 30000, cm: [400, 300, 850], w: 460, h: 420, shape: 'tower', tags: ['tall', 'exhibit'], water: ['marine'],

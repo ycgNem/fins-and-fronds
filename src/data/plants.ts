@@ -155,7 +155,7 @@ export const PLANTS: ItemDef[] = [
   pl({ id: 'bolbitis', name: 'Bolbitis', shape: 'fern', colors: ['green'], w: 18, h: 22, regions: ['west_africa'], tier: 1,
     plant: { kind: 'fern', light: 2, co2: 1, growth: 1, temp: warm, epiphyte: true },
     blurb: 'African water fern with translucent, finely cut fronds that love a steady current.' }),
-  pl({ id: 'bucephalandra', name: 'Bucephalandra', shape: 'anubias', colors: ['olive', 'purple'], w: 8, h: 8, regions: ['se_asia_peat'], price: 16, tier: 1,
+  pl({ id: 'bucephalandra', name: 'Bucephalandra', shape: 'anubias', colors: ['olive', 'purple'], w: 8, h: 8, regions: ['se_asia_peat'], price: 16, tier: 1, source: 'expedition',
     plant: { kind: 'epiphyte', light: 1, co2: 0, growth: 1, temp: warm, epiphyte: true },
     blurb: 'Collectible rheophytes from Borneo streams with iridescent blue-green leaves that sparkle under light.' }),
   // ---------------------------------------------------------------- mosses and balls
